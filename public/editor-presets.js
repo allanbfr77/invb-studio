@@ -1,0 +1,28 @@
+/* Presets do editor "Baixar corte": 48 templates prontos (10 categorias), ganchos de texto e idiomas.
+   Nomes e categorias seguem o editor original; cada template é uma composição própria
+   (estilo de legenda + faixas de texto), não a moldura gráfica original. */
+(function (root) {
+  const C = ['#1d4ed8', '#e11d48', '#f97316', '#16a34a', '#7c3aed', '#0ea5e9', '#f59e0b', '#111827', '#db2777', '#9333ea', '#ea580c', '#0891b2'];
+  // [categoria, nome, texto da faixa, estilo de legenda]
+  const T = [
+    ['Redes sociais', 'Confissão no Fórum', 'CONFISSÃO NO FÓRUM', 'Clássicos/Caixa'], ['Redes sociais', 'Feed da Fofoca', 'FEED DA FOFOCA', 'Clássicos/Hormozi'], ['Redes sociais', 'Post em Alta', 'POST EM ALTA', 'Viral/Hormozi'],
+    ['Redes sociais', 'Melhores Amigos', 'MELHORES AMIGOS', 'Chat e redes/Post'], ['Redes sociais', 'Respondendo Você', 'RESPONDENDO VOCÊ', 'Chat e redes/Message Blue'], ['Redes sociais', 'Vídeo em Destaque', 'VÍDEO EM DESTAQUE', 'Viral/Beast Mode'],
+    ['Redes sociais', 'Testei pra Você', 'TESTEI PRA VOCÊ', 'Caixas e etiquetas/Highlighter'], ['Redes sociais', 'Notificação', 'NOVA NOTIFICAÇÃO', 'Chat e redes/Comment'],
+    ['Conversa', 'Conversa Vazada', 'CONVERSA VAZADA', 'Chat e redes/Message Blue'], ['Conversa', 'Balão Azul', 'BALÃO AZUL', 'Chat e redes/Message Blue'],
+    ['Notícia e fofoca', 'Plantão Urgente', 'PLANTÃO URGENTE', 'Notícia/Breaking'], ['Notícia e fofoca', 'Bafafá!', 'BAFAFÁ!', 'Quadrinhos e meme/Tabloid'], ['Notícia e fofoca', 'Fama Hoje', 'FAMA HOJE', 'Notícia/Flash'],
+    ['Notícia e fofoca', 'Arquivo Confidencial', 'ARQUIVO CONFIDENCIAL', 'Retrô e glitch/Terminal'], ['Notícia e fofoca', 'Boletim Pop', 'BOLETIM POP', 'Quadrinhos e meme/Pop Art'], ['Notícia e fofoca', 'Fato ou Fake', 'FATO OU FAKE?', 'Notícia/Alert'],
+    ['Notícia e fofoca', 'Quem É?', 'QUEM É?', 'Caixas e etiquetas/Sticker'], ['Notícia e fofoca', 'Manchete Clássica', 'MANCHETE CLÁSSICA', 'Notícia/News Headline'],
+    ['Podcast', 'Podcast Premium', 'PODCAST', 'Podcast e entrevista/Podcast Bold'], ['Podcast', 'Estúdio', 'NO ESTÚDIO', 'Podcast e entrevista/Interview'], ['Podcast', 'Tarja do Convidado', 'CONVIDADO', 'Podcast e entrevista/Podcast Card'], ['Podcast', 'Topo Branco', 'EPISÓDIO NOVO', 'Podcast e entrevista/Transcript'],
+    ['Ranking e lista', 'Top 5', 'TOP 5', 'Clássicos/Hormozi'], ['Ranking e lista', 'Pódio Top 3', 'TOP 3', 'Viral/Beast Mode'], ['Ranking e lista', 'Você Sabia?', 'VOCÊ SABIA?', 'Caixas e etiquetas/Label Rail'],
+    ['Comparação', 'Antes e Depois', 'ANTES E DEPOIS', 'Clássicos/MrBeast'], ['Comparação', 'Isso ou Aquilo', 'ISSO OU AQUILO', 'Viral/Two Words'], ['Comparação', 'Quiz Relâmpago', 'QUIZ RELÂMPAGO', 'Motion/Zigzag'],
+    ['História', 'Entenda a História', 'ENTENDA A HISTÓRIA', 'TV e cinema/Documentary'], ['História', 'POV', 'POV', 'Clássicos/Clássica'], ['História', 'Hora da História', 'HORA DA HISTÓRIA', 'Manuscrito/Marker Note'], ['História', 'Citação', 'CITAÇÃO', 'Editorial/Quote Card'], ['História', 'Minidocumentário', 'MINIDOCUMENTÁRIO', 'TV e cinema/Trailer'],
+    ['Gamer e live', 'Live do Streamer', 'AO VIVO', 'Gamer e tech/Streamer'], ['Gamer e live', 'Clipe Lendário', 'CLIPE LENDÁRIO', 'Gamer e tech/Level Up'], ['Gamer e live', 'Tela de Retenção', 'FICA ATÉ O FIM', 'Gamer e tech/Esports'], ['Gamer e live', 'Grande Final', 'GRANDE FINAL', 'Gamer e tech/Blast'],
+    ['Minimalista', 'Card Clean', '', 'Minimalista/Clean'], ['Minimalista', 'Card Escuro', '', 'Podcast e entrevista/Interview'], ['Minimalista', 'Moldura Degradê', '', 'Gradiente e cromado/Shine'], ['Minimalista', 'Cinema', '', 'TV e cinema/Cinema'], ['Minimalista', 'Polaroide', '', 'Manuscrito/Notebook'], ['Minimalista', 'Título Gancho', 'O QUE NINGUÉM TE CONTA', 'Minimalista/Brand Minimal'],
+    ['Datas', 'Especial de Natal', 'ESPECIAL DE NATAL', 'Datas e temas/Christmas'], ['Datas', 'Dia de Jogo', 'DIA DE JOGO', 'Datas e temas/Torcida'], ['Datas', 'Bloco de Carnaval', 'BLOCO DE CARNAVAL', 'Datas e temas/Carnaval'], ['Datas', 'Noite do Terror', 'NOITE DO TERROR', 'Datas e temas/Halloween'], ['Datas', 'Black Friday', 'BLACK FRIDAY', 'Datas e temas/Black Friday'],
+  ];
+  const TEMPLATES = T.map(([cat, name, text, style], i) => ({ id: `pronto-${i}`, cat, name, style, text, bg: C[i % C.length] }));
+  const TEMPLATE_CATS = [...new Set(T.map((t) => t[0]))].map((c) => ({ id: c, count: T.filter((t) => t[0] === c).length }));
+  const HOOKS = ['ESPERA AÍ…', 'ASSISTA ATÉ O FIM', 'O QUE NINGUÉM TE CONTA', '3 SINAIS', '“isso mudou tudo”', 'ATENÇÃO', 'VOCÊ SABIA?', 'Legenda do gancho', 'SE INSCREVE', 'o segredo é…', 'PASSO 1', 'DICA RÁPIDA', 'texto livre', 'NOVO', 'AO VIVO', '50%', 'TOP'];
+  const LANGS = ['Inglês', 'Espanhol', 'Francês', 'Alemão', 'Italiano', 'Japonês', 'Coreano', 'Chinês', 'Russo'];
+  root.EditorPresets = { TEMPLATES, TEMPLATE_CATS, HOOKS, LANGS, COLORS: C };
+})(window);

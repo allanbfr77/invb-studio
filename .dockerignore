@@ -1,0 +1,6 @@
+data
+.env
+node_modules
+worker
+.git
+README.md
