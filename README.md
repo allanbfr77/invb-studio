@@ -50,10 +50,17 @@ um aviso com o botão **Baixar de novo**.
    - **Windows:** `install\iniciar.bat`
    - **Mac:** `install/iniciar.command`
      (na primeira vez o Mac pode bloquear: clique com o botão direito → **Abrir**)
+     Se o Mac disser que o arquivo não pode ser executado, ele perdeu a permissão no caminho (acontece
+     com ZIP criado no Windows ou pasta sincronizada). Abra o Terminal, digite `chmod +x ` (com o
+     espaço no fim), arraste o arquivo `iniciar.command` para a janela e aperte Enter.
 
 Na primeira vez o arquivo instala o que faltar (Node, ffmpeg e yt-dlp). No Windows ele pede para
 fechar a janela e abrir de novo depois de instalar. Nas vezes seguintes ele só atualiza o yt-dlp e
 abre o app no navegador. Deixe a janela preta aberta enquanto usa.
+
+Se a configuração da equipe mudar, basta trocar o `equipe.env` na pasta `install`: o arquivo de início
+aplica a versão nova na próxima vez que for aberto. Por isso, não edite o `.env` à mão quando houver
+um `equipe.env`; a alteração seria substituída.
 
 Pré-requisitos do instalador automático: **winget** no Windows (já vem no Windows 11 e no 10
 atualizado) e **Homebrew** no Mac (https://brew.sh).

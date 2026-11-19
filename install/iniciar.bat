@@ -47,17 +47,20 @@ if !VERSAO! LSS 20 (
   goto :fim_erro
 )
 
-if not exist ".env" (
-  if exist "install\equipe.env" (
+rem O equipe.env e a fonte da configuracao: sempre que ele mudar, a mudanca vale no proximo inicio.
+if exist "install\equipe.env" (
+  fc /b "install\equipe.env" ".env" >nul 2>nul
+  if errorlevel 1 (
     copy /y "install\equipe.env" ".env" >nul
-    echo Configuracao da equipe copiada para .env
-  ) else (
-    echo.
-    echo Falta o arquivo de configuracao da equipe.
-    echo Peca o arquivo equipe.env a quem configurou o INVB Studio e coloque na pasta install.
-    echo Depois de dois cliques neste arquivo de novo.
-    goto :fim_erro
+    echo Configuracao da equipe aplicada.
   )
+)
+if not exist ".env" (
+  echo.
+  echo Falta o arquivo de configuracao da equipe.
+  echo Peca o arquivo equipe.env a quem configurou o INVB Studio e coloque na pasta install.
+  echo Depois de dois cliques neste arquivo de novo.
+  goto :fim_erro
 )
 
 set PORTA=4321

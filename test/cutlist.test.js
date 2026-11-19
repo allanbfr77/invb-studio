@@ -68,8 +68,8 @@ test('sem duração conhecida, não limita', () => {
 });
 
 test('entrada vazia não cria nada', () => {
-  assert.deepEqual(parseCutList('', DUR), { cuts: [], rejected: [] });
-  assert.deepEqual(parseCutList(undefined, DUR), { cuts: [], rejected: [] });
+  assert.deepEqual(parseCutList('', DUR), { cuts: [], rejected: [], adjusted: [] });
+  assert.deepEqual(parseCutList(undefined, DUR), { cuts: [], rejected: [], adjusted: [] });
 });
 
 test('título é limitado a 120 caracteres', () => {
@@ -106,9 +106,19 @@ test('sem título depois dos tempos, usa o texto que veio antes deles', () => {
 
 test('frase longa antes dos tempos não vira corte', () => {
   const linha = 'Na minha opinião o melhor trecho de toda a pregação fica mais ou menos entre 10:00 - 11:00';
-  assert.deepEqual(parseCutList(linha, DUR), { cuts: [], rejected: [{ line: linha, reason: 'Não encontrei início e fim.' }] });
+  assert.deepEqual(parseCutList(linha, DUR), { cuts: [], rejected: [{ line: linha, reason: 'Não encontrei início e fim.' }], adjusted: [] });
 });
 
 test('rejeita segundos ou minutos acima de 59', () => {
   assert.deepEqual(parseCutList('12:75 - 14:05 Errado', DUR).rejected, [{ line: '12:75 - 14:05 Errado', reason: 'Tempo inválido.' }]);
+});
+
+// --- pontos menores da revisão ---
+test('avisa quando o fim do corte foi ajustado para o fim do vídeo', () => {
+  const r = parseCutList('1:29:00 - 1:35:00 Final\n00:10 - 00:40 Normal', DUR);
+  assert.deepEqual(r.adjusted, [{ line: '1:29:00 - 1:35:00 Final', note: 'O fim passava do vídeo e foi ajustado para 1:30:00.' }]);
+});
+
+test('título que começa com parêntese é preservado', () => {
+  assert.equal(parseCutList('00:10 - 00:40 (Parte 1) O chamado', DUR).cuts[0].title, '(Parte 1) O chamado');
 });

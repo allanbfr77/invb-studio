@@ -173,6 +173,7 @@ async function pump() { if (busy) return; busy = true; while (queue.length) { tr
 
 /* ---------- Original sob demanda (só o link fica salvo) ---------- */
 const lastTouch = new Map();
+const driveBusy = new Set(), refetchBusy = new Set(); // envios e novos downloads em andamento, por id do envio
 function touchUsed(id, force) { const now = Date.now(); if (!force && now - (lastTouch.get(id) || 0) < 60000) return; lastTouch.set(id, now); update(id, { lastUsedAt: now }).catch(() => {}); }
 const MEDIA_FILE = /^original\.(mp4|mov|mkv|webm|avi|m4v|mp3|wav|m4a|aac|opus|flac|ogg|oga)$/i;
 /** Remove o original e qualquer sobra de download (pedaços .part, faixas separadas). */
@@ -654,7 +655,7 @@ async function api(req, res, url, q) {
       return send(res, 200, await getMeta(b));
     }
     if (c === 'refetch' && method === 'POST') { // baixa o original de novo pelo link, sem transcrever outra vez
-      if (m.refetching) return send(res, 202, m);
+      if (m.refetching || refetchBusy.has(b)) return send(res, 202, m);
       if (!isGone(m)) return send(res, 200, m);
       if (!canRefetch(m)) return send(res, 400, { error: 'Não há link salvo para baixar este arquivo de novo.' });
       const ok = (file, size) => update(b, { file, size, originalGone: false, refetching: false, refetchError: null, lastUsedAt: Date.now() });
@@ -667,9 +668,10 @@ async function api(req, res, url, q) {
       }
       const j = await body(req); const ref = parseDriveLink(m.url); if (!ref.ok) return send(res, 400, { error: ref.error });
       const token = typeof j.token === 'string' && /^[\w.\-]{20,2048}$/.test(j.token) ? j.token : null;
-      let dlr; try { dlr = await openDrive(ref, token); } catch (e) { return send(res, e.status || 502, { error: e.message, needsLogin: !!e.needsLogin }); }
+      refetchBusy.add(b);
+      let dlr; try { dlr = await openDrive(ref, token); } catch (e) { refetchBusy.delete(b); return send(res, e.status || 502, { error: e.message, needsLogin: !!e.needsLogin }); }
       const file = 'original' + path.extname(dlr.name).toLowerCase(); const mm = await update(b, { refetching: true, refetchError: null, originalGone: true });
-      send(res, 202, mm);
+      refetchBusy.delete(b); send(res, 202, mm);
       (async () => { try { await ok(file, await saveDriveStream(b, file, dlr)); } catch (e) { await fsp.rm(U(b, file), { force: true }); await fail('Falha ao baixar do Google Drive: ' + e.message); } })();
       return;
     }
@@ -690,6 +692,8 @@ async function api(req, res, url, q) {
       if (!token) return send(res, 403, { error: 'Entre com o Google para enviar ao Drive.', needsLogin: true });
       const cl = (await readJson(U(b, 'clips.json'), [])).find((x) => x.id === d); if (!cl) return send(res, 404, { error: 'Corte não encontrado' });
       if (!cl.render || cl.render.status !== 'done') return send(res, 409, { error: 'Exporte o corte antes de enviar ao Drive.' });
+      if (driveBusy.has(b)) return send(res, 409, { error: 'Já há um envio ao Drive em andamento para esta pregação. Aguarde terminar.' });
+      driveBusy.add(b);
       const clean = (s, fb) => String(s || '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 80) || fb;
       const ext = path.extname(cl.render.file), file = U(b, 'clips', cl.render.file);
       try {
@@ -699,6 +703,7 @@ async function api(req, res, url, q) {
         await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); const t = l.find((x) => x.id === d); if (t) { t.drive = drive; await writeJson(U(b, 'clips.json'), l); } });
         return send(res, 200, { webViewLink: up.webViewLink, drive });
       } catch (e) { log('erro ao enviar ao Drive', b, d, e.message); return send(res, e.status === 401 ? 403 : e.status || 502, { error: e.message, needsLogin: !!e.needsLogin }); }
+      finally { driveBusy.delete(b); }
     }
     if (c === 'clips') {
       await withLock('clips:' + b, async () => {
@@ -714,7 +719,7 @@ async function api(req, res, url, q) {
         const j = await body(req); const r = parseCutList(j.text, m.duration || 0);
         const created = r.cuts.map((c) => manualClip(c.title, c.start, c.end));
         if (created.length) { clips.push(...created); await writeJson(U(b, 'clips.json'), clips); }
-        return send(res, 201, { created, rejected: r.rejected });
+        return send(res, 201, { created, rejected: r.rejected, adjusted: r.adjusted });
       }
       const cl = clips.find((x) => x.id === d); if (!cl) return send(res, 404, { error: 'Corte não encontrado' });
       if (!parts[4] && method === 'PATCH') { const j = await body(req); for (const k of ['fav', 'hid']) if (typeof j[k] === 'boolean') cl[k] = j[k]; if (typeof j.title === 'string' && j.title.trim()) cl.title = j.title.trim().slice(0, 120); if (+j.start >= 0 && +j.end > +j.start) { cl.start = +j.start; cl.end = +j.end; cl.render = null; delete cl.drive; } await writeJson(U(b, 'clips.json'), clips); return send(res, 200, cl); }

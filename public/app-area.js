@@ -78,11 +78,16 @@
     const c = S.cur, card = $('#ap-card'); if (!c || !card || !(c.originalGone || c.refetching)) return;
     const d = document.createElement('div'); d.className = 'ap-demo gone'; d.setAttribute('role', 'status');
     const wait = () => { clearInterval(S.poll); S.poll = setInterval(async () => { try { const m = await api('/uploads/' + c.id); if (!m.refetching) { clearInterval(S.poll); if (S.media) { S.media.remove(); S.media = null; S.mediaId = null; } go(location.pathname); } } catch { /* tenta de novo */ } }, 2500); };
+    let starting = false;
     const start = guard(async () => {
+      if (starting) return; starting = true; const btn = $('#refetch', d); if (btn) { btn.disabled = true; btn.textContent = 'Iniciando…'; }
+      try { await begin(); } catch (e) { starting = false; paint(); throw e; }
+    });
+    const begin = async () => {
       const run = (t) => api(`/uploads/${c.id}/refetch`, { json: t ? { token: t } : {} });
       try { await run(); } catch (e) { if (!(e.data && e.data.needsLogin) || !(S.status && S.status.driveClientId)) throw e; await run(await googleToken(S.status.driveClientId)); } // arquivo privado do Drive: entra com o Google e repete
       c.refetching = true; c.refetchError = null; paint(); wait();
-    });
+    };
     const paint = () => {
       d.innerHTML = c.refetching ? 'Baixando a pregação de novo… Pode levar alguns minutos. A transcrição e os cortes continuam disponíveis.'
         : c.canRefetch ? `<span>A pregação saiu deste computador para liberar espaço. A transcrição e os cortes continuam aqui; para assistir ou exportar um corte novo, baixe de novo.${c.refetchError ? `<br><b>${esc(c.refetchError)}</b>` : ''}</span><button class="ap-btn" id="refetch">Baixar de novo</button>`
@@ -269,11 +274,12 @@
   }
   function bindTranscription() {
     const c = S.cur; let q = '', sel = false, spk = '', chk = new Set();
-    const reload = async () => { S.cur = await api('/uploads/' + c.id); S.segs = segsOf(S.cur); S.lines = linesOf(S.cur); draw(); };
-    const lineTxt = (s) => `[${tm(s.t)}] ${s.text}`;
+    let claudeTxt = ''; const loadClaude = () => api(`/uploads/${c.id}/claude`).then((r) => { claudeTxt = r.text; }).catch(() => {});
+    const reload = async () => { S.cur = await api('/uploads/' + c.id); S.segs = segsOf(S.cur); S.lines = linesOf(S.cur); draw(); await loadClaude(); };
+    const linesTxt = (list) => TranscriptUtils.linesToText(list, tm);
     const draw = () => {
-      const l = S.lines.filter((s) => (!q || s.text.toLowerCase().includes(q)) && (!spk || s.who === spk));
-      $('#segs').innerHTML = l.map((s) => { const first = !S.lines[s.i - 1] || S.lines[s.i - 1].seg !== s.seg; return `<div class="seg ln${first ? ' first' : ''}" data-l="${s.i}">${sel ? `<input type="checkbox" data-c="${s.i}" ${chk.has(s.i) ? 'checked' : ''}>` : ''}<span class="tcp">${tm(s.t)}</span><div style="flex:1">${first ? `<span class="sp" data-who="${s.seg}">${esc(s.who)}</span>` : ''}<p>${s.words.length ? s.words.map((w) => `<span class="w" data-s="${w.s}">${esc(w.t)}</span>`).join(' ') : esc(s.text)}</p></div>${first ? `<button class="ap-ic" data-ed="${s.seg}" aria-label="Editar texto da fala" style="width:26px;height:26px">${ic.edit}</button>` : '<span style="width:26px"></span>'}</div>`; }).join('') || '<p class="sub2" style="padding:20px">Nada encontrado.</p>';
+      const l = TranscriptUtils.matchLines(S.lines, q, spk);
+      $('#segs').innerHTML = l.map((s, k) => { const first = !l[k - 1] || l[k - 1].seg !== s.seg; return `<div class="seg ln${first ? ' first' : ''}" data-l="${s.i}">${sel ? `<input type="checkbox" data-c="${s.i}" ${chk.has(s.i) ? 'checked' : ''}>` : ''}<span class="tcp">${tm(s.t)}</span><div style="flex:1">${first ? `<span class="sp" data-who="${s.seg}">${esc(s.who)}</span>` : ''}<p>${s.words.length ? s.words.map((w) => `<span class="w" data-s="${w.s}">${esc(w.t)}</span>`).join(' ') : esc(s.text)}</p></div>${first ? `<button class="ap-ic" data-ed="${s.seg}" aria-label="Editar texto da fala" style="width:26px;height:26px">${ic.edit}</button>` : '<span style="width:26px"></span>'}</div>`; }).join('') || '<p class="sub2" style="padding:20px">Nada encontrado.</p>';
       $$('.ln').forEach((e) => e.onclick = (ev) => { if (ev.target.closest('[data-who],[data-c],[data-ed]')) return; const w = ev.target.closest('[data-s]'); seek(w ? +w.dataset.s : S.lines[+e.dataset.l].t); });
       $$('[data-who]').forEach((e) => e.onclick = () => { const old = S.segs[+e.dataset.who].who; modal('Renomear falante', `<label>Novo nome para “${esc(old)}”</label><input id="nn" value="${esc(old)}">`, guard(async (m) => { const v = $('#nn', m).value.trim(); if (!v) return false; await api(`/uploads/${c.id}/speakers`, { method: 'PATCH', json: { from: old, to: v } }); await reload(); }), 'Salvar', 'O nome vale para todas as falas dessa pessoa.'); });
       $$('[data-ed]').forEach((e) => e.onclick = () => { const s = S.segs[+e.dataset.ed]; modal('Editar fala', `<label>Texto</label><textarea id="et" rows="5">${esc(s.text)}</textarea><label>Falante</label><input id="es" value="${esc(s.who)}">`, guard(async (m) => { const t = $('#et', m).value.trim(); if (!t) return false; const w = $('#es', m).value.trim() || s.who; await api(`/uploads/${c.id}/segments/${s.id}`, { method: 'PATCH', json: { text: t, speaker: w } }); await reload(); }), 'Salvar', `${tm(s.t)} — a correção vale para a exportação. A fala corrigida passa a aparecer em uma linha só.`); });
@@ -281,18 +287,18 @@
       paintPlayer();
     };
     $('#tq').oninput = (e) => { q = e.target.value.toLowerCase(); draw(); };
-    $('#tsel').onclick = () => { if (sel && chk.size) { const t = S.lines.filter((s) => chk.has(s.i)).map(lineTxt).join('\n'); navigator.clipboard?.writeText(t).then(() => toast('Linhas copiadas.')).catch(() => dl('selecao.txt', t)); } sel = !sel; $('#tsel').textContent = sel ? 'Copiar e concluir' : 'Selecionar'; $('#tcut').hidden = !sel; if (!sel) chk.clear(); draw(); };
+    $('#tsel').onclick = () => { if (sel && chk.size) { const t = linesTxt(S.lines.filter((s) => chk.has(s.i))); navigator.clipboard?.writeText(t).then(() => toast('Linhas copiadas.')).catch(() => dl('selecao.txt', t)); } sel = !sel; $('#tsel').textContent = sel ? 'Copiar e concluir' : 'Selecionar'; $('#tcut').hidden = !sel; if (!sel) chk.clear(); draw(); };
     // Corte direto da transcrição: da primeira à última linha marcada (os tempos podem ser ajustados antes de criar).
     $('#tcut').onclick = () => { const pick = S.lines.filter((s) => chk.has(s.i)); if (!pick.length) return toast('Marque as linhas do trecho primeiro.');
       modal('Novo corte', `<label>Título</label><input id="nt" placeholder="Ex.: O amor de Deus"><label>Início (mm:ss)</label><input id="ns" value="${tm(pick[0].t)}"><label>Fim (mm:ss)</label><input id="ne" value="${tm(Math.ceil(pick[pick.length - 1].end))}">`, guard(async (m) => { const s = parseT($('#ns', m).value), e = parseT($('#ne', m).value); if (!(e - s >= 3)) { toast('O corte precisa ter ao menos 3s.'); return false; } await api(`/uploads/${c.id}/clips`, { json: { title: $('#nt', m).value.trim() || 'Corte manual', start: s, end: e } }); toast('Corte criado. Ele está na página Cortes.'); sel = false; chk.clear(); $('#tsel').textContent = 'Selecionar'; $('#tcut').hidden = true; draw(); }), 'Criar corte', 'Do começo da primeira linha marcada ao fim da última.'); };
     // O texto é buscado ao abrir a página para que a cópia aconteça no próprio clique (o navegador exige isso).
-    let claudeTxt = ''; api(`/uploads/${c.id}/claude`).then((r) => { claudeTxt = r.text; }).catch(() => {});
+    loadClaude();
     $('#tclaude').onclick = () => { if (!claudeTxt) return toast('A transcrição ainda está carregando. Tente de novo em instantes.'); const ok = () => toast('Transcrição copiada. Cole no Claude e peça os cortes.'); if (navigator.clipboard) navigator.clipboard.writeText(claudeTxt).then(ok).catch(() => dl(base + '-para-o-claude.txt', claudeTxt)); else dl(base + '-para-o-claude.txt', claudeTxt); };
     $('#tfil').onclick = (e) => popover(e.currentTarget, `<label>Falante <select id="sf"><option value="">Todos</option>${[...new Set(S.segs.map((s) => s.who))].map((w) => `<option ${w === spk ? 'selected' : ''}>${esc(w)}</option>`).join('')}</select></label><div class="act"><button class="ap-btn" id="x1">Limpar</button><button class="ap-btn pri" id="x2">Aplicar</button></div>`, (m) => { $('#x1', m).onclick = () => { spk = ''; m.remove(); draw(); }; $('#x2', m).onclick = () => { spk = $('#sf', m).value; m.remove(); draw(); }; });
     const base = c.name.replace(/\.[^.]+$/, '');
     const vtt = (t) => t.replace(/(\d\d:\d\d:\d\d),(\d{3})/g, '$1.$2');
     const srt = () => S.segs.map((s, i) => `${i + 1}\n${srtT(s.t)} --> ${srtT(s.end)}\n${s.text}\n`).join('\n');
-    const exp = (f) => { if (f === 'TXT') dl(base + '.txt', S.lines.map(lineTxt).join('\n')); else if (f === 'SRT') dl(base + '.srt', srt()); else if (f === 'VTT') dl(base + '.vtt', 'WEBVTT\n\n' + vtt(srt())); else if (f === 'orig') { const a = document.createElement('a'); a.href = `/api/uploads/${c.id}/media`; a.download = c.name; a.click(); } };
+    const exp = (f) => { if (f === 'TXT') dl(base + '.txt', linesTxt(S.lines)); else if (f === 'SRT') dl(base + '.srt', srt()); else if (f === 'VTT') dl(base + '.vtt', 'WEBVTT\n\n' + vtt(srt())); else if (f === 'orig') { if (S.cur.originalGone) return toast(S.cur.canRefetch ? 'A pregação saiu deste computador. Use “Baixar de novo” no aviso do topo da página.' : 'O arquivo original não está mais neste computador.'); const a = document.createElement('a'); a.href = `/api/uploads/${c.id}/media`; a.download = c.name; a.click(); } };
     $('#tdl').onclick = (e) => popover(e.currentTarget, ['TXT', 'SRT', 'VTT'].map((f) => `<button>${f}</button>`).join(''), (m) => $$('button', m).forEach((b) => b.onclick = () => { m.remove(); exp(b.textContent); }));
     $$('[data-d]').forEach((b) => b.onclick = () => exp(b.dataset.d));
     draw();
@@ -331,7 +337,7 @@
     $('#cfil').onclick = (e) => popover(e.currentTarget, [['show', 'Mostrar', [['', 'Todos'], ['vis', 'Visíveis'], ['fav', 'Favoritos']]], ['dl', 'Baixados', [['', 'Todos'], ['sim', 'Sim'], ['nao', 'Não']]], ['type', 'Tipo de corte', [['', 'Todos os tipos'], ...types.map((x) => [x, x])]], ['imp', 'Impacto', [['', 'Qualquer impacto'], ['80', '80+'], ['70', '70+']]], ['dur', 'Duração', [['', 'Qualquer duração'], ['c', 'Até 30s'], ['m', '30–59s'], ['l', '1min+']]], ...(emos.length ? [['emo', 'Emoção', [['', 'Todas as emoções'], ...emos.map((x) => [x, x])]]] : [])].map((r) => `<label>${r[1]}<select data-f="${r[0]}">${r[2].map((o) => `<option value="${o[0]}" ${f[r[0]] === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></label>`).join('') + `<div class="act"><button class="ap-btn" id="fx">Limpar</button><button class="ap-btn pri" id="fy">Ver resultados</button></div>`, (m) => { $('#fx', m).onclick = () => { f = { show: '', dl: '', type: '', imp: '', dur: '', emo: '' }; m.remove(); draw(); }; $('#fy', m).onclick = () => { $$('select', m).forEach((s) => f[s.dataset.f] = s.value); m.remove(); draw(); }; });
     // Envio ao Drive: só aparece com a pasta da equipe configurada e o corte já exportado.
     const driveOn = !!(S.status && S.status.driveCuts);
-    const driveBtn = (k) => !driveOn || !(k.render && k.render.status === 'done') ? '' : k.drive && k.drive.link ? `<a class="ap-btn" href="${esc(k.drive.link)}" target="_blank" rel="noopener">✓ No Drive</a>` : '<button class="ap-btn" data-a="drive">Enviar para o Drive</button>';
+    const driveBtn = (k) => !driveOn || !(k.render && k.render.status === 'done') ? '' : k.drive && /^https:\/\//.test(k.drive.link || '') ? `<a class="ap-btn" href="${esc(k.drive.link)}" target="_blank" rel="noopener">✓ No Drive</a>` : '<button class="ap-btn" data-a="drive">Enviar para o Drive</button>';
     const sendDrive = async (k) => {
       const post = (t) => api(`/uploads/${c.id}/clips/${k.id}/drive`, { json: { token: t } });
       const fresh = async () => { const t = await googleToken(S.status.driveClientId, G_WRITE); S.gtok = { t, exp: Date.now() + 45 * 60000 }; return t; };
@@ -344,7 +350,8 @@
       const text = $('#cutlist', m).value; if (!text.trim()) return false;
       const r = await api(`/uploads/${c.id}/clips/bulk`, { json: { text } });
       if (r.created.length) { clips.push(...r.created); mode = 1; $$('#cl-tabs button').forEach((x) => x.setAttribute('aria-selected', +x.dataset.m === 1)); draw(); }
-      toast(r.created.length === 1 ? '1 corte criado.' : `${r.created.length} cortes criados.`);
+      const adj = r.adjusted || [];
+      toast(!r.created.length ? 'Nenhuma linha virou corte.' : (r.created.length === 1 ? '1 corte criado.' : `${r.created.length} cortes criados.`) + (adj.length ? (r.created.length === 1 ? ' O fim foi ajustado para o fim do vídeo.' : adj.length === 1 ? ' Um deles teve o fim ajustado para o fim do vídeo.' : ` ${adj.length} tiveram o fim ajustado para o fim do vídeo.`) : ''));
       if (!r.rejected.length) return;
       // Ficam no campo só as linhas recusadas, para corrigir e tentar de novo sem duplicar os cortes já criados.
       $('#cutlist', m).value = r.rejected.map((x) => x.line).join('\n');

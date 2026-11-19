@@ -38,15 +38,16 @@ versao=$(node -p "process.versions.node.split('.')[0]" 2>/dev/null)
 [ "${versao:-0}" -ge 20 ] || parar "O Node instalado é antigo (versão ${versao:-desconhecida}). É preciso a versão 20 ou mais nova.
 No Terminal, rode: brew upgrade node"
 
-if [ ! -f .env ]; then
-  if [ -f install/equipe.env ]; then
+# O equipe.env é a fonte da configuração: sempre que ele mudar, a mudança vale no próximo início.
+if [ -f install/equipe.env ]; then
+  if ! cmp -s install/equipe.env .env; then
     cp install/equipe.env .env
-    echo "Configuração da equipe copiada para .env"
-  else
-    parar "Falta o arquivo de configuração da equipe.
+    echo "Configuração da equipe aplicada."
+  fi
+elif [ ! -f .env ]; then
+  parar "Falta o arquivo de configuração da equipe.
 Peça o arquivo equipe.env a quem configurou o INVB Studio e coloque na pasta install.
 Depois dê dois cliques neste arquivo de novo."
-  fi
 fi
 
 porta=$(grep -E '^PORT=' .env 2>/dev/null | tail -1 | cut -d= -f2 | tr -d '[:space:]')
