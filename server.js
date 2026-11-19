@@ -174,20 +174,33 @@ async function pump() { if (busy) return; busy = true; while (queue.length) { tr
 /* ---------- Original sob demanda (só o link fica salvo) ---------- */
 const lastTouch = new Map();
 function touchUsed(id, force) { const now = Date.now(); if (!force && now - (lastTouch.get(id) || 0) < 60000) return; lastTouch.set(id, now); update(id, { lastUsedAt: now }).catch(() => {}); }
-async function dropOriginal(m) { if (m.file) await fsp.rm(U(m.id, m.file), { force: true }); await update(m.id, { originalGone: true }); log('original liberado', m.id, m.name); }
+const MEDIA_FILE = /^original\.(mp4|mov|mkv|webm|avi|m4v|mp3|wav|m4a|aac|opus|flac|ogg|oga)$/i;
+/** Remove o original e qualquer sobra de download (pedaços .part, faixas separadas). */
+async function clearOriginals(id) { for (const f of await fsp.readdir(U(id)).catch(() => [])) if (f.startsWith('original.')) await fsp.rm(U(id, f), { force: true }); }
+async function dropOriginal(m) { await clearOriginals(m.id); await update(m.id, { originalGone: true }); log('original liberado', m.id, m.name); }
+/** O vídeo de um envio concluído não está no disco (apagado pela limpeza, ou sumiu por outro motivo). */
+const isGone = (m) => m.status === 'done' && !m.refetching && !!(m.originalGone || !m.file || !fs.existsSync(U(m.id, m.file)));
+/** Este computador consegue baixar de novo? Link do YouTube precisa de yt-dlp e ffmpeg instalados. */
+const refetchReady = (m) => canRefetch(m) && (m.source !== 'youtube' || !!(tools.ytdlp && tools.ffmpeg));
+/** Há corte deste envio sendo exportado ou esperando na fila. */
+const exporting = async (id) => [...renders.keys()].some((k) => k.startsWith(id + ':')) || (await readJson(U(id, 'clips.json'), [])).some((c) => c.render && c.render.status === 'rendering');
 async function sweepOriginals() {
   if (cfg.keepOriginalMs < 0) return;
   const metas = await listMeta();
   for (const id of staleOriginals(metas, Date.now(), cfg.keepOriginalMs)) {
-    if ([...renders.keys()].some((k) => k.startsWith(id + ':'))) continue; // corte sendo exportado agora
-    try { await dropOriginal(metas.find((x) => x.id === id)); } catch (e) { log('falha ao liberar original', id, e.message); }
+    const m = metas.find((x) => x.id === id);
+    if (!refetchReady(m) || await exporting(id)) continue; // não apaga o que este computador não conseguiria baixar de novo
+    try { await dropOriginal(m); } catch (e) { log('falha ao liberar original', id, e.message); }
   }
 }
 async function fetchYoutube(id, url) {
   const [cmd, ...pre] = tools.ytdlp;
+  await clearOriginals(id); // sobras de uma tentativa anterior não podem ser confundidas com o vídeo
   const dl = await run(cmd, [...pre, '--no-playlist', '-f', 'bv*[height<=1080]+ba/b', '--merge-output-format', 'mp4', '--ffmpeg-location', tools.ffmpeg, '-o', U(id, 'original.%(ext)s'), url]);
-  const f = (await fsp.readdir(U(id))).find((x) => x.startsWith('original.'));
-  return dl.code === 0 && f ? f : null;
+  const all = (await fsp.readdir(U(id))).filter((x) => MEDIA_FILE.test(x));
+  const f = dl.code === 0 ? (all.includes('original.mp4') ? 'original.mp4' : all[0]) : null;
+  if (!f) { await clearOriginals(id); return null; }
+  return f;
 }
 /** Grava em disco o download aberto por openDrive. Devolve o total de bytes. */
 async function saveDriveStream(id, file, dlr, onProgress) {
@@ -200,7 +213,7 @@ async function saveDriveStream(id, file, dlr, onProgress) {
     return n;
   } catch (e) { ws.destroy(); throw e; }
 }
-async function update(id, patch) { const m = await getMeta(id); if (!m) return null; Object.assign(m, patch); await saveMeta(m); return m; }
+const update = (id, patch) => withLock('meta:' + id, async () => { const m = await getMeta(id); if (!m) return null; Object.assign(m, patch); await saveMeta(m); return m; });
 
 async function mediaDuration(file) {
   const r = await run(tools.ffmpeg, ['-i', file]);
@@ -535,7 +548,7 @@ function serveStatic(req, res, url) {
 }
 
 async function publicUpload(m, withData) {
-  const id = m.id; const o = { ...m, canRefetch: canRefetch(m) };
+  const id = m.id; const o = { ...m, canRefetch: canRefetch(m), originalGone: isGone(m) };
   if (!withData) return o;
   o.transcript = await readJson(U(id, 'transcript.json'), null);
   if (o.transcript) { o.transcript.lines = splitLines(o.transcript.segments); o.transcript.segments = o.transcript.segments.map(({ words, avg_logprob, ...s }) => s); }
@@ -630,31 +643,32 @@ async function api(req, res, url, q) {
       if (method === 'PATCH') { const j = await body(req); if (typeof j.name === 'string' && j.name.trim()) m.name = j.name.trim().slice(0, 160); if ('projectId' in j) m.projectId = j.projectId || null; await saveMeta(m); return send(res, 200, m); }
       if (method === 'DELETE') { await fsp.rm(U(b), { recursive: true, force: true }); return send(res, 200, { ok: true }); }
     }
-    if (c === 'media' && method === 'GET' && (m.originalGone || !m.file || !fs.existsSync(U(b, m.file)))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
+    if (c === 'media' && method === 'GET' && (m.refetching || isGone(m))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
     if (c === 'media' && method === 'GET') touchUsed(b);
     if (c === 'free' && method === 'POST') { // apaga o original agora; o link continua salvo
       if (!canRefetch(m)) return send(res, 400, { error: 'Este arquivo foi enviado do computador. Como não há link para baixar de novo, ele não é apagado.' });
       if (m.status !== 'done' || m.refetching) return send(res, 409, { error: 'Aguarde o processamento terminar.' });
-      if ([...renders.keys()].some((k) => k.startsWith(b + ':'))) return send(res, 409, { error: 'Há um corte sendo exportado. Tente de novo quando terminar.' });
+      if (!refetchReady(m)) return send(res, 501, { error: 'Este computador não tem yt-dlp ou ffmpeg para baixar a pregação de novo, então ela não é apagada.' });
+      if (await exporting(b)) return send(res, 409, { error: 'Há um corte sendo exportado. Tente de novo quando terminar.' });
       if (!m.originalGone) await dropOriginal(m);
       return send(res, 200, await getMeta(b));
     }
     if (c === 'refetch' && method === 'POST') { // baixa o original de novo pelo link, sem transcrever outra vez
-      if (!m.originalGone) return send(res, 200, m);
       if (m.refetching) return send(res, 202, m);
+      if (!isGone(m)) return send(res, 200, m);
       if (!canRefetch(m)) return send(res, 400, { error: 'Não há link salvo para baixar este arquivo de novo.' });
       const ok = (file, size) => update(b, { file, size, originalGone: false, refetching: false, refetchError: null, lastUsedAt: Date.now() });
       const fail = (msg) => update(b, { refetching: false, refetchError: msg });
       if (m.source === 'youtube') {
         if (!tools.ytdlp || !tools.ffmpeg) return send(res, 501, { error: 'yt-dlp ou ffmpeg não está instalado neste computador.' });
-        const mm = await update(b, { refetching: true, refetchError: null });
+        const mm = await update(b, { refetching: true, refetchError: null, originalGone: true });
         enqueue(async () => { try { const f = await fetchYoutube(b, m.url); if (!f) return void (await fail('Não consegui baixar do YouTube. Confira se o vídeo ainda está no ar.')); await ok(f, (await fsp.stat(U(b, f))).size); } catch (e) { await fail('Falha ao baixar do YouTube: ' + e.message); } });
         return send(res, 202, mm);
       }
       const j = await body(req); const ref = parseDriveLink(m.url); if (!ref.ok) return send(res, 400, { error: ref.error });
       const token = typeof j.token === 'string' && /^[\w.\-]{20,2048}$/.test(j.token) ? j.token : null;
       let dlr; try { dlr = await openDrive(ref, token); } catch (e) { return send(res, e.status || 502, { error: e.message, needsLogin: !!e.needsLogin }); }
-      const file = 'original' + path.extname(dlr.name).toLowerCase(); const mm = await update(b, { refetching: true, refetchError: null });
+      const file = 'original' + path.extname(dlr.name).toLowerCase(); const mm = await update(b, { refetching: true, refetchError: null, originalGone: true });
       send(res, 202, mm);
       (async () => { try { await ok(file, await saveDriveStream(b, file, dlr)); } catch (e) { await fsp.rm(U(b, file), { force: true }); await fail('Falha ao baixar do Google Drive: ' + e.message); } })();
       return;
@@ -703,7 +717,7 @@ async function api(req, res, url, q) {
         return send(res, 201, { created, rejected: r.rejected });
       }
       const cl = clips.find((x) => x.id === d); if (!cl) return send(res, 404, { error: 'Corte não encontrado' });
-      if (!parts[4] && method === 'PATCH') { const j = await body(req); for (const k of ['fav', 'hid']) if (typeof j[k] === 'boolean') cl[k] = j[k]; if (typeof j.title === 'string' && j.title.trim()) cl.title = j.title.trim().slice(0, 120); if (+j.start >= 0 && +j.end > +j.start) { cl.start = +j.start; cl.end = +j.end; cl.render = null; } await writeJson(U(b, 'clips.json'), clips); return send(res, 200, cl); }
+      if (!parts[4] && method === 'PATCH') { const j = await body(req); for (const k of ['fav', 'hid']) if (typeof j[k] === 'boolean') cl[k] = j[k]; if (typeof j.title === 'string' && j.title.trim()) cl.title = j.title.trim().slice(0, 120); if (+j.start >= 0 && +j.end > +j.start) { cl.start = +j.start; cl.end = +j.end; cl.render = null; delete cl.drive; } await writeJson(U(b, 'clips.json'), clips); return send(res, 200, cl); }
       if (!parts[4] && method === 'DELETE') { await writeJson(U(b, 'clips.json'), clips.filter((x) => x.id !== d)); return send(res, 200, { ok: true }); }
       if (parts[4] === 'render' && parts[5] === 'cancel' && method === 'POST') {
         const stt = renders.get(`${b}:${d}`); if (stt) { stt.cancelled = true; try { stt.proc && stt.proc.kill(); } catch { /* ok */ } }
@@ -711,9 +725,9 @@ async function api(req, res, url, q) {
       }
       if (parts[4] === 'render' && method === 'POST') {
         if (!tools.ffmpeg) return send(res, 501, { error: 'ffmpeg indisponível.' });
-        if (m.originalGone || m.refetching || !m.file || !fs.existsSync(U(b, m.file))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
+        if (m.refetching || isGone(m)) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
         touchUsed(b, true);
-        const j = await body(req); cl.render = { status: 'rendering' }; await writeJson(U(b, 'clips.json'), clips);
+        const j = await body(req); cl.render = { status: 'rendering' }; delete cl.drive; await writeJson(U(b, 'clips.json'), clips);
         enqueue(() => renderClip(b, d, j)); return send(res, 202, cl);
       }
       if (parts[4] === 'file' && method === 'GET') {
@@ -817,6 +831,7 @@ server.requestTimeout = 0; server.headersTimeout = 60000;
   for (const m of await listMeta()) if (['processing', 'queued'].includes(m.status) && m.file) { await update(m.id, { status: 'error', stage: 'Erro', error: 'Interrompido por reinício do servidor. Use “Tentar de novo”: a transcrição retoma de onde parou.' }); }
   // Um novo download interrompido por reinício não deixa o envio preso em "baixando".
   for (const m of await listMeta()) if (m.refetching) await update(m.id, { refetching: false, refetchError: 'O download foi interrompido. Clique em "Baixar de novo".' });
+  for (const m of await listMeta()) if (m.status === 'done' && !m.lastUsedAt) await update(m.id, { lastUsedAt: Date.now() });
   await sweepOriginals().catch((e) => log('falha na limpeza de originais', e.message));
   setInterval(() => sweepOriginals().catch((e) => log('falha na limpeza de originais', e.message)), 6 * 3600000).unref();
   server.listen(cfg.port, cfg.host, () => {

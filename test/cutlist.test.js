@@ -93,3 +93,22 @@ test('o que buildPrompt escreve nos tempos é lido de volta por parseCutList', (
   const [t1, t2] = p.split('\n').slice(-2).map((l) => l.match(/\[(.+?)\]/)[1]);
   assert.deepEqual(parseCutList(`${t1} - ${t2} Volta`, DUR).cuts, [{ start: 3723, end: 3790, title: 'Volta' }]);
 });
+
+// --- achados da revisão final ---
+test('aceita um rótulo antes dos tempos, como "Corte 2: 10:00 - 11:00 Título"', () => {
+  assert.deepEqual(parseCutList('Corte 2: 10:00 - 11:00 A graça', DUR).cuts, [{ start: 600, end: 660, title: 'A graça' }]);
+});
+
+test('sem título depois dos tempos, usa o texto que veio antes deles', () => {
+  assert.deepEqual(parseCutList('O amor de Deus: 10:00 - 11:00', DUR).cuts, [{ start: 600, end: 660, title: 'O amor de Deus' }]);
+  assert.deepEqual(parseCutList('2. 10:00 - 11:00', DUR).cuts, [{ start: 600, end: 660, title: 'Corte 1' }]);
+});
+
+test('frase longa antes dos tempos não vira corte', () => {
+  const linha = 'Na minha opinião o melhor trecho de toda a pregação fica mais ou menos entre 10:00 - 11:00';
+  assert.deepEqual(parseCutList(linha, DUR), { cuts: [], rejected: [{ line: linha, reason: 'Não encontrei início e fim.' }] });
+});
+
+test('rejeita segundos ou minutos acima de 59', () => {
+  assert.deepEqual(parseCutList('12:75 - 14:05 Errado', DUR).rejected, [{ line: '12:75 - 14:05 Errado', reason: 'Tempo inválido.' }]);
+});

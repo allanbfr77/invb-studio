@@ -8,6 +8,7 @@ cd /d "%~dp0.."
 echo == INVB Studio ==
 
 set FALTA=
+set VERSAO=
 where node >nul 2>nul || set FALTA=!FALTA! node
 where ffmpeg >nul 2>nul || set FALTA=!FALTA! ffmpeg
 where yt-dlp >nul 2>nul || set FALTA=!FALTA! yt-dlp
@@ -26,8 +27,9 @@ if not "!FALTA!"=="" (
   where ffmpeg >nul 2>nul || winget install -e --id Gyan.FFmpeg --accept-source-agreements --accept-package-agreements
   where yt-dlp >nul 2>nul || winget install -e --id yt-dlp.yt-dlp --accept-source-agreements --accept-package-agreements
   echo.
-  echo Instalacao concluida. O Windows so enxerga os programas novos em uma janela nova:
-  echo feche esta janela e de dois cliques em iniciar.bat outra vez.
+  echo Se a instalacao acima terminou sem erro, falta so um passo: o Windows so enxerga os programas
+  echo novos em uma janela nova. Feche esta janela e de dois cliques em iniciar.bat outra vez.
+  echo Se apareceu algum erro, anote a mensagem e mostre a quem configurou o INVB Studio.
   goto :fim_erro
 )
 
@@ -37,6 +39,7 @@ winget upgrade -e --id yt-dlp.yt-dlp --accept-source-agreements --accept-package
 if errorlevel 1 yt-dlp -U >nul 2>nul
 
 for /f "usebackq" %%v in (`node -p "process.versions.node.split(String.fromCharCode(46))[0]"`) do set VERSAO=%%v
+if "!VERSAO!"=="" set VERSAO=0
 if !VERSAO! LSS 20 (
   echo.
   echo O Node instalado e antigo ^(versao !VERSAO!^). E preciso a versao 20 ou mais nova.
@@ -66,6 +69,11 @@ start "" /b powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Sec
 set NODE_ENV=
 set HOST=127.0.0.1
 node server.js
+if errorlevel 1 (
+  echo.
+  echo O INVB Studio parou com um erro. A mensagem acima diz o motivo.
+  pause
+)
 goto :eof
 
 :fim_erro

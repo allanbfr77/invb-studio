@@ -76,3 +76,27 @@ test('entrada vazia devolve lista vazia', () => {
   assert.deepEqual(splitLines([]), []);
   assert.deepEqual(splitLines(undefined), []);
 });
+
+// --- achados da revisão final ---
+const bare = (text, start, per = 0.5) => { const s = seg(text, start, per); s.words.forEach((w) => { w.w = w.w.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase(); }); return s; };
+
+test('correção só de pontuação e maiúsculas aparece na linha, não as palavras antigas', () => {
+  const s = seg('jesus disse vinde', 0);
+  s.text = 'Jesus disse: vinde!';
+  const lines = splitLines([s]);
+  assert.equal(lines.map((l) => l.text).join(' '), 'Jesus disse: vinde!');
+  assert.deepEqual(lines[0].words.map((w) => w.t), ['Jesus', 'disse:', 'vinde!']);
+  assert.equal(lines[0].words[1].s, 0.5);
+});
+
+test('quando o serviço devolve palavras sem pontuação, a linha usa a pontuação do texto da fala', () => {
+  const s = bare('Porque Deus amou tanto o mundo de maneira, que deu o seu Filho', 0);
+  const lines = splitLines([s]);
+  assert.match(lines[0].text, /^Porque Deus .* maneira,$/);
+  assert.match(lines[1].text, /^que deu o seu Filho$/);
+});
+
+test('se a divisão em palavras do texto não bate com a do serviço, usa as palavras do serviço', () => {
+  const s = { start: 0, end: 2, text: 'Bem-vindo, irmãos', speaker: 'A', words: [{ w: 'Bem', s: 0, e: 0.5 }, { w: 'vindo', s: 0.5, e: 1 }, { w: 'irmãos', s: 1, e: 2 }] };
+  assert.deepEqual(splitLines([s])[0].words.map((w) => w.t), ['Bem', 'vindo', 'irmãos']);
+});
