@@ -472,3 +472,9 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:v
 .seg.ln p{line-height:1.6}
 .seg.ln .w{border-radius:4px;padding:1px 0}
 .seg.ln .w:hover{background:var(--soft);color:var(--soft-fg)}
+
+/* Colar minutagens: linhas recusadas */
+.cut-rej{margin-top:12px;font-size:13px;line-height:1.5;color:var(--muted)}
+.cut-rej b{color:var(--fg)}
+.cut-rej ul{margin:6px 0 0;padding-left:18px}
+.cut-rej li{overflow-wrap:anywhere}

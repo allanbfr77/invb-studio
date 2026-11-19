@@ -9,6 +9,7 @@ const { spawn } = require('child_process');
 const { analyze } = require('./lib/analyze');
 const { parseDriveLink, openDrive } = require('./lib/drive');
 const { splitLines } = require('./lib/lines');
+const { parseCutList, buildPrompt } = require('./lib/cutlist');
 const { Readable } = require('stream');
 
 /* ---------- Configuração (.env opcional) ---------- */
@@ -59,6 +60,7 @@ async function groqChat(messages) {
   return (await r.json()).choices[0].message.content;
 }
 const U = (...p) => path.join(cfg.dataDir, 'uploads', ...p);
+const manualClip = (title, start, end) => ({ id: 'm' + crypto.randomBytes(6).toString('hex'), title: String(title || 'Corte manual').slice(0, 120), description: 'Corte criado manualmente.', tags: ['Manual'], score: 0, type: 'Manual', start, end, emotion: null, fav: false, hid: false, manual: true, downloaded: false, render: null });
 const tools = { ffmpeg: null, whisper: false, ytdlp: null, checked: false };
 
 /* ---------- Utilidades ---------- */
@@ -617,8 +619,14 @@ async function api(req, res, url, q) {
       if (!d && method === 'POST') {
         const j = await body(req); const dur = m.duration || 0; const st = Math.max(0, +j.start || 0), en = Math.min(dur || 1e9, +j.end || 0);
         if (!(en - st >= 3)) return send(res, 400, { error: 'Corte precisa ter ao menos 3 segundos.' });
-        const cl = { id: 'm' + rid(), title: String(j.title || 'Corte manual').slice(0, 120), description: 'Corte criado manualmente.', tags: ['Manual'], score: 0, type: 'Manual', start: st, end: en, emotion: null, fav: false, hid: false, manual: true, downloaded: false, render: null };
+        const cl = manualClip(j.title, st, en);
         clips.push(cl); await writeJson(U(b, 'clips.json'), clips); return send(res, 201, cl);
+      }
+      if (d === 'bulk' && !parts[4] && method === 'POST') { // lista de minutagens colada (ex.: sugestões do Claude)
+        const j = await body(req); const r = parseCutList(j.text, m.duration || 0);
+        const created = r.cuts.map((c) => manualClip(c.title, c.start, c.end));
+        if (created.length) { clips.push(...created); await writeJson(U(b, 'clips.json'), clips); }
+        return send(res, 201, { created, rejected: r.rejected });
       }
       const cl = clips.find((x) => x.id === d); if (!cl) return send(res, 404, { error: 'Corte não encontrado' });
       if (!parts[4] && method === 'PATCH') { const j = await body(req); for (const k of ['fav', 'hid']) if (typeof j[k] === 'boolean') cl[k] = j[k]; if (typeof j.title === 'string' && j.title.trim()) cl.title = j.title.trim().slice(0, 120); if (+j.start >= 0 && +j.end > +j.start) { cl.start = +j.start; cl.end = +j.end; cl.render = null; } await writeJson(U(b, 'clips.json'), clips); return send(res, 200, cl); }
@@ -641,6 +649,10 @@ async function api(req, res, url, q) {
         if (!res.writableEnded) send(res, 404, { error: 'Rota não encontrada' });
       });
       return;
+    }
+    if (c === 'claude' && method === 'GET') { // transcrição em linhas curtas, pronta para colar no Claude
+      const tr = await readJson(U(b, 'transcript.json'), null); if (!tr) return send(res, 409, { error: 'Sem transcrição.' });
+      return send(res, 200, { text: buildPrompt(m.name, splitLines(tr.segments)) });
     }
     if (c === 'words' && method === 'GET') { // palavras (com tempo) de um trecho, para a prévia da legenda
       const tr = await readJson(U(b, 'transcript.json'), null); if (!tr) return send(res, 409, { error: 'Sem transcrição.' });
