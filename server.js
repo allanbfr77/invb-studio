@@ -117,6 +117,9 @@ async function detectTools() {
   if (cfg.ytdlp) tools.ytdlp = [cfg.ytdlp];
   else if ((await run('yt-dlp', ['--version'])).code === 0) tools.ytdlp = ['yt-dlp'];
   else if ((await run(cfg.python, ['-m', 'yt_dlp', '--version'])).code === 0) tools.ytdlp = [cfg.python, '-m', 'yt_dlp'];
+  // As versões recentes do yt-dlp precisam de um runtime JavaScript para o YouTube e, por padrão, só procuram o Deno.
+  // O Node já está instalado (é ele que roda este servidor), então apontamos para ele. Versões antigas não conhecem a opção.
+  if (tools.ytdlp) { const js = ['--js-runtimes', 'node:' + process.execPath]; if ((await run(tools.ytdlp[0], [...tools.ytdlp.slice(1), ...js, '--version'])).code === 0) tools.ytdlp = [...tools.ytdlp, ...js]; }
   tools.checked = true;
 }
 

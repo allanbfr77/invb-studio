@@ -136,3 +136,31 @@ test('colar minutagens cria os cortes válidos e devolve as linhas recusadas', a
   assert.deepEqual(r.body.rejected.map((x) => x.reason), ['Não encontrei início e fim.', 'O início passa do fim do vídeo.']);
   assert.equal((await s.api('/uploads/iiiiiiiiiiii/clips')).body.length, 2);
 });
+
+// --- yt-dlp recente precisa de um runtime JavaScript; o app aponta para o Node que já está instalado ---
+const fakeYtdlp = (dir, { acceptsFlag }) => {
+  const f = path.join(dir, 'yt-dlp-espiao.sh'), log = path.join(dir, 'ytdlp-args.log');
+  fs.writeFileSync(f, `#!/bin/bash\nfor a in "$@"; do if [ "$a" = "--js-runtimes" ] && [ "${acceptsFlag ? 1 : 0}" = "0" ]; then echo "no such option: --js-runtimes" >&2; exit 2; fi; done\nfor a in "$@"; do if [ "$a" = "--version" ]; then echo 2026.01.01; exit 0; fi; done\necho "$@" >> "${log}"\nexit 1\n`, { mode: 0o755 });
+  return { f, log };
+};
+const untilNotRefetching = async (s, id) => { let m; for (let i = 0; i < 80; i++) { m = (await s.api('/uploads/' + id)).body; if (!m.refetching) break; await new Promise((r) => setTimeout(r, 50)); } return m; };
+
+test('o download do YouTube usa o Node como runtime JavaScript do yt-dlp', { skip: !HAS_FFMPEG || process.platform === 'win32' }, async (t) => {
+  const d = tmp(t); seed(d, 'jjjjjjjjjjjj', { originalGone: true }, { original: false });
+  const y = fakeYtdlp(d, { acceptsFlag: true });
+  const s = await boot(t, d, { env: { YTDLP_PATH: y.f } });
+  await s.api('/uploads/jjjjjjjjjjjj/refetch', { json: {} }); await untilNotRefetching(s, 'jjjjjjjjjjjj');
+  const args = fs.readFileSync(y.log, 'utf8');
+  assert.match(args, /--js-runtimes node:\S+/);
+  assert.match(args, /https:\/\/www\.youtube\.com\/watch\?v=abc/);
+});
+
+test('yt-dlp antigo, que não conhece a opção, é chamado sem ela', { skip: !HAS_FFMPEG || process.platform === 'win32' }, async (t) => {
+  const d = tmp(t); seed(d, 'kkkkkkkkkkkk', { originalGone: true }, { original: false });
+  const y = fakeYtdlp(d, { acceptsFlag: false });
+  const s = await boot(t, d, { env: { YTDLP_PATH: y.f } });
+  await s.api('/uploads/kkkkkkkkkkkk/refetch', { json: {} }); await untilNotRefetching(s, 'kkkkkkkkkkkk');
+  const args = fs.readFileSync(y.log, 'utf8');
+  assert.doesNotMatch(args, /--js-runtimes/);
+  assert.match(args, /watch\?v=abc/);
+});
