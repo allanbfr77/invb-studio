@@ -4,6 +4,7 @@
   "private": true,
   "description": "Reprodução de estudo de um site de transcrição, cortes e legendas. Dados fictícios, sem IA real.",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   }
 }
