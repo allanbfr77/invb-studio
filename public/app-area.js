@@ -73,6 +73,24 @@
     ['timeupdate', 'play', 'pause', 'ended', 'loadedmetadata'].forEach((ev) => el.addEventListener(ev, paintPlayer));
     S.media = el; S.mediaId = id; return el;
   }
+  // Aviso quando a pregação saiu do computador (fica salvo só o link) e botão para baixar de novo.
+  function goneBanner() {
+    const c = S.cur, card = $('#ap-card'); if (!c || !card || !(c.originalGone || c.refetching)) return;
+    const d = document.createElement('div'); d.className = 'ap-demo gone'; d.setAttribute('role', 'status');
+    const wait = () => { clearInterval(S.poll); S.poll = setInterval(async () => { try { const m = await api('/uploads/' + c.id); if (!m.refetching) { clearInterval(S.poll); if (S.media) { S.media.remove(); S.media = null; S.mediaId = null; } go(location.pathname); } } catch { /* tenta de novo */ } }, 2500); };
+    const start = guard(async () => {
+      const run = (t) => api(`/uploads/${c.id}/refetch`, { json: t ? { token: t } : {} });
+      try { await run(); } catch (e) { if (!(e.data && e.data.needsLogin) || !(S.status && S.status.driveClientId)) throw e; await run(await googleToken(S.status.driveClientId)); } // arquivo privado do Drive: entra com o Google e repete
+      c.refetching = true; c.refetchError = null; paint(); wait();
+    });
+    const paint = () => {
+      d.innerHTML = c.refetching ? 'Baixando a pregação de novo… Pode levar alguns minutos. A transcrição e os cortes continuam disponíveis.'
+        : c.canRefetch ? `<span>A pregação saiu deste computador para liberar espaço. A transcrição e os cortes continuam aqui; para assistir ou exportar um corte novo, baixe de novo.${c.refetchError ? `<br><b>${esc(c.refetchError)}</b>` : ''}</span><button class="ap-btn" id="refetch">Baixar de novo</button>`
+        : 'O arquivo original não está mais neste computador e não há link salvo para baixá-lo de novo.';
+      const b = $('#refetch', d); if (b) b.onclick = start;
+    };
+    paint(); card.prepend(d); if (c.refetching) wait();
+  }
   const parkMedia = () => { if (S.media) { S.media.hidden = true; document.body.appendChild(S.media); } };
   function mountMedia() {
     const el = ensureMedia(); const slot = $('.vid-slot');
@@ -230,7 +248,8 @@
       $('#fcnt').textContent = `${l.length} arquivo${l.length === 1 ? '' : 's'}`;
       $('#flist').innerHTML = l.map((u) => `<div class="ap-row" data-up="${u.id}"><span style="color:var(--primary)">${u.kind === 'aud' ? ic.aud.replace('20', '16') : ic.vid.replace('20', '16')}</span><a class="nm" href="/app/uploads/${u.id}/overview"><b>${esc(u.name)}</b><small>Enviado em ${fmtDate(u.createdAt)} • ${fmtSize(u.size)}</small></a><span class="st ${stClass(u)}">${esc(statusLabel(u))}</span><button class="ap-ic" data-opt="${u.id}" aria-label="Opções do upload">⋮</button></div>`).join('') || '<div class="empty"><p>Nenhum arquivo encontrado.</p></div>';
       $$('[data-opt]').forEach((b) => b.onclick = (e) => { e.preventDefault(); const id = b.dataset.opt, u = S.uploads.find((z) => z.id === id);
-        popover(b, `<button data-a="open">Abrir</button><button data-a="ren">Renomear</button>${u.status === 'error' ? '<button data-a="retry">Tentar de novo</button>' : ''}<button data-a="del" style="color:#c0262d">Excluir</button>`, (m) => $$('button', m).forEach((x) => x.onclick = () => { m.remove(); const a = x.dataset.a;
+        popover(b, `<button data-a="open">Abrir</button><button data-a="ren">Renomear</button>${u.status === 'error' ? '<button data-a="retry">Tentar de novo</button>' : ''}${u.status === 'done' && !u.originalGone && (u.source === 'youtube' || u.source === 'drive') && u.url ? '<button data-a="free">Liberar espaço</button>' : ''}<button data-a="del" style="color:#c0262d">Excluir</button>`, (m) => $$('button', m).forEach((x) => x.onclick = () => { m.remove(); const a = x.dataset.a;
+          if (a === 'free') return modal('Liberar espaço', '', guard(async () => { await api(`/uploads/${id}/free`, { json: {} }); u.originalGone = true; toast('Pregação apagada deste computador. O link continua salvo.'); }), 'Apagar o vídeo', `Apaga só o vídeo de “${esc(u.name)}” deste computador. A transcrição, a minutagem e os cortes prontos ficam. Para usar o vídeo de novo, o app baixa pelo link.`);
           if (a === 'open') go(`/app/uploads/${id}/overview`);
           if (a === 'ren') modal('Renomear arquivo', `<label>Nome</label><input id="rn" value="${esc(u.name)}">`, guard(async (mm) => { const v = $('#rn', mm).value.trim(); if (!v) return false; await api('/uploads/' + id, { method: 'PATCH', json: { name: v } }); u.name = v; draw(); }));
           if (a === 'retry') guard(async () => { await api(`/uploads/${id}/retry`, { method: 'POST', json: {} }); await refreshList(); })();
@@ -447,6 +466,7 @@
         } else {
           if (r.id) { S.segs = segsOf(S.cur); S.lines = linesOf(S.cur); }
           root.innerHTML = shell(p, pages[r.v](S.cur), r.id);
+          if (r.id) goneBanner();
           if (['home', 'uploadsNew'].includes(r.v)) bindUpload(root);
           if (binds[r.v]) binds[r.v]();
           if (r.id) { mountMedia(); bindPlayer(); }

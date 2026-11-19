@@ -10,6 +10,7 @@ const { analyze } = require('./lib/analyze');
 const { parseDriveLink, openDrive, ensureFolder, uploadFile } = require('./lib/drive');
 const { splitLines } = require('./lib/lines');
 const { parseCutList, buildPrompt } = require('./lib/cutlist');
+const { staleOriginals, canRefetch } = require('./lib/cleanup');
 const { Readable } = require('stream');
 
 /* ---------- Configuração (.env opcional) ---------- */
@@ -42,6 +43,8 @@ const cfg = {
   googleClientId: E.GOOGLE_CLIENT_ID || '',
   // Pasta compartilhada do Drive onde os cortes prontos ficam disponíveis para a equipe editar.
   driveCutsFolder: /^[\w-]{10,}$/.test(E.DRIVE_CUTS_FOLDER_ID || '') ? E.DRIVE_CUTS_FOLDER_ID : '',
+  // Fica salvo só o link: o vídeo original sai do computador depois de N dias sem uso (negativo desliga a limpeza).
+  keepOriginalMs: (E.KEEP_ORIGINAL_DAYS === undefined || E.KEEP_ORIGINAL_DAYS === '' || isNaN(+E.KEEP_ORIGINAL_DAYS) ? 7 : +E.KEEP_ORIGINAL_DAYS) * 86400000,
   maxUploadBytes: (+E.MAX_UPLOAD_GB || 4) * 1024 ** 3,
 };
 // Transcrição na nuvem: Groq (Whisper, camada gratuita) ou OpenAI. Ambas usam a mesma API.
@@ -168,6 +171,35 @@ const queue = []; let busy = false;
 function enqueue(fn) { queue.push(fn); pump(); }
 async function pump() { if (busy) return; busy = true; while (queue.length) { try { await queue.shift()(); } catch (e) { log('job falhou:', e.message); } } busy = false; }
 
+/* ---------- Original sob demanda (só o link fica salvo) ---------- */
+const lastTouch = new Map();
+function touchUsed(id, force) { const now = Date.now(); if (!force && now - (lastTouch.get(id) || 0) < 60000) return; lastTouch.set(id, now); update(id, { lastUsedAt: now }).catch(() => {}); }
+async function dropOriginal(m) { if (m.file) await fsp.rm(U(m.id, m.file), { force: true }); await update(m.id, { originalGone: true }); log('original liberado', m.id, m.name); }
+async function sweepOriginals() {
+  if (cfg.keepOriginalMs < 0) return;
+  const metas = await listMeta();
+  for (const id of staleOriginals(metas, Date.now(), cfg.keepOriginalMs)) {
+    if ([...renders.keys()].some((k) => k.startsWith(id + ':'))) continue; // corte sendo exportado agora
+    try { await dropOriginal(metas.find((x) => x.id === id)); } catch (e) { log('falha ao liberar original', id, e.message); }
+  }
+}
+async function fetchYoutube(id, url) {
+  const [cmd, ...pre] = tools.ytdlp;
+  const dl = await run(cmd, [...pre, '--no-playlist', '-f', 'bv*[height<=1080]+ba/b', '--merge-output-format', 'mp4', '--ffmpeg-location', tools.ffmpeg, '-o', U(id, 'original.%(ext)s'), url]);
+  const f = (await fsp.readdir(U(id))).find((x) => x.startsWith('original.'));
+  return dl.code === 0 && f ? f : null;
+}
+/** Grava em disco o download aberto por openDrive. Devolve o total de bytes. */
+async function saveDriveStream(id, file, dlr, onProgress) {
+  let n = 0, last = 0; const ws = fs.createWriteStream(U(id, file));
+  try {
+    const rs = Readable.fromWeb(dlr.res.body);
+    rs.on('data', (ch) => { n += ch.length; if (n > cfg.maxUploadBytes) rs.destroy(new Error('Arquivo grande demais.')); const now = Date.now(); if (onProgress && dlr.size && now - last > 1000) { last = now; onProgress(Math.min(99, Math.round((n / dlr.size) * 100))); } });
+    await new Promise((ok, bad) => { rs.on('error', bad); ws.on('error', bad); ws.on('finish', ok); rs.pipe(ws); });
+    if (!n) throw new Error('Arquivo vazio.');
+    return n;
+  } catch (e) { ws.destroy(); throw e; }
+}
 async function update(id, patch) { const m = await getMeta(id); if (!m) return null; Object.assign(m, patch); await saveMeta(m); return m; }
 
 async function mediaDuration(file) {
@@ -503,7 +535,7 @@ function serveStatic(req, res, url) {
 }
 
 async function publicUpload(m, withData) {
-  const id = m.id; const o = { ...m };
+  const id = m.id; const o = { ...m, canRefetch: canRefetch(m) };
   if (!withData) return o;
   o.transcript = await readJson(U(id, 'transcript.json'), null);
   if (o.transcript) { o.transcript.lines = splitLines(o.transcript.segments); o.transcript.segments = o.transcript.segments.map(({ words, avg_logprob, ...s }) => s); }
@@ -565,9 +597,8 @@ async function api(req, res, url, q) {
       enqueue(async () => {
         const [cmd, ...pre] = tools.ytdlp;
         const t = await run(cmd, [...pre, '--no-playlist', '--get-title', j.url]);
-        const dl = await run(cmd, [...pre, '--no-playlist', '-f', 'bv*[height<=1080]+ba/b', '--merge-output-format', 'mp4', '--ffmpeg-location', tools.ffmpeg, '-o', U(id, 'original.%(ext)s'), j.url]);
-        const f = (await fsp.readdir(U(id))).find((x) => x.startsWith('original.'));
-        if (dl.code !== 0 || !f) return void (await update(id, { status: 'error', stage: 'Erro', error: 'Falha ao baixar o vídeo do YouTube.' }));
+        const f = await fetchYoutube(id, j.url);
+        if (!f) return void (await update(id, { status: 'error', stage: 'Erro', error: 'Falha ao baixar o vídeo do YouTube.' }));
         const st = await fsp.stat(U(id, f));
         await update(id, { file: f, size: st.size, name: (t.out.trim() || 'video_do_youtube') + path.extname(f) });
         await pipeline(id);
@@ -582,17 +613,13 @@ async function api(req, res, url, q) {
       const ext = path.extname(dlr.name).toLowerCase();
       if (dlr.size > cfg.maxUploadBytes) { try { dlr.res.body.cancel(); } catch { /* ok */ } return send(res, 413, { error: 'Arquivo grande demais.' }); }
       const id = rid(), file = 'original' + ext; await fsp.mkdir(U(id), { recursive: true });
-      const m = { id, name: dlr.name, file, size: dlr.size, kind: AUDIO.has(ext) ? 'aud' : 'vid', createdAt: Date.now(), status: 'processing', stage: 'Baixando do Google Drive', progress: 0, source: 'drive' };
+      const m = { id, name: dlr.name, file, size: dlr.size, kind: AUDIO.has(ext) ? 'aud' : 'vid', createdAt: Date.now(), status: 'processing', stage: 'Baixando do Google Drive', progress: 0, source: 'drive', url: String(j.url).trim().slice(0, 500) };
       await saveMeta(m); send(res, 201, m);
       (async () => { // download em segundo plano (fora da fila de CPU)
-        let n = 0, lastSave = 0; const ws = fs.createWriteStream(U(id, file));
         try {
-          const rs = Readable.fromWeb(dlr.res.body);
-          rs.on('data', (ch) => { n += ch.length; if (n > cfg.maxUploadBytes) rs.destroy(new Error('Arquivo grande demais.')); const now = Date.now(); if (dlr.size && now - lastSave > 1000) { lastSave = now; update(id, { progress: Math.min(99, Math.round((n / dlr.size) * 100)) }); } });
-          await new Promise((ok, bad) => { rs.on('error', bad); ws.on('error', bad); ws.on('finish', ok); rs.pipe(ws); });
-          if (!n) throw new Error('Arquivo vazio.');
+          const n = await saveDriveStream(id, file, dlr, (pct) => update(id, { progress: pct }));
           await update(id, { size: n, status: 'queued', stage: 'Na fila', progress: 0 }); enqueue(() => pipeline(id));
-        } catch (e) { ws.destroy(); await update(id, { status: 'error', stage: 'Erro', error: 'Falha ao baixar do Google Drive: ' + e.message }); }
+        } catch (e) { await update(id, { status: 'error', stage: 'Erro', error: 'Falha ao baixar do Google Drive: ' + e.message }); }
       })();
       return;
     }
@@ -602,6 +629,35 @@ async function api(req, res, url, q) {
       if (method === 'GET') return send(res, 200, await publicUpload(m, true));
       if (method === 'PATCH') { const j = await body(req); if (typeof j.name === 'string' && j.name.trim()) m.name = j.name.trim().slice(0, 160); if ('projectId' in j) m.projectId = j.projectId || null; await saveMeta(m); return send(res, 200, m); }
       if (method === 'DELETE') { await fsp.rm(U(b), { recursive: true, force: true }); return send(res, 200, { ok: true }); }
+    }
+    if (c === 'media' && method === 'GET' && (m.originalGone || !m.file || !fs.existsSync(U(b, m.file)))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
+    if (c === 'media' && method === 'GET') touchUsed(b);
+    if (c === 'free' && method === 'POST') { // apaga o original agora; o link continua salvo
+      if (!canRefetch(m)) return send(res, 400, { error: 'Este arquivo foi enviado do computador. Como não há link para baixar de novo, ele não é apagado.' });
+      if (m.status !== 'done' || m.refetching) return send(res, 409, { error: 'Aguarde o processamento terminar.' });
+      if ([...renders.keys()].some((k) => k.startsWith(b + ':'))) return send(res, 409, { error: 'Há um corte sendo exportado. Tente de novo quando terminar.' });
+      if (!m.originalGone) await dropOriginal(m);
+      return send(res, 200, await getMeta(b));
+    }
+    if (c === 'refetch' && method === 'POST') { // baixa o original de novo pelo link, sem transcrever outra vez
+      if (!m.originalGone) return send(res, 200, m);
+      if (m.refetching) return send(res, 202, m);
+      if (!canRefetch(m)) return send(res, 400, { error: 'Não há link salvo para baixar este arquivo de novo.' });
+      const ok = (file, size) => update(b, { file, size, originalGone: false, refetching: false, refetchError: null, lastUsedAt: Date.now() });
+      const fail = (msg) => update(b, { refetching: false, refetchError: msg });
+      if (m.source === 'youtube') {
+        if (!tools.ytdlp || !tools.ffmpeg) return send(res, 501, { error: 'yt-dlp ou ffmpeg não está instalado neste computador.' });
+        const mm = await update(b, { refetching: true, refetchError: null });
+        enqueue(async () => { try { const f = await fetchYoutube(b, m.url); if (!f) return void (await fail('Não consegui baixar do YouTube. Confira se o vídeo ainda está no ar.')); await ok(f, (await fsp.stat(U(b, f))).size); } catch (e) { await fail('Falha ao baixar do YouTube: ' + e.message); } });
+        return send(res, 202, mm);
+      }
+      const j = await body(req); const ref = parseDriveLink(m.url); if (!ref.ok) return send(res, 400, { error: ref.error });
+      const token = typeof j.token === 'string' && /^[\w.\-]{20,2048}$/.test(j.token) ? j.token : null;
+      let dlr; try { dlr = await openDrive(ref, token); } catch (e) { return send(res, e.status || 502, { error: e.message, needsLogin: !!e.needsLogin }); }
+      const file = 'original' + path.extname(dlr.name).toLowerCase(); const mm = await update(b, { refetching: true, refetchError: null });
+      send(res, 202, mm);
+      (async () => { try { await ok(file, await saveDriveStream(b, file, dlr)); } catch (e) { await fsp.rm(U(b, file), { force: true }); await fail('Falha ao baixar do Google Drive: ' + e.message); } })();
+      return;
     }
     if (c === 'media' && method === 'GET') return serveFile(req, res, U(b, m.file), mime[path.extname(m.file)] || 'application/octet-stream');
     if (c === 'retry' && method === 'POST') { if (m.status === 'processing' || m.status === 'queued') return send(res, 409, { error: 'Já em processamento.' }); await update(b, { status: 'queued', stage: 'Na fila', progress: 0, error: null }); enqueue(() => pipeline(b)); return send(res, 200, { ok: true }); }
@@ -655,6 +711,8 @@ async function api(req, res, url, q) {
       }
       if (parts[4] === 'render' && method === 'POST') {
         if (!tools.ffmpeg) return send(res, 501, { error: 'ffmpeg indisponível.' });
+        if (m.originalGone || m.refetching || !m.file || !fs.existsSync(U(b, m.file))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
+        touchUsed(b, true);
         const j = await body(req); cl.render = { status: 'rendering' }; await writeJson(U(b, 'clips.json'), clips);
         enqueue(() => renderClip(b, d, j)); return send(res, 202, cl);
       }
@@ -757,6 +815,10 @@ server.requestTimeout = 0; server.headersTimeout = 60000;
   await initAuth(); await detectTools();
   // trabalhos interrompidos por reinício
   for (const m of await listMeta()) if (['processing', 'queued'].includes(m.status) && m.file) { await update(m.id, { status: 'error', stage: 'Erro', error: 'Interrompido por reinício do servidor. Use “Tentar de novo”: a transcrição retoma de onde parou.' }); }
+  // Um novo download interrompido por reinício não deixa o envio preso em "baixando".
+  for (const m of await listMeta()) if (m.refetching) await update(m.id, { refetching: false, refetchError: 'O download foi interrompido. Clique em "Baixar de novo".' });
+  await sweepOriginals().catch((e) => log('falha na limpeza de originais', e.message));
+  setInterval(() => sweepOriginals().catch((e) => log('falha na limpeza de originais', e.message)), 6 * 3600000).unref();
   server.listen(cfg.port, cfg.host, () => {
     console.log(`INVB Studio em http://${cfg.host === '0.0.0.0' ? 'localhost' : cfg.host}:${cfg.port}`);
     console.log(`  ffmpeg: ${tools.ffmpeg || 'NÃO ENCONTRADO'} | transcrição: ${isCloud() ? cloud().name + ' ' + cloud().model + (cloud().key ? '' : ' (SEM CHAVE)') : cfg.provider}${cfg.provider === 'local' ? ` (faster-whisper ${tools.whisper ? 'ok' : 'AUSENTE'}, modelo ${cfg.whisperModel})` : ''} | análise: ${cfg.llmEnabled ? 'LLM ' + cfg.openaiModel : 'heurística local (LLM desativado)'} | yt-dlp: ${tools.ytdlp ? 'ok' : 'ausente'}`);

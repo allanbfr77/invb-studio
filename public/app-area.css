@@ -478,3 +478,10 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:v
 .cut-rej b{color:var(--fg)}
 .cut-rej ul{margin:6px 0 0;padding-left:18px}
 .cut-rej li{overflow-wrap:anywhere}
+
+/* Aviso: a pregação saiu deste computador */
+.ap-demo.gone{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;line-height:1.5}
+.ap-demo.gone span{flex:1;min-width:240px}
+
+/* O atributo hidden precisa vencer o display dos botões */
+.ap-btn[hidden]{display:none}
