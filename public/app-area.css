@@ -465,3 +465,10 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:v
 @media (max-width:900px){.dlx-body,.dlx-body.open{grid-template-columns:1fr;grid-template-rows:auto 1fr auto auto}.dlx-drawer{border-left:0;border-top:1px solid var(--border);max-height:45vh}}
 
 .dlx [hidden]{display:none!important}
+
+/* Transcrição em linhas curtas */
+.ap .seg.ln{padding:6px 8px;border-bottom:0}
+.ap .seg.ln.first{margin-top:10px}
+.seg.ln p{line-height:1.6}
+.seg.ln .w{border-radius:4px;padding:1px 0}
+.seg.ln .w:hover{background:var(--soft);color:var(--soft-fg)}

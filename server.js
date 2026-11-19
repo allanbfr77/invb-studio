@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { analyze } = require('./lib/analyze');
 const { parseDriveLink, openDrive } = require('./lib/drive');
+const { splitLines } = require('./lib/lines');
 const { Readable } = require('stream');
 
 /* ---------- Configuração (.env opcional) ---------- */
@@ -501,7 +502,7 @@ async function publicUpload(m, withData) {
   const id = m.id; const o = { ...m };
   if (!withData) return o;
   o.transcript = await readJson(U(id, 'transcript.json'), null);
-  if (o.transcript) o.transcript.segments = o.transcript.segments.map(({ words, avg_logprob, ...s }) => s);
+  if (o.transcript) { o.transcript.lines = splitLines(o.transcript.segments); o.transcript.segments = o.transcript.segments.map(({ words, avg_logprob, ...s }) => s); }
   o.analysis = await readJson(U(id, 'analysis.json'), null);
   o.clips = await readJson(U(id, 'clips.json'), []);
   o.scripts = await readJson(U(id, 'scripts.json'), []);

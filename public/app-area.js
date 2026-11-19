@@ -57,6 +57,8 @@
 
   /* ---------- Dados derivados ---------- */
   const segsOf = (c) => { const em = {}; ((c.analysis && c.analysis.emotions) || []).forEach((e) => em[e.i] = e.emotion); return ((c.transcript && c.transcript.segments) || []).map((s) => ({ id: s.id, t: s.start, end: s.end, who: s.speaker, text: s.text, emo: em[s.id] || null })); };
+  // Linhas curtas (até ~5 s) com o tempo de cada palavra; `seg` aponta para a fala de origem.
+  const linesOf = (c) => ((c.transcript && c.transcript.lines) || []).map((l, i) => ({ i, seg: l.seg, t: l.start, end: l.end, who: l.speaker, text: l.text, words: l.words || [] }));
   const chaptersOf = (c) => ((c.analysis && c.analysis.chapters) || []).map((ch) => ({ ...ch, moments: (c.clips || []).filter((k) => k.start >= ch.start && k.start < ch.end).map((k) => ({ title: k.title, t: k.start })) }));
   const isDone = (m) => m.status === 'done';
   const statusLabel = (m) => m.status === 'done' ? 'Concluído' : m.status === 'error' ? 'Erro' : `${m.stage || 'Processando'}${m.progress ? ' ' + m.progress + '%' : ''}`;
@@ -89,7 +91,9 @@
     const k = Math.floor((t / dur) * w.children.length); [...w.children].forEach((e, i) => e.classList.toggle('p', i < k));
     $('#ptm').textContent = `${tm(t)} / ${tm(dur)}`; $('#pp').innerHTML = el.paused ? ic.play : ic.pause;
     let act = -1; (S.segs || []).forEach((s, i) => { if (s.t <= t) act = i; });
-    $$('.seg').forEach((e) => e.classList.toggle('act', +e.dataset.i === act && !el.paused));
+    $$('.seg:not(.ln)').forEach((e) => e.classList.toggle('act', +e.dataset.i === act && !el.paused));
+    let actL = -1; (S.lines || []).forEach((s, i) => { if (s.t <= t) actL = i; });
+    $$('.ln').forEach((e) => e.classList.toggle('act', +e.dataset.l === actL && !el.paused));
   }
   function bindPlayer() {
     if (!$('#wave')) return; const el = ensureMedia();
@@ -196,7 +200,7 @@
         <div class="kpis">${[['Duração do áudio', tm(c.duration)], ['Palavras transcritas', String(c.words || 0)], ['Segmentos de fala', String(segs.length)], ['Falantes identificados', String(spk)], ['Momentos-chave', String((c.clips || []).length)]].map((k) => `<div><small>${k[0]}</small><b>${k[1]}</b></div>`).join('')}</div>
         <h2 style="font-size:17px;margin-bottom:4px">O que está pronto</h2><p class="sub2" style="margin-bottom:14px">Toque numa análise para abrir.</p><div class="rdy">${cards.map((k) => `<a href="/app/uploads/${c.id}/${k[0]}"><div class="ib">${k[1]}</div><b>${k[2]}</b><p>${k[3]}</p><p style="margin-top:8px;font-size:11px">${k[4]}</p></a>`).join('')}</div>`;
     },
-    transcription: (c) => `<h1>Transcrição</h1><p class="sub2">Áudio transcrito com timecodes${c.analysis.emotions && c.analysis.emotions.length ? ' e análise emocional' : ''}. A separação de falantes não é automática: todas as falas começam como “Pessoa 1” e você pode renomear.</p><div style="height:16px"></div>
+    transcription: (c) => `<h1>Transcrição</h1><p class="sub2">Áudio transcrito em linhas curtas, cada uma com o seu tempo. Clique em uma palavra para ir ao segundo exato dela${c.analysis.emotions && c.analysis.emotions.length ? ' e análise emocional' : ''}. A separação de falantes não é automática: todas as falas começam como “Pessoa 1” e você pode renomear.</p><div style="height:16px"></div>
       <div class="tr2"><div><div class="ap-tools"><label class="ap-search" style="max-width:none">${ic.search}<input id="tq" placeholder="Buscar na transcrição..."></label></div>
       <div class="ap-tools"><span class="ap-sp"></span><button class="ap-btn" id="tsel">Selecionar</button><button class="ap-btn" id="tdl">${ic.dl} Baixar ⌄</button><button class="ap-btn" id="tfil">Filtros</button></div>
       <div class="segs" id="segs"></div><div class="stat3"><h4>Resumo Estatístico</h4><div class="g"><div><b>${(c.clips || []).length}</b><small>Momentos-chave</small></div><div><b>${tm(c.duration)}</b><small>Duração total</small></div><div><b>${c.words || 0}</b><small>Palavras</small></div></div></div></div>
@@ -243,22 +247,24 @@
   }
   function bindTranscription() {
     const c = S.cur; let q = '', sel = false, spk = '', chk = new Set();
+    const reload = async () => { S.cur = await api('/uploads/' + c.id); S.segs = segsOf(S.cur); S.lines = linesOf(S.cur); draw(); };
+    const lineTxt = (s) => `[${tm(s.t)}] ${s.text}`;
     const draw = () => {
-      const l = S.segs.filter((s) => (!q || s.text.toLowerCase().includes(q)) && (!spk || s.who === spk));
-      $('#segs').innerHTML = l.map((s) => `<div class="seg" data-i="${s.id}">${sel ? `<input type="checkbox" data-c="${s.id}" ${chk.has(s.id) ? 'checked' : ''}>` : ''}<span class="tcp">${tm(s.t)}</span><div style="flex:1"><span class="sp" data-who="${s.id}">${esc(s.who)}</span><p>${esc(s.text)}</p></div><button class="ap-ic" data-ed="${s.id}" aria-label="Editar texto" style="width:26px;height:26px">${ic.edit}</button></div>`).join('') || '<p class="sub2" style="padding:20px">Nada encontrado.</p>';
-      $$('.seg').forEach((e) => e.onclick = (ev) => { if (ev.target.closest('[data-who],[data-c],[data-ed]')) return; seek(S.segs[+e.dataset.i].t); });
-      $$('[data-who]').forEach((e) => e.onclick = () => { const old = S.segs[+e.dataset.who].who; modal('Renomear falante', `<label>Novo nome para “${esc(old)}”</label><input id="nn" value="${esc(old)}">`, guard(async (m) => { const v = $('#nn', m).value.trim(); if (!v) return false; await api(`/uploads/${c.id}/speakers`, { method: 'PATCH', json: { from: old, to: v } }); S.segs.forEach((x) => { if (x.who === old) x.who = v; }); draw(); }), 'Salvar', 'O nome vale para todas as falas dessa pessoa.'); });
-      $$('[data-ed]').forEach((e) => e.onclick = () => { const s = S.segs[+e.dataset.ed]; modal('Editar fala', `<label>Texto</label><textarea id="et" rows="5">${esc(s.text)}</textarea><label>Falante</label><input id="es" value="${esc(s.who)}">`, guard(async (m) => { const t = $('#et', m).value.trim(); if (!t) return false; const w = $('#es', m).value.trim() || s.who; await api(`/uploads/${c.id}/segments/${s.id}`, { method: 'PATCH', json: { text: t, speaker: w } }); s.text = t; s.who = w; draw(); }), 'Salvar', `${tm(s.t)} — a correção vale para a exportação.`); });
+      const l = S.lines.filter((s) => (!q || s.text.toLowerCase().includes(q)) && (!spk || s.who === spk));
+      $('#segs').innerHTML = l.map((s) => { const first = !S.lines[s.i - 1] || S.lines[s.i - 1].seg !== s.seg; return `<div class="seg ln${first ? ' first' : ''}" data-l="${s.i}">${sel ? `<input type="checkbox" data-c="${s.i}" ${chk.has(s.i) ? 'checked' : ''}>` : ''}<span class="tcp">${tm(s.t)}</span><div style="flex:1">${first ? `<span class="sp" data-who="${s.seg}">${esc(s.who)}</span>` : ''}<p>${s.words.length ? s.words.map((w) => `<span class="w" data-s="${w.s}">${esc(w.t)}</span>`).join(' ') : esc(s.text)}</p></div>${first ? `<button class="ap-ic" data-ed="${s.seg}" aria-label="Editar texto da fala" style="width:26px;height:26px">${ic.edit}</button>` : '<span style="width:26px"></span>'}</div>`; }).join('') || '<p class="sub2" style="padding:20px">Nada encontrado.</p>';
+      $$('.ln').forEach((e) => e.onclick = (ev) => { if (ev.target.closest('[data-who],[data-c],[data-ed]')) return; const w = ev.target.closest('[data-s]'); seek(w ? +w.dataset.s : S.lines[+e.dataset.l].t); });
+      $$('[data-who]').forEach((e) => e.onclick = () => { const old = S.segs[+e.dataset.who].who; modal('Renomear falante', `<label>Novo nome para “${esc(old)}”</label><input id="nn" value="${esc(old)}">`, guard(async (m) => { const v = $('#nn', m).value.trim(); if (!v) return false; await api(`/uploads/${c.id}/speakers`, { method: 'PATCH', json: { from: old, to: v } }); await reload(); }), 'Salvar', 'O nome vale para todas as falas dessa pessoa.'); });
+      $$('[data-ed]').forEach((e) => e.onclick = () => { const s = S.segs[+e.dataset.ed]; modal('Editar fala', `<label>Texto</label><textarea id="et" rows="5">${esc(s.text)}</textarea><label>Falante</label><input id="es" value="${esc(s.who)}">`, guard(async (m) => { const t = $('#et', m).value.trim(); if (!t) return false; const w = $('#es', m).value.trim() || s.who; await api(`/uploads/${c.id}/segments/${s.id}`, { method: 'PATCH', json: { text: t, speaker: w } }); await reload(); }), 'Salvar', `${tm(s.t)} — a correção vale para a exportação. A fala corrigida passa a aparecer em uma linha só.`); });
       $$('[data-c]').forEach((x) => x.onchange = () => x.checked ? chk.add(+x.dataset.c) : chk.delete(+x.dataset.c));
       paintPlayer();
     };
     $('#tq').oninput = (e) => { q = e.target.value.toLowerCase(); draw(); };
-    $('#tsel').onclick = () => { if (sel && chk.size) { const t = S.segs.filter((s) => chk.has(s.id)).map((s) => `[${tm(s.t)}] ${s.who}: ${s.text}`).join('\n'); navigator.clipboard?.writeText(t).then(() => toast('Falas copiadas.')).catch(() => dl('selecao.txt', t)); } sel = !sel; $('#tsel').textContent = sel ? 'Concluir seleção' : 'Selecionar'; draw(); };
+    $('#tsel').onclick = () => { if (sel && chk.size) { const t = S.lines.filter((s) => chk.has(s.i)).map(lineTxt).join('\n'); navigator.clipboard?.writeText(t).then(() => toast('Linhas copiadas.')).catch(() => dl('selecao.txt', t)); } sel = !sel; $('#tsel').textContent = sel ? 'Concluir seleção' : 'Selecionar'; draw(); };
     $('#tfil').onclick = (e) => popover(e.currentTarget, `<label>Falante <select id="sf"><option value="">Todos</option>${[...new Set(S.segs.map((s) => s.who))].map((w) => `<option ${w === spk ? 'selected' : ''}>${esc(w)}</option>`).join('')}</select></label><div class="act"><button class="ap-btn" id="x1">Limpar</button><button class="ap-btn pri" id="x2">Aplicar</button></div>`, (m) => { $('#x1', m).onclick = () => { spk = ''; m.remove(); draw(); }; $('#x2', m).onclick = () => { spk = $('#sf', m).value; m.remove(); draw(); }; });
     const base = c.name.replace(/\.[^.]+$/, '');
     const vtt = (t) => t.replace(/(\d\d:\d\d:\d\d),(\d{3})/g, '$1.$2');
     const srt = () => S.segs.map((s, i) => `${i + 1}\n${srtT(s.t)} --> ${srtT(s.end)}\n${s.text}\n`).join('\n');
-    const exp = (f) => { if (f === 'TXT') dl(base + '.txt', S.segs.map((s) => `[${tm(s.t)}] ${s.who}: ${s.text}`).join('\n')); else if (f === 'SRT') dl(base + '.srt', srt()); else if (f === 'VTT') dl(base + '.vtt', 'WEBVTT\n\n' + vtt(srt())); else if (f === 'orig') { const a = document.createElement('a'); a.href = `/api/uploads/${c.id}/media`; a.download = c.name; a.click(); } };
+    const exp = (f) => { if (f === 'TXT') dl(base + '.txt', S.lines.map(lineTxt).join('\n')); else if (f === 'SRT') dl(base + '.srt', srt()); else if (f === 'VTT') dl(base + '.vtt', 'WEBVTT\n\n' + vtt(srt())); else if (f === 'orig') { const a = document.createElement('a'); a.href = `/api/uploads/${c.id}/media`; a.download = c.name; a.click(); } };
     $('#tdl').onclick = (e) => popover(e.currentTarget, ['TXT', 'SRT', 'VTT'].map((f) => `<button>${f}</button>`).join(''), (m) => $$('button', m).forEach((b) => b.onclick = () => { m.remove(); exp(b.textContent); }));
     $$('[data-d]').forEach((b) => b.onclick = () => exp(b.dataset.d));
     draw();
@@ -407,7 +413,7 @@
           const retry = $('#retry'); if (retry) retry.onclick = guard(async () => { await api(`/uploads/${r.id}/retry`, { json: {} }); go(p); });
           if (S.cur.status !== 'error') S.poll = setInterval(async () => { try { const m = await api('/uploads/' + r.id); if (isDone(m) || m.status === 'error') { clearInterval(S.poll); go(p); } else { const a = $('#procmsg'), b = $('#procbar'); if (a) a.textContent = statusLabel(m); if (b) b.style.width = Math.max(3, m.progress || 0) + '%'; } } catch { /* */ } }, 2000);
         } else {
-          if (r.id) { S.segs = segsOf(S.cur); }
+          if (r.id) { S.segs = segsOf(S.cur); S.lines = linesOf(S.cur); }
           root.innerHTML = shell(p, pages[r.v](S.cur), r.id);
           if (['home', 'uploadsNew'].includes(r.v)) bindUpload(root);
           if (binds[r.v]) binds[r.v]();
