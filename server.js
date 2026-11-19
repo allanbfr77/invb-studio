@@ -7,7 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { analyze } = require('./lib/analyze');
-const { parseDriveLink, openDrive } = require('./lib/drive');
+const { parseDriveLink, openDrive, ensureFolder, uploadFile } = require('./lib/drive');
 const { splitLines } = require('./lib/lines');
 const { parseCutList, buildPrompt } = require('./lib/cutlist');
 const { Readable } = require('stream');
@@ -40,6 +40,8 @@ const cfg = {
   openaiModel: E.OPENAI_MODEL || 'gpt-4o-mini',
   openaiTranscribeModel: E.OPENAI_TRANSCRIBE_MODEL || 'whisper-1',
   googleClientId: E.GOOGLE_CLIENT_ID || '',
+  // Pasta compartilhada do Drive onde os cortes prontos ficam disponíveis para a equipe editar.
+  driveCutsFolder: /^[\w-]{10,}$/.test(E.DRIVE_CUTS_FOLDER_ID || '') ? E.DRIVE_CUTS_FOLDER_ID : '',
   maxUploadBytes: (+E.MAX_UPLOAD_GB || 4) * 1024 ** 3,
 };
 // Transcrição na nuvem: Groq (Whisper, camada gratuita) ou OpenAI. Ambas usam a mesma API.
@@ -527,7 +529,7 @@ async function api(req, res, url, q) {
   if (a === 'logout' && method === 'POST') return send(res, 200, { ok: true }, { 'set-cookie': 'invb_sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' });
   if (method !== 'GET' && req.headers['x-invb'] !== '1') return send(res, 403, { error: 'Requisição inválida' });
 
-  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, provider_name: isCloud() ? cloud().name : 'Local', llm: cfg.llmEnabled, llmModel: cfg.llmEnabled ? cfg.openaiModel : null, queue: queue.length + (busy ? 1 : 0) });
+  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, driveCuts: !!(cfg.googleClientId && cfg.driveCutsFolder), provider_name: isCloud() ? cloud().name : 'Local', llm: cfg.llmEnabled, llmModel: cfg.llmEnabled ? cfg.openaiModel : null, queue: queue.length + (busy ? 1 : 0) });
 
   if (a === 'uploads') {
     if (!b) {
@@ -611,6 +613,22 @@ async function api(req, res, url, q) {
     if (c === 'segments' && d && method === 'PATCH') { // editar texto de uma fala
       const j = await body(req); const tr = await readJson(U(b, 'transcript.json'), null); const s = tr && tr.segments[+d]; if (!s) return send(res, 404, { error: 'Fala não encontrada' });
       if (typeof j.text === 'string') s.text = j.text.slice(0, 5000); if (typeof j.speaker === 'string') s.speaker = j.speaker.slice(0, 60); await writeJson(U(b, 'transcript.json'), tr); return send(res, 200, { ok: true });
+    }
+    if (c === 'clips' && d && parts[4] === 'drive' && method === 'POST') { // envia o corte pronto para a pasta da equipe
+      if (!cfg.driveCutsFolder) return send(res, 501, { error: 'Pasta da equipe não configurada (DRIVE_CUTS_FOLDER_ID).' });
+      const j = await body(req); const token = typeof j.token === 'string' && /^[\w.\-]{20,2048}$/.test(j.token) ? j.token : null;
+      if (!token) return send(res, 403, { error: 'Entre com o Google para enviar ao Drive.', needsLogin: true });
+      const cl = (await readJson(U(b, 'clips.json'), [])).find((x) => x.id === d); if (!cl) return send(res, 404, { error: 'Corte não encontrado' });
+      if (!cl.render || cl.render.status !== 'done') return send(res, 409, { error: 'Exporte o corte antes de enviar ao Drive.' });
+      const clean = (s, fb) => String(s || '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 80) || fb;
+      const ext = path.extname(cl.render.file), file = U(b, 'clips', cl.render.file);
+      try {
+        const folder = await ensureFolder(token, cfg.driveCutsFolder, clean(m.name.replace(/\.[^.]+$/, ''), 'Culto'));
+        const up = await uploadFile(token, { folderId: folder, name: clean(cl.title, 'corte') + ext, filePath: file, mime: mime[ext] || 'application/octet-stream' });
+        const drive = { link: up.webViewLink, at: Date.now() };
+        await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); const t = l.find((x) => x.id === d); if (t) { t.drive = drive; await writeJson(U(b, 'clips.json'), l); } });
+        return send(res, 200, { webViewLink: up.webViewLink, drive });
+      } catch (e) { log('erro ao enviar ao Drive', b, d, e.message); return send(res, e.status === 401 ? 403 : e.status || 502, { error: e.message, needsLogin: !!e.needsLogin }); }
     }
     if (c === 'clips') {
       await withLock('clips:' + b, async () => {

@@ -137,10 +137,13 @@
     setTimeout(() => document.addEventListener('click', function h(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', h); } }), 0); return m;
   };
 
-  /* ---------- Login do Google (token só em memória, escopo somente leitura do Drive) ---------- */
-  function googleToken(clientId) {
+  /* ---------- Login do Google (token só em memória) ----------
+     Importar um arquivo usa só leitura. Enviar cortes precisa do acesso completo ao Drive: o escopo restrito
+     "drive.file" não deixa gravar numa pasta que outra pessoa criou e compartilhou. */
+  const G_READ = 'https://www.googleapis.com/auth/drive.readonly', G_WRITE = 'https://www.googleapis.com/auth/drive';
+  function googleToken(clientId, scope = G_READ) {
     const load = () => new Promise((ok, bad) => { if (window.google && google.accounts && google.accounts.oauth2) return ok(); const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true; sc.onload = ok; sc.onerror = () => bad(new Error('Não foi possível carregar o login do Google.')); document.head.appendChild(sc); });
-    return load().then(() => new Promise((ok, bad) => { google.accounts.oauth2.initTokenClient({ client_id: clientId, scope: 'https://www.googleapis.com/auth/drive.readonly', callback: (t) => (t.access_token ? ok(t.access_token) : bad(new Error('Não foi possível entrar com o Google.'))), error_callback: () => bad(new Error('Login cancelado ou bloqueado pelo navegador. Se o erro for origin_mismatch, adicione este endereço às origens autorizadas do cliente OAuth.')) }).requestAccessToken({ prompt: '' }); }));
+    return load().then(() => new Promise((ok, bad) => { google.accounts.oauth2.initTokenClient({ client_id: clientId, scope, callback: (t) => (t.access_token ? ok(t.access_token) : bad(new Error('Não foi possível entrar com o Google.'))), error_callback: () => bad(new Error('Login cancelado ou bloqueado pelo navegador. Se o erro for origin_mismatch, adicione este endereço às origens autorizadas do cliente OAuth.')) }).requestAccessToken({ prompt: '' }); }));
   }
 
   /* ---------- Envio (real) ---------- */
@@ -288,12 +291,13 @@
       $('#cuts').innerHTML = l.map((k) => `<div class="cut ${k.hid ? 'hid' : ''}" data-c="${k.id}">${mediaTag(k)}
         <div class="sc">${k.score ? `<span class="chipx">⚡ ${k.score}</span>` : ''}<span class="chipx ok">${k.render && k.render.status === 'rendering' ? '⏳ Renderizando' : k.downloaded ? '✓ Baixado' : k.render && k.render.status === 'done' ? 'Pronto' : 'Novo'}</span><span style="color:var(--muted)">${tm(k.start)} → ${tm(k.end)} · ${Math.round(dur(k))}s</span></div><h4>${esc(k.title)}</h4><p class="ds">${esc(k.description)}</p>
         <div class="tg" style="display:flex;gap:6px;flex-wrap:wrap">${[k.type, k.emotion, ...(k.tags || [])].filter(Boolean).map((t, i) => `<span class="tag2 ${'abc'[i % 3]}">${esc(t)}</span>`).join('')}</div>
-        <div class="bt"><button class="ap-btn pri" data-a="dl">Baixar corte</button><button class="ap-btn" data-a="ed" aria-label="Editar">${ic.scissors}</button><button class="ap-btn ${k.fav ? 'on' : ''}" data-a="fav" aria-label="Favoritar">${ic.heartS}</button><button class="ap-btn" data-a="hid" aria-label="${k.hid ? 'Mostrar' : 'Ocultar'}">${ic.eye}</button></div></div>`).join('') || '<div class="empty" style="grid-column:1/-1"><h3>Nenhum corte aqui</h3><p>Ajuste os filtros ou crie um novo corte.</p></div>';
+        <div class="bt"><button class="ap-btn pri" data-a="dl">Baixar corte</button>${driveBtn(k)}<button class="ap-btn" data-a="ed" aria-label="Editar">${ic.scissors}</button><button class="ap-btn ${k.fav ? 'on' : ''}" data-a="fav" aria-label="Favoritar">${ic.heartS}</button><button class="ap-btn" data-a="hid" aria-label="${k.hid ? 'Mostrar' : 'Ocultar'}">${ic.eye}</button></div></div>`).join('') || '<div class="empty" style="grid-column:1/-1"><h3>Nenhum corte aqui</h3><p>Ajuste os filtros ou crie um novo corte.</p></div>';
       $$('.cut video,.cut audio').forEach((m) => m.addEventListener('play', () => { if (S.media) S.media.pause(); $$('.cut video,.cut audio').forEach((o) => { if (o !== m) o.pause(); }); }));
       $$('.cut').forEach((el) => { const k = clips.find((x) => x.id === el.dataset.c); $$('[data-a]', el).forEach((b) => b.onclick = guard(async () => {
         const a = b.dataset.a;
         if (a === 'fav') { await api(`/uploads/${c.id}/clips/${k.id}`, { method: 'PATCH', json: { fav: !k.fav } }); k.fav = !k.fav; draw(); }
         else if (a === 'hid') { await api(`/uploads/${c.id}/clips/${k.id}`, { method: 'PATCH', json: { hid: !k.hid } }); k.hid = !k.hid; draw(); }
+        else if (a === 'drive') { b.disabled = true; b.textContent = 'Enviando…'; try { await sendDrive(k); } finally { draw(); } }
         else if (a === 'dl') {
           if (k.render && k.render.status === 'rendering') return toast('Este corte já está sendo renderizado.');
           ClipEditor.open({ upload: c, clip: k, segs: S.segs, api, toast, tm, esc, dl, onDone: (list) => { clips = list; draw(); } });
@@ -306,6 +310,17 @@
     $('#csort').onclick = (e) => popover(e.currentTarget, [['score', 'Maior impacto'], ['low', 'Menor impacto'], ['time', 'Ordem no vídeo']].map((o) => `<button data-s="${o[0]}">${o[1]}</button>`).join(''), (m) => $$('button', m).forEach((b) => b.onclick = () => { sort = b.dataset.s; $('#csort').textContent = `⇅ ${b.textContent} ⌄`; m.remove(); draw(); }));
     const types = [...new Set(clips.map((k) => k.type).filter(Boolean))], emos = [...new Set(clips.map((k) => k.emotion).filter(Boolean))];
     $('#cfil').onclick = (e) => popover(e.currentTarget, [['show', 'Mostrar', [['', 'Todos'], ['vis', 'Visíveis'], ['fav', 'Favoritos']]], ['dl', 'Baixados', [['', 'Todos'], ['sim', 'Sim'], ['nao', 'Não']]], ['type', 'Tipo de corte', [['', 'Todos os tipos'], ...types.map((x) => [x, x])]], ['imp', 'Impacto', [['', 'Qualquer impacto'], ['80', '80+'], ['70', '70+']]], ['dur', 'Duração', [['', 'Qualquer duração'], ['c', 'Até 30s'], ['m', '30–59s'], ['l', '1min+']]], ...(emos.length ? [['emo', 'Emoção', [['', 'Todas as emoções'], ...emos.map((x) => [x, x])]]] : [])].map((r) => `<label>${r[1]}<select data-f="${r[0]}">${r[2].map((o) => `<option value="${o[0]}" ${f[r[0]] === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></label>`).join('') + `<div class="act"><button class="ap-btn" id="fx">Limpar</button><button class="ap-btn pri" id="fy">Ver resultados</button></div>`, (m) => { $('#fx', m).onclick = () => { f = { show: '', dl: '', type: '', imp: '', dur: '', emo: '' }; m.remove(); draw(); }; $('#fy', m).onclick = () => { $$('select', m).forEach((s) => f[s.dataset.f] = s.value); m.remove(); draw(); }; });
+    // Envio ao Drive: só aparece com a pasta da equipe configurada e o corte já exportado.
+    const driveOn = !!(S.status && S.status.driveCuts);
+    const driveBtn = (k) => !driveOn || !(k.render && k.render.status === 'done') ? '' : k.drive && k.drive.link ? `<a class="ap-btn" href="${esc(k.drive.link)}" target="_blank" rel="noopener">✓ No Drive</a>` : '<button class="ap-btn" data-a="drive">Enviar para o Drive</button>';
+    const sendDrive = async (k) => {
+      const post = (t) => api(`/uploads/${c.id}/clips/${k.id}/drive`, { json: { token: t } });
+      const fresh = async () => { const t = await googleToken(S.status.driveClientId, G_WRITE); S.gtok = { t, exp: Date.now() + 45 * 60000 }; return t; };
+      let r;
+      try { r = await post(S.gtok && S.gtok.exp > Date.now() ? S.gtok.t : await fresh()); }
+      catch (e) { if (!(e.data && e.data.needsLogin)) throw e; S.gtok = null; r = await post(await fresh()); } // token vencido: pede o login de novo, uma vez
+      k.drive = r.drive; toast('Corte enviado para a pasta da equipe.');
+    };
     $('#cl-paste').onclick = () => modal('Colar minutagens', `<label for="cutlist">Uma minutagem por linha</label><textarea id="cutlist" rows="7" placeholder="12:40 - 14:05 O amor de Deus&#10;31:10 - 32:20 O bom pastor"></textarea><div class="cut-rej" hidden></div>`, guard(async (m) => {
       const text = $('#cutlist', m).value; if (!text.trim()) return false;
       const r = await api(`/uploads/${c.id}/clips/bulk`, { json: { text } });
