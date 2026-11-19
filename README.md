@@ -1,1 +1,96 @@
+# INVB Studio
 
+Transcrição e cortes de pregações. Roda no computador de cada pessoa; os cortes prontos vão para uma
+pasta compartilhada do Google Drive, de onde a equipe pega para editar.
+
+## Como a equipe trabalha
+
+Cada culto tem um responsável, que faz sozinho da transcrição aos cortes.
+
+| Etapa | Onde | Quem |
+|---|---|---|
+| 1. Transcrição | INVB Studio | Responsável pelo culto |
+| 2. Sugestões de cortes | Claude | Responsável pelo culto |
+| 3. Cortes (1 a 4 por pregação) | INVB Studio | Responsável pelo culto |
+| 4. Cortes disponíveis para edição | Pasta do Drive | Equipe |
+| 5. Edição | CapCut (projeto compartilhado) | Equipe |
+
+## Passo a passo de um culto
+
+1. **Cole o link** da pregação (YouTube ou Google Drive) na tela inicial. O app baixa e transcreve.
+2. Abra **Transcrição**. O texto aparece em linhas curtas, cada uma com o seu tempo. Clicar em uma
+   palavra leva o vídeo ao segundo exato dela.
+3. Clique em **Copiar para o Claude**, cole no Claude e envie. A resposta vem como uma lista:
+   `12:40 - 14:05 Título do corte`.
+4. Abra **Cortes** e clique em **Colar minutagens**. Cole a lista e confirme: os cortes são criados
+   de uma vez. Linhas que não deram certo voltam com o motivo, para corrigir.
+   - Também dá para criar um corte por vez em **+ Novo corte**, ou na Transcrição com
+     **Selecionar** → marque as linhas → **Criar corte da seleção**.
+5. Em cada corte, clique em **Baixar corte**, confira o trecho e exporte. A legenda vem desligada,
+   porque a edição é feita no CapCut; dá para ligar no editor.
+6. Com o corte exportado, clique em **Enviar para o Drive**. Ele vai para uma subpasta com o nome
+   da pregação, dentro da pasta da equipe.
+
+### A pregação inteira não fica guardada
+
+Fica salvo só o link. O vídeo baixado continua no computador enquanto você estiver usando, então dá
+para fazer quantos cortes quiser sem baixar de novo. Depois de 7 dias sem uso ele é apagado; a
+transcrição, a minutagem e os cortes prontos continuam. Se precisar do vídeo outra vez, o app mostra
+um aviso com o botão **Baixar de novo**.
+
+- Para apagar antes: em **Arquivos**, menu `⋮` do envio → **Liberar espaço**.
+- Arquivos enviados direto do computador (sem link) nunca são apagados automaticamente.
+- Se o vídeo sair do ar na origem, os cortes já feitos continuam, mas não dá para baixar de novo.
+
+## Instalação em cada computador
+
+1. Baixe o projeto (botão **Code → Download ZIP** no GitHub) e descompacte.
+2. Coloque o arquivo `equipe.env`, recebido de quem configurou, dentro da pasta `install`.
+3. Dê dois cliques em:
+   - **Windows:** `install\iniciar.bat`
+   - **Mac:** `install/iniciar.command`
+     (na primeira vez o Mac pode bloquear: clique com o botão direito → **Abrir**)
+
+Na primeira vez o arquivo instala o que faltar (Node, ffmpeg e yt-dlp). No Windows ele pede para
+fechar a janela e abrir de novo depois de instalar. Nas vezes seguintes ele só atualiza o yt-dlp e
+abre o app no navegador. Deixe a janela preta aberta enquanto usa.
+
+Pré-requisitos do instalador automático: **winget** no Windows (já vem no Windows 11 e no 10
+atualizado) e **Homebrew** no Mac (https://brew.sh).
+
+> Estes dois arquivos de início ainda não foram executados em um Windows nem em um Mac de verdade.
+> Na primeira instalação, se algo falhar, a mensagem na janela diz o que faltou.
+
+## Configuração única da equipe
+
+Feita uma vez, por uma pessoa. O resultado é o arquivo `install/equipe.env`
+(modelo em `install/equipe.env.example`), repassado aos colegas por um canal privado.
+
+1. **Senha do app:** escolha uma com pelo menos 10 caracteres (`INVB_PASSWORD`).
+2. **Transcrição:** crie uma chave gratuita em https://console.groq.com/keys (`GROQ_API_KEY`).
+3. **Pasta dos cortes:** crie a pasta no Drive, compartilhe com a equipe como **Editor** e copie o
+   final do link (`https://drive.google.com/drive/folders/ESTE_TRECHO`) para `DRIVE_CUTS_FOLDER_ID`.
+4. **Login do Google** (https://console.cloud.google.com):
+   1. Crie um projeto.
+   2. Em **APIs e serviços → Biblioteca**, ative a **Google Drive API**.
+   3. Em **Tela de permissão OAuth**, escolha **Interno** se todos usam contas da mesma organização
+      Google Workspace. Caso contrário, escolha **Externo**, deixe em modo de teste e adicione os
+      e-mails da equipe como **usuários de teste**.
+   4. Em **Credenciais → Criar credenciais → ID do cliente OAuth**, tipo **Aplicativo da Web**.
+      Em **Origens JavaScript autorizadas**, adicione `http://127.0.0.1:4321`.
+   5. Copie o **ID do cliente** para `GOOGLE_CLIENT_ID`.
+
+O envio ao Drive pede acesso completo ao Drive da conta, porque a permissão mais restrita do Google
+não deixa gravar em uma pasta criada por outra pessoa. O acesso vale só enquanto a aba está aberta
+e não fica salvo em disco.
+
+> O envio real ao Drive foi testado apenas contra uma simulação da API do Google. Faça um envio de
+> teste depois de configurar.
+
+## Para quem desenvolve
+
+- Sem dependências npm. `npm start` sobe o servidor; `npm test` roda os testes (`node --test`).
+- Variáveis de ambiente: veja `.env.example`.
+- Lógica testável em `lib/`: `lines.js` (linhas curtas), `cutlist.js` (ida e volta com o Claude),
+  `drive.js` (importar e enviar), `cleanup.js` (limpeza do original), `analyze.js`.
+- O projeto e o plano desta mudança estão em `docs/superpowers/`.
