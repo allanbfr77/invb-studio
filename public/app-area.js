@@ -343,7 +343,7 @@
           k.render = { status: 'rendering' }; draw(); toast('Exportando o corte… O download começa quando terminar.'); pollRender(k.id);
         } else if (a === 'open') { // tesoura: abre o editor (formato, legenda, textos, ajustes finos)
           if (k.render && k.render.status === 'rendering') return toast('Este corte já está sendo exportado.');
-          ClipEditor.open({ upload: c, clip: k, segs: S.segs, api, toast, tm, esc, dl, onDone: (list) => { clips = list; draw(); } });
+          ClipEditor.open({ upload: c, clip: k, segs: S.segs, api, toast, tm, esc, dl, drive: driveOn ? { token: driveToken, send: sendDrive } : null, onDone: (list) => { clips = list; draw(); } });
         } else if (a === 'ed') modal('Editar corte', `<label>Título</label><input id="et" value="${esc(k.title)}"><label>Início (mm:ss)</label><input id="es" value="${tm(k.start)}"><label>Fim (mm:ss)</label><input id="ee" value="${tm(k.end)}">${k.manual ? '<label style="margin-top:14px"><a id="edel" style="color:#c0262d;cursor:pointer">Excluir este corte</a></label>' : ''}`, guard(async (m) => { const s = parseT($('#es', m).value), e = parseT($('#ee', m).value); if (!(e - s >= 3)) { toast('O corte precisa ter ao menos 3s.'); return false; } const r = await api(`/uploads/${c.id}/clips/${k.id}`, { method: 'PATCH', json: { title: $('#et', m).value, start: s, end: e } }); Object.assign(k, r); draw(); }), 'Salvar', 'Alterar o tempo descarta a renderização anterior.');
         const dd = $('#edel'); if (dd) dd.onclick = guard(async () => { await api(`/uploads/${c.id}/clips/${k.id}`, { method: 'DELETE' }); clips = clips.filter((x) => x.id !== k.id); document.querySelector('.modal-bg')?.remove(); draw(); });
       })); });
@@ -364,6 +364,8 @@
       catch (e) { if (!(e.data && e.data.needsLogin)) throw e; S.gtok = null; r = await post(await fresh()); } // token vencido: pede o login de novo, uma vez
       k.drive = r.drive; toast('Corte enviado para a pasta da equipe.');
     };
+    // Login do Google feito no próprio clique (o navegador bloqueia a janela se ela abrir depois de uma espera longa).
+    const driveToken = async () => { if (!(S.gtok && S.gtok.exp > Date.now())) S.gtok = { t: await googleToken(S.status.driveClientId, G_WRITE), exp: Date.now() + 45 * 60000 }; return S.gtok.t; };
     $('#cl-paste').onclick = () => modal('Colar minutagens', `<label for="cutlist">Uma minutagem por linha</label><textarea id="cutlist" rows="7" placeholder="12:40 - 14:05 O amor de Deus&#10;31:10 - 32:20 O bom pastor"></textarea><div class="cut-rej" hidden></div>`, guard(async (m) => {
       const text = $('#cutlist', m).value; if (!text.trim()) return false;
       const r = await api(`/uploads/${c.id}/clips/bulk`, { json: { text } });
