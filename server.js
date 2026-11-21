@@ -178,6 +178,9 @@ async function pump() { if (busy) return; busy = true; while (queue.length) { tr
 const lastTouch = new Map();
 const driveBusy = new Set(), refetchBusy = new Set(); // envios e novos downloads em andamento, por id do envio
 function touchUsed(id, force) { const now = Date.now(); if (!force && now - (lastTouch.get(id) || 0) < 60000) return; lastTouch.set(id, now); update(id, { lastUsedAt: now }).catch(() => {}); }
+// Primeiro H.264 + AAC: é o que todo navegador toca (o Safari não toca VP9/AV1 nem Opus dentro de mp4).
+// Depois um mp4 já pronto e, por último, o melhor que houver, para vídeos que não têm H.264.
+const YT_FORMAT = 'bv*[vcodec^=avc1][height<=1080]+ba[ext=m4a]/b[ext=mp4][height<=1080]/bv*[height<=1080]+ba/b';
 const MEDIA_FILE = /^original\.(mp4|mov|mkv|webm|avi|m4v|mp3|wav|m4a|aac|opus|flac|ogg|oga)$/i;
 /** Remove o original e qualquer sobra de download (pedaços .part, faixas separadas). */
 async function clearOriginals(id) { for (const f of await fsp.readdir(U(id)).catch(() => [])) if (f.startsWith('original.')) await fsp.rm(U(id, f), { force: true }); }
@@ -203,7 +206,7 @@ async function fetchYoutube(id, url) {
   // O yt-dlp trata --ffmpeg-location como caminho de arquivo: receber só "ffmpeg" faz ele rodar SEM ffmpeg e não juntar
   // vídeo e áudio. Com o ffmpeg no PATH ele se acha sozinho, então a opção só vai quando temos um caminho de verdade.
   const ffLoc = path.isAbsolute(tools.ffmpeg || '') ? ['--ffmpeg-location', tools.ffmpeg] : [];
-  const dl = await run(cmd, [...pre, '--no-playlist', '-f', 'bv*[height<=1080]+ba/b', '--merge-output-format', 'mp4', ...ffLoc, '-o', U(id, 'original.%(ext)s'), url]);
+  const dl = await run(cmd, [...pre, '--no-playlist', '-f', YT_FORMAT, '--merge-output-format', 'mp4', ...ffLoc, '-o', U(id, 'original.%(ext)s'), url]);
   if (dl.code !== 0) log('yt-dlp falhou', id, (dl.err || '').split('\n').filter(Boolean).slice(-3).join(' | ').slice(0, 600));
   const all = (await fsp.readdir(U(id))).filter((x) => MEDIA_FILE.test(x));
   const f = dl.code === 0 ? (all.includes('original.mp4') ? 'original.mp4' : all[0]) : null;

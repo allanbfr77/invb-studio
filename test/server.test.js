@@ -175,3 +175,15 @@ test('o yt-dlp não recebe um --ffmpeg-location que não é um caminho de verdad
   const m = args.match(/--ffmpeg-location (\S+)/);
   assert.ok(!m || path.isAbsolute(m[1]), `--ffmpeg-location recebeu "${m && m[1]}", que o yt-dlp trata como arquivo inexistente`);
 });
+
+// --- achado no primeiro uso real: o Safari não toca VP9/AV1 nem Opus dentro de mp4; pedir H.264 + AAC primeiro ---
+test('o download do YouTube pede primeiro H.264 com áudio AAC, que toca em qualquer navegador', { skip: !HAS_FFMPEG || process.platform === 'win32' }, async (t) => {
+  const d = tmp(t); seed(d, 'mmmmmmmmmmmm', { originalGone: true }, { original: false });
+  const y = fakeYtdlp(d, { acceptsFlag: true });
+  const s = await boot(t, d, { env: { YTDLP_PATH: y.f } });
+  await s.api('/uploads/mmmmmmmmmmmm/refetch', { json: {} }); await untilNotRefetching(s, 'mmmmmmmmmmmm');
+  const fmt = (fs.readFileSync(y.log, 'utf8').match(/-f (\S+)/) || [])[1] || '';
+  const opts = fmt.split('/');
+  assert.match(opts[0], /vcodec\^=avc1/); assert.match(opts[0], /ba\[ext=m4a\]/); assert.match(opts[0], /height<=1080/);
+  assert.equal(opts[opts.length - 1], 'b', 'mantém a alternativa genérica no fim, para vídeos sem H.264');
+});
