@@ -200,7 +200,11 @@ async function sweepOriginals() {
 async function fetchYoutube(id, url) {
   const [cmd, ...pre] = tools.ytdlp;
   await clearOriginals(id); // sobras de uma tentativa anterior não podem ser confundidas com o vídeo
-  const dl = await run(cmd, [...pre, '--no-playlist', '-f', 'bv*[height<=1080]+ba/b', '--merge-output-format', 'mp4', '--ffmpeg-location', tools.ffmpeg, '-o', U(id, 'original.%(ext)s'), url]);
+  // O yt-dlp trata --ffmpeg-location como caminho de arquivo: receber só "ffmpeg" faz ele rodar SEM ffmpeg e não juntar
+  // vídeo e áudio. Com o ffmpeg no PATH ele se acha sozinho, então a opção só vai quando temos um caminho de verdade.
+  const ffLoc = path.isAbsolute(tools.ffmpeg || '') ? ['--ffmpeg-location', tools.ffmpeg] : [];
+  const dl = await run(cmd, [...pre, '--no-playlist', '-f', 'bv*[height<=1080]+ba/b', '--merge-output-format', 'mp4', ...ffLoc, '-o', U(id, 'original.%(ext)s'), url]);
+  if (dl.code !== 0) log('yt-dlp falhou', id, (dl.err || '').split('\n').filter(Boolean).slice(-3).join(' | ').slice(0, 600));
   const all = (await fsp.readdir(U(id))).filter((x) => MEDIA_FILE.test(x));
   const f = dl.code === 0 ? (all.includes('original.mp4') ? 'original.mp4' : all[0]) : null;
   if (!f) { await clearOriginals(id); return null; }
@@ -305,7 +309,7 @@ async function pipeline(id) {
     await set({ status: 'processing', stage: 'Extraindo áudio', progress: 0, error: null });
     if (!tools.ffmpeg) throw new Error('ffmpeg não encontrado (defina FFMPEG_PATH ou instale imageio-ffmpeg).');
     const dur = await mediaDuration(orig);
-    if (!dur) throw new Error('Não foi possível ler o áudio deste arquivo.');
+    if (!dur) { const pr = await run(tools.ffmpeg, ['-hide_banner', '-i', orig]); log('ffmpeg não leu', id, m.file, (pr.err || '').split('\n').filter(Boolean).slice(-4).join(' | ').slice(0, 600)); throw new Error('Não foi possível ler o áudio deste arquivo.' + (m.source === 'youtube' ? ' O download do YouTube pode ter vindo incompleto; tente de novo.' : '')); }
     const wav = U(id, 'audio.wav');
     if (!isCloud()) {
       const x = await run(tools.ffmpeg, ['-y', '-i', orig, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', wav]);

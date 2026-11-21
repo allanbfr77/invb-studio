@@ -164,3 +164,14 @@ test('yt-dlp antigo, que não conhece a opção, é chamado sem ela', { skip: !H
   assert.doesNotMatch(args, /--js-runtimes/);
   assert.match(args, /watch\?v=abc/);
 });
+
+// --- achado no primeiro uso real: "--ffmpeg-location ffmpeg" faz o yt-dlp rodar SEM ffmpeg e não juntar vídeo e áudio ---
+test('o yt-dlp não recebe um --ffmpeg-location que não é um caminho de verdade', { skip: !HAS_FFMPEG || process.platform === 'win32' }, async (t) => {
+  const d = tmp(t); seed(d, 'llllllllllll', { originalGone: true }, { original: false });
+  const y = fakeYtdlp(d, { acceptsFlag: true });
+  const s = await boot(t, d, { env: { YTDLP_PATH: y.f, FFMPEG_PATH: '' } }); // ffmpeg achado pelo PATH, como nos computadores da equipe
+  await s.api('/uploads/llllllllllll/refetch', { json: {} }); await untilNotRefetching(s, 'llllllllllll');
+  const args = fs.readFileSync(y.log, 'utf8');
+  const m = args.match(/--ffmpeg-location (\S+)/);
+  assert.ok(!m || path.isAbsolute(m[1]), `--ffmpeg-location recebeu "${m && m[1]}", que o yt-dlp trata como arquivo inexistente`);
+});
