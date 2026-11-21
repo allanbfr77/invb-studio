@@ -485,3 +485,16 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:v
 
 /* O atributo hidden precisa vencer o display dos botões */
 .ap-btn[hidden]{display:none}
+
+/* Transcrição: busca e botões presos no topo; o vídeo ao lado fica sempre à vista */
+.tr-head{position:sticky;top:0;z-index:5;background:var(--surface);padding:0 0 10px}
+/* cobre a faixa acima do cabeçalho, para as linhas não aparecerem passando por trás dele */
+.tr-head::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:34px;background:var(--surface)}
+.tr-head .ap-tools:last-child{margin-bottom:0}
+.rpanel{top:0;align-self:start;max-height:calc(100dvh - 200px)}
+@media (max-width:900px){.tr-head{position:static;padding:0;margin-top:0}}
+
+/* A área de conteúdo é que rola (e não a página inteira): sem isto o cartão cresce com o conteúdo,
+   o menu lateral some ao rolar e nada consegue ficar preso no topo. */
+.ap-main{min-height:0}
+.ap-card{min-height:0}

@@ -109,6 +109,17 @@
       <div class="mid"><span class="tm" id="ptm">00:00 / ${tm(S.cur.duration)}</span><button id="pb" aria-label="Voltar 10 segundos">⏪</button><button class="play" id="pp" aria-label="Reproduzir">${ic.play}</button><button id="pf" aria-label="Avançar 10 segundos">⏩</button></div>
       <button id="psp" class="ap-btn" style="height:28px">${S.speed}x</button></div></div>`;
   }
+  // Durante a reprodução, a linha falada fica no topo da transcrição, logo abaixo da busca.
+  // Se a pessoa rolou a página por conta própria nos últimos segundos, não puxamos a tela de volta.
+  function followLine(i) {
+    const el = S.media, card = $('#ap-card'), ln = i >= 0 && document.querySelector(`.ln[data-l="${i}"]`);
+    if (!el || el.paused || !card || !ln || Date.now() - (S.userScrollAt || 0) < 4000) return;
+    // O cabeçalho preso fica um pouco abaixo da borda do cartão (o recuo interno); a linha tem que parar logo abaixo dele.
+    const head = $('.tr-head'), cr = card.getBoundingClientRect(), pad = parseFloat(getComputedStyle(card).paddingTop) || 0;
+    const hr = head ? head.getBoundingClientRect() : null, inset = hr ? Math.min(pad, Math.max(0, hr.top - cr.top)) : 0;
+    const top = ln.getBoundingClientRect().top - cr.top + card.scrollTop - inset - (head ? head.offsetHeight : 0) - 6;
+    card.scrollTo({ top: Math.max(0, top), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
   function paintPlayer() {
     const w = $('#wave'); if (!w || !S.media) return; const el = S.media, dur = S.cur.duration || el.duration || 1, t = el.currentTime || 0;
     const k = Math.floor((t / dur) * w.children.length); [...w.children].forEach((e, i) => e.classList.toggle('p', i < k));
@@ -117,6 +128,7 @@
     $$('.seg:not(.ln)').forEach((e) => e.classList.toggle('act', +e.dataset.i === act && !el.paused));
     let actL = -1; (S.lines || []).forEach((s, i) => { if (s.t <= t) actL = i; });
     $$('.ln').forEach((e) => e.classList.toggle('act', +e.dataset.l === actL && !el.paused));
+    if (actL !== S.followL) { S.followL = actL; followLine(actL); }
   }
   function bindPlayer() {
     if (!$('#wave')) return; const el = ensureMedia();
@@ -227,8 +239,8 @@
         <h2 style="font-size:17px;margin-bottom:4px">O que está pronto</h2><p class="sub2" style="margin-bottom:14px">Toque numa análise para abrir.</p><div class="rdy">${cards.map((k) => `<a href="/app/uploads/${c.id}/${k[0]}"><div class="ib">${k[1]}</div><b>${k[2]}</b><p>${k[3]}</p><p style="margin-top:8px;font-size:11px">${k[4]}</p></a>`).join('')}</div>`;
     },
     transcription: (c) => `<h1>Transcrição</h1><p class="sub2">Áudio transcrito em linhas curtas, cada uma com o seu tempo. Clique em uma palavra para ir ao segundo exato dela${c.analysis.emotions && c.analysis.emotions.length ? ' e análise emocional' : ''}. A separação de falantes não é automática: todas as falas começam como “Pessoa 1” e você pode renomear.</p><div style="height:16px"></div>
-      <div class="tr2"><div><div class="ap-tools"><label class="ap-search" style="max-width:none">${ic.search}<input id="tq" placeholder="Buscar na transcrição..."></label></div>
-      <div class="ap-tools"><span class="ap-sp"></span><button class="ap-btn pri" id="tclaude">Copiar para o Claude</button><button class="ap-btn" id="tcut" hidden>Criar corte da seleção</button><button class="ap-btn" id="tsel">Selecionar</button><button class="ap-btn" id="tdl">${ic.dl} Baixar ⌄</button><button class="ap-btn" id="tfil">Filtros</button></div>
+      <div class="tr2"><div><div class="tr-head"><div class="ap-tools"><label class="ap-search" style="max-width:none">${ic.search}<input id="tq" placeholder="Buscar na transcrição..."></label></div>
+      <div class="ap-tools"><span class="ap-sp"></span><button class="ap-btn pri" id="tclaude">Copiar para o Claude</button><button class="ap-btn" id="tcut" hidden>Criar corte da seleção</button><button class="ap-btn" id="tsel">Selecionar</button><button class="ap-btn" id="tdl">${ic.dl} Baixar ⌄</button><button class="ap-btn" id="tfil">Filtros</button></div></div>
       <div class="segs" id="segs"></div><div class="stat3"><h4>Resumo Estatístico</h4><div class="g"><div><b>${(c.clips || []).length}</b><small>Momentos-chave</small></div><div><b>${tm(c.duration)}</b><small>Duração total</small></div><div><b>${c.words || 0}</b><small>Palavras</small></div></div></div></div>
       <div class="rpanel">${c.kind === 'vid' ? '<div class="vid vid-slot"></div>' : ''}<div class="dlp"><b style="color:var(--fg)">Baixar</b><button class="ap-btn" data-d="orig">Baixar arquivo original</button><div class="g2">${['TXT', 'SRT', 'VTT'].map((f) => `<button class="ap-btn" data-d="${f}">${f}</button>`).join('')}</div></div></div></div>`,
     clips: (c) => `${note(c)}<div class="ap-head"><div><h1>Cortes</h1><p class="sub2">Cortes do seu ${c.kind === 'aud' ? 'áudio' : 'vídeo'} prontos para postar.</p></div><div class="ap-tools" style="margin:0"><button class="ap-btn" id="cl-paste">Colar minutagens</button><button class="ap-btn pri" id="cl-new">+ Novo corte</button></div></div>
@@ -275,12 +287,13 @@
   function bindTranscription() {
     const c = S.cur; let q = '', sel = false, spk = '', chk = new Set();
     let claudeTxt = ''; const loadClaude = () => api(`/uploads/${c.id}/claude`).then((r) => { claudeTxt = r.text; }).catch(() => {});
+    { const card = $('#ap-card'), mark = () => { S.userScrollAt = Date.now(); }; S.userScrollAt = 0; S.followL = -2; if (card) ['wheel', 'touchmove'].forEach((ev) => card.addEventListener(ev, mark, { passive: true })); }
     const reload = async () => { S.cur = await api('/uploads/' + c.id); S.segs = segsOf(S.cur); S.lines = linesOf(S.cur); draw(); await loadClaude(); };
     const linesTxt = (list) => TranscriptUtils.linesToText(list, tm);
     const draw = () => {
       const l = TranscriptUtils.matchLines(S.lines, q, spk);
       $('#segs').innerHTML = l.map((s, k) => { const first = !l[k - 1] || l[k - 1].seg !== s.seg; return `<div class="seg ln${first ? ' first' : ''}" data-l="${s.i}">${sel ? `<input type="checkbox" data-c="${s.i}" ${chk.has(s.i) ? 'checked' : ''}>` : ''}<span class="tcp">${tm(s.t)}</span><div style="flex:1">${first ? `<span class="sp" data-who="${s.seg}">${esc(s.who)}</span>` : ''}<p>${s.words.length ? s.words.map((w) => `<span class="w" data-s="${w.s}">${esc(w.t)}</span>`).join(' ') : esc(s.text)}</p></div>${first ? `<button class="ap-ic" data-ed="${s.seg}" aria-label="Editar texto da fala" style="width:26px;height:26px">${ic.edit}</button>` : '<span style="width:26px"></span>'}</div>`; }).join('') || '<p class="sub2" style="padding:20px">Nada encontrado.</p>';
-      $$('.ln').forEach((e) => e.onclick = (ev) => { if (ev.target.closest('[data-who],[data-c],[data-ed]')) return; const w = ev.target.closest('[data-s]'); seek(w ? +w.dataset.s : S.lines[+e.dataset.l].t); });
+      $$('.ln').forEach((e) => e.onclick = (ev) => { if (ev.target.closest('[data-who],[data-c],[data-ed]')) return; const w = ev.target.closest('[data-s]'); S.userScrollAt = 0; S.followL = -2; seek(w ? +w.dataset.s : S.lines[+e.dataset.l].t); });
       $$('[data-who]').forEach((e) => e.onclick = () => { const old = S.segs[+e.dataset.who].who; modal('Renomear falante', `<label>Novo nome para “${esc(old)}”</label><input id="nn" value="${esc(old)}">`, guard(async (m) => { const v = $('#nn', m).value.trim(); if (!v) return false; await api(`/uploads/${c.id}/speakers`, { method: 'PATCH', json: { from: old, to: v } }); await reload(); }), 'Salvar', 'O nome vale para todas as falas dessa pessoa.'); });
       $$('[data-ed]').forEach((e) => e.onclick = () => { const s = S.segs[+e.dataset.ed]; modal('Editar fala', `<label>Texto</label><textarea id="et" rows="5">${esc(s.text)}</textarea><label>Falante</label><input id="es" value="${esc(s.who)}">`, guard(async (m) => { const t = $('#et', m).value.trim(); if (!t) return false; const w = $('#es', m).value.trim() || s.who; await api(`/uploads/${c.id}/segments/${s.id}`, { method: 'PATCH', json: { text: t, speaker: w } }); await reload(); }), 'Salvar', `${tm(s.t)} — a correção vale para a exportação. A fala corrigida passa a aparecer em uma linha só.`); });
       $$('[data-c]').forEach((x) => x.onchange = () => x.checked ? chk.add(+x.dataset.c) : chk.delete(+x.dataset.c));
