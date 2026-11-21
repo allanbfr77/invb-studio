@@ -187,3 +187,15 @@ test('o download do YouTube pede primeiro H.264 com áudio AAC, que toca em qual
   assert.match(opts[0], /vcodec\^=avc1/); assert.match(opts[0], /ba\[ext=m4a\]/); assert.match(opts[0], /height<=1080/);
   assert.equal(opts[opts.length - 1], 'b', 'mantém a alternativa genérica no fim, para vídeos sem H.264');
 });
+
+// --- "Arquivo grande demais" passa a dizer o tamanho, o limite e como aumentar ---
+test('arquivo acima do limite recebe mensagem com o tamanho, o limite e a configuração a mudar', async (t) => {
+  const d = tmp(t);
+  const s = await boot(t, d, { env: { MAX_UPLOAD_GB: '0.000001' } }); // limite de ~1 KB
+  const r = await s.api('/uploads?name=grande.mp4', { json: 'x'.repeat(5000) });
+  assert.equal(r.status, 413);
+  assert.match(r.body.error, /Arquivo grande demais/);
+  assert.match(r.body.error, /limite/i);
+  assert.match(r.body.error, /MAX_UPLOAD_GB/);
+  assert.match(r.body.error, /\d/);
+});

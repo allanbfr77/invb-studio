@@ -65,6 +65,9 @@ async function groqChat(messages) {
   return (await r.json()).choices[0].message.content;
 }
 const U = (...p) => path.join(cfg.dataDir, 'uploads', ...p);
+const gb = (n) => (n / 1024 ** 3).toFixed(n < 1024 ** 3 / 10 ? 3 : 1).replace('.', ',') + ' GB';
+/** Mensagem de arquivo acima do limite: diz o tamanho (quando conhecido), o limite e onde aumentar. */
+const tooBig = (size) => `Arquivo grande demais${size ? ' (' + gb(size) + ')' : ''}: o limite atual é de ${gb(cfg.maxUploadBytes)}. Para aumentar, defina MAX_UPLOAD_GB no arquivo de configuração (equipe.env) e abra o app de novo.`;
 const manualClip = (title, start, end) => ({ id: 'm' + crypto.randomBytes(6).toString('hex'), title: String(title || 'Corte manual').slice(0, 120), description: 'Corte criado manualmente.', tags: ['Manual'], score: 0, type: 'Manual', start, end, emotion: null, fav: false, hid: false, manual: true, downloaded: false, render: null });
 const tools = { ffmpeg: null, whisper: false, ytdlp: null, checked: false };
 
@@ -218,7 +221,7 @@ async function saveDriveStream(id, file, dlr, onProgress) {
   let n = 0, last = 0; const ws = fs.createWriteStream(U(id, file));
   try {
     const rs = Readable.fromWeb(dlr.res.body);
-    rs.on('data', (ch) => { n += ch.length; if (n > cfg.maxUploadBytes) rs.destroy(new Error('Arquivo grande demais.')); const now = Date.now(); if (onProgress && dlr.size && now - last > 1000) { last = now; onProgress(Math.min(99, Math.round((n / dlr.size) * 100))); } });
+    rs.on('data', (ch) => { n += ch.length; if (n > cfg.maxUploadBytes) rs.destroy(new Error(tooBig())); const now = Date.now(); if (onProgress && dlr.size && now - last > 1000) { last = now; onProgress(Math.min(99, Math.round((n / dlr.size) * 100))); } });
     await new Promise((ok, bad) => { rs.on('error', bad); ws.on('error', bad); ws.on('finish', ok); rs.pipe(ws); });
     if (!n) throw new Error('Arquivo vazio.');
     return n;
@@ -595,11 +598,11 @@ async function api(req, res, url, q) {
         const ext = path.extname(name).toLowerCase();
         if (!AUDIO.has(ext) && !VIDEO.has(ext)) return send(res, 415, { error: 'Formato não suportado.' });
         const declared = +req.headers['content-length'] || 0;
-        if (declared > cfg.maxUploadBytes) return send(res, 413, { error: 'Arquivo grande demais.' });
+        if (declared > cfg.maxUploadBytes) return send(res, 413, { error: tooBig(declared) });
         const id = rid(), file = 'original' + ext; await fsp.mkdir(U(id), { recursive: true });
         let n = 0; const ws = fs.createWriteStream(U(id, file));
         const fail = async (msg, code = 500) => { ws.destroy(); await fsp.rm(U(id), { recursive: true, force: true }); if (!res.headersSent) send(res, code, { error: msg }); };
-        req.on('data', (ch) => { n += ch.length; if (n > cfg.maxUploadBytes) { req.destroy(); fail('Arquivo grande demais.', 413); } });
+        req.on('data', (ch) => { n += ch.length; if (n > cfg.maxUploadBytes) { req.destroy(); fail(tooBig(), 413); } });
         req.on('aborted', () => fail('Envio cancelado.'));
         req.pipe(ws);
         ws.on('error', () => fail('Falha ao gravar o arquivo.'));
@@ -635,7 +638,7 @@ async function api(req, res, url, q) {
       const token = typeof j.token === 'string' && /^[\w.\-]{20,2048}$/.test(j.token) ? j.token : null;
       let dlr; try { dlr = await openDrive(ref, token); } catch (e) { return send(res, e.status || 502, { error: e.message, needsLogin: !!e.needsLogin }); }
       const ext = path.extname(dlr.name).toLowerCase();
-      if (dlr.size > cfg.maxUploadBytes) { try { dlr.res.body.cancel(); } catch { /* ok */ } return send(res, 413, { error: 'Arquivo grande demais.' }); }
+      if (dlr.size > cfg.maxUploadBytes) { try { dlr.res.body.cancel(); } catch { /* ok */ } return send(res, 413, { error: tooBig(dlr.size) }); }
       const id = rid(), file = 'original' + ext; await fsp.mkdir(U(id), { recursive: true });
       const m = { id, name: dlr.name, file, size: dlr.size, kind: AUDIO.has(ext) ? 'aud' : 'vid', createdAt: Date.now(), status: 'processing', stage: 'Baixando do Google Drive', progress: 0, source: 'drive', url: String(j.url).trim().slice(0, 500) };
       await saveMeta(m); send(res, 201, m);
