@@ -498,3 +498,9 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:v
    o menu lateral some ao rolar e nada consegue ficar preso no topo. */
 .ap-main{min-height:0}
 .ap-card{min-height:0}
+
+/* Cartão do corte: o intervalo de tempo é clicável (ajusta título e tempos); a tesoura abre o editor */
+.cut .tlink{background:none;border:0;padding:2px 4px;margin:-2px -4px;color:var(--muted);font:inherit;cursor:pointer;border-radius:6px;display:inline-flex;align-items:center;gap:6px}
+.cut .tlink:hover,.cut .tlink:focus-visible{color:var(--fg);background:var(--hover)}
+.cut .tlink svg{width:13px;height:13px}
+.cut .bt{flex-wrap:wrap}
