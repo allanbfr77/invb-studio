@@ -75,3 +75,13 @@ test('404 na pasta diz que a pasta não foi encontrada', async () => {
   const d = fakeDrive([{ status: 404, body: {} }]);
   await assert.rejects(() => ensureFolder('tok', 'raiz', 'x', d.impl), (e) => e.status === 404 && /não encontr/i.test(e.message));
 });
+
+test('API do Drive desativada no projeto: a mensagem manda ativar a API', async () => {
+  const d = fakeDrive([{ status: 403, body: { error: { message: 'Google Drive API has not been used in project 1 before or it is disabled.', errors: [{ reason: 'accessNotConfigured' }] } } }]);
+  await assert.rejects(() => ensureFolder('tok', 'raiz', 'x', d.impl), (e) => e.status === 403 && /Google Drive API/.test(e.message) && /Ative/.test(e.message));
+});
+
+test('login sem a permissão do Drive marcada: pede o login de novo', async () => {
+  const d = fakeDrive([{ status: 403, body: { error: { message: 'Request had insufficient authentication scopes.', errors: [{ reason: 'insufficientPermissions' }] } } }]);
+  await assert.rejects(() => ensureFolder('tok', 'raiz', 'x', d.impl), (e) => e.needsLogin === true && /marque a caixa/.test(e.message));
+});

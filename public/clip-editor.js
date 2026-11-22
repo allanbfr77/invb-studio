@@ -455,7 +455,7 @@
           await new Promise((r) => setTimeout(r, 1500));
           const list = await api(`/uploads/${upload.id}/clips`); const k = list.find((x) => x.id === clip.id);
           if (!k || !k.render || k.render.status === 'rendering') { if (i > 3) lab.textContent = 'Renderizando… (' + Math.round(i * 1.5) + 's)'; continue; }
-          if (k.render.status === 'done' && o2.drive) { lab.textContent = 'Enviando ao Drive…'; cancel.hidden = true; await ctx.drive.send(k); if (onDone) onDone(list); }
+          if (k.render.status === 'done' && o2.drive) { lab.textContent = 'Enviando ao Drive…'; cancel.hidden = true; if (onDone) onDone(list); try { await ctx.drive.send(k); if (onDone) onDone(list); } catch (e) { toast('O corte foi exportado, mas o envio ao Drive falhou: ' + e.message); } }
           else if (k.render.status === 'done') { const a = document.createElement('a'); a.href = `/api/uploads/${upload.id}/clips/${clip.id}/file`; a.click(); toast(k.render.captions === false && st.cap.on && !audio && !isAud ? 'Baixado, mas sem legenda (o servidor não conseguiu queimar a legenda).' : 'Corte baixado.'); if (onDone) onDone(list); }
           else if (k.render.status === 'cancelled' || cancelled) toast('Renderização cancelada.');
           else toast('Falha ao renderizar: ' + (k.render.error || 'erro desconhecido'));

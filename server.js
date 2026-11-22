@@ -859,7 +859,7 @@ async function api(req, res, url, q) {
         const drive = { link: up.webViewLink, at: Date.now() };
         await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); const t = l.find((x) => x.id === d); if (t) { t.drive = drive; await writeJson(U(b, 'clips.json'), l); } });
         return send(res, 200, { webViewLink: up.webViewLink, drive });
-      } catch (e) { log('erro ao enviar ao Drive', b, d, e.message); return send(res, e.status === 401 ? 403 : e.status || 502, { error: e.message, needsLogin: !!e.needsLogin }); }
+      } catch (e) { log('erro ao enviar ao Drive', b, d, e.message, e.reason || '', e.detail || ''); return send(res, e.status === 401 ? 403 : e.status || 502, { error: e.message, needsLogin: !!e.needsLogin }); }
       finally { driveBusy.delete(b); }
     }
     if (c === 'clips') {

@@ -7,7 +7,8 @@
   const tm = (s) => { s = Math.max(0, Math.floor(s || 0)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : String(m).padStart(2, '0')) + ':' + String(x).padStart(2, '0'); };
   const parseT = (v) => { v = String(v).trim(); if (/^\d+(\.\d+)?$/.test(v)) return +v; const p = v.split(':').map(Number); if (p.some(isNaN)) return NaN; return p.reduce((a, n) => a * 60 + n, 0); };
   const srtT = (s) => { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = Math.floor(s % 60), ms = Math.round((s % 1) * 1000); return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')},${String(ms).padStart(3, '0')}`; };
-  const toast = (m) => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 3200); };
+  // Mensagem longa fica mais tempo na tela (dá para ler), e um clique fecha.
+  const toast = (m) => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); t.onclick = () => t.classList.remove('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), Math.max(3200, Math.min(15000, String(m || '').length * 70))); };
   const dl = (name, text) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 800); };
   const fmtSize = (b) => b >= 1073741824 ? (b / 1073741824).toFixed(2).replace('.', ',') + ' GB' : (b / 1048576).toFixed(2).replace('.', ',') + ' MB';
   const fmtDate = (t) => new Date(t).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
