@@ -38,5 +38,5 @@ echo "Baixando o modelo de separação de voz..."
 .venv-voz/bin/python -m demucs --help >/dev/null 2>&1 || parar "A instalação terminou, mas o modelo não respondeu. Rode este arquivo de novo."
 
 echo
-echo "Pronto. Feche o INVB Studio, abra de novo, e a opção \"Sem música\" aparece em Isolar voz, no editor do corte."
+echo "Pronto. Feche o INVB Studio, abra de novo, e a chave \"Remover música\" fica disponível no editor do corte, na seção Áudio."
 read -r -p "Aperte Enter para fechar." _

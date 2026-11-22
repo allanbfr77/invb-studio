@@ -46,7 +46,7 @@ echo Baixando o modelo de separacao de voz...
 if errorlevel 1 ( echo Nao consegui baixar o modelo. Confira a internet e rode este arquivo de novo. & goto :fim_erro )
 
 echo.
-echo Pronto. Feche o INVB Studio, abra de novo, e a opcao "Sem musica" aparece em Isolar voz, no editor do corte.
+echo Pronto. Feche o INVB Studio, abra de novo, e a chave "Remover musica" fica disponivel no editor do corte, na secao Audio.
 pause
 goto :eof
 

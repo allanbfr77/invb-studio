@@ -16,7 +16,7 @@ const { pickProvider } = require('./lib/ai');
 const { ytProgress, ytInfo } = require('./lib/ytprogress');
 const { needsPreview } = require('./lib/preview');
 const { cleanSpeed, atempo } = require('./lib/speed');
-const { cleanVoice, voiceFilters, cleanGap } = require('./lib/voice');
+const { cleanVoice } = require('./lib/voice');
 const { Readable } = require('stream');
 
 /* ---------- Configuração (.env opcional) ----------
@@ -460,7 +460,7 @@ function cleanOpts(j) {
   const edits = {}; if (j.edits && typeof j.edits === 'object') Object.entries(j.edits).slice(0, 400).forEach(([k, v]) => { if (/^\d{1,6}$/.test(k) && typeof v === 'string') edits[k] = v.slice(0, 800); });
   return {
     format: Object.prototype.hasOwnProperty.call(FORMATS, j.format) ? j.format : (j.vertical ? '9:16' : 'orig'),
-    bw: !!j.bw, hq: !!j.hq, removePauses: !!j.removePauses, audio: !!j.audio, speed: cleanSpeed(j.speed), voice: cleanVoice(j.voice), pauseGap: cleanGap(j.pauseGap),
+    bw: !!j.bw, hq: !!j.hq, removePauses: !!j.removePauses, audio: !!j.audio, speed: cleanSpeed(j.speed), voice: cleanVoice(j.voice),
     start: num(j.start), end: num(j.end),
     removed: (Array.isArray(j.removed) ? j.removed : []).slice(0, 800).map((r) => [num(r && r[0]), num(r && r[1])]).filter((r) => r[0] !== null && r[1] !== null && r[1] > r[0]),
     edits, overlays: ovs,
@@ -562,7 +562,7 @@ async function renderClip(id, cid, rawOpt) {
     const out = `${cid}${audioOnly ? '.mp3' : '.mp4'}`;
     const tr = await readJson(U(id, 'transcript.json'), { segments: [] });
     const rm = opt.removed.map(([a, b]) => [a - c.start, b - c.start]);
-    let iv = opt.removePauses ? keepIntervals(tr, c, opt.pauseGap) : [[0, d]];
+    let iv = opt.removePauses ? keepIntervals(tr, c) : [[0, d]];
     if (rm.length) iv = subtractRanges(iv, rm);
     const useIv = opt.removePauses || rm.length > 0;
     if (!iv.length) throw new Error('Nada sobrou depois de remover pausas/palavras.');
@@ -598,9 +598,7 @@ async function renderClip(id, cid, rawOpt) {
     const wantCaps = !audioOnly && (opt.cap.on || opt.overlays.some((o) => o.type === 'text'));
     // Velocidade: aplicada no fim, depois da legenda e das imagens, para tudo continuar sincronizado. A voz não muda de tom.
     const fast = opt.speed !== 1;
-    // Áudio: primeiro o isolamento da voz, depois a velocidade. Só entram os filtros que o ffmpeg deste computador tem.
-    if (!tools.afilters) tools.afilters = new Set(((await runP(tools.ffmpeg, ['-hide_banner', '-filters'])).out.match(/^ [T.][S.][C.] (\w+)/gm) || []).map((l) => l.trim().split(/\s+/)[1]));
-    const af = [...voiceFilters(opt.voice, tools.afilters), ...(fast ? [atempo(opt.speed)] : [])].join(',');
+    const af = fast ? atempo(opt.speed) : '';
     const build = async (withSubs) => {
       if (audioOnly) {
         if (useIv) { await fsp.writeFile(path.join(dir, fcFile), trims(false) + (af ? `;[a]${af}[ao]` : '')); return [...inArgs, '-filter_complex_script', fcFile, '-map', af ? '[ao]' : '[a]', '-c:a', 'libmp3lame', '-b:a', '128k', out]; }

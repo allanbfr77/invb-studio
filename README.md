@@ -121,9 +121,8 @@ naquele trecho; dá para ajustar, copiar tudo ou pedir outra versão. Sem a chav
 
 ## Remover música (opcional, por computador)
 
-No editor do corte, em **Áudio → Isolar voz**, há quatro opções: Desligado, Leve, Forte e **Sem música**.
-Leve e Forte reduzem ruído de fundo e já vêm prontas. **Sem música** usa um modelo de IA que separa a voz
-da música e roda no próprio computador, sem enviar áudio para fora e sem custo por uso.
+No editor do corte, na seção **Áudio**, a chave **Remover música** usa um modelo de IA que separa a voz da
+música e roda no próprio computador, sem enviar áudio para fora e sem custo por uso.
 
 Para liberar essa opção, rode uma vez, com dois cliques:
 
@@ -131,7 +130,7 @@ Para liberar essa opção, rode uma vez, com dois cliques:
 - **Windows:** `install\instalar-voz-ia.bat`
 
 Ele baixa cerca de 1 GB para a pasta `.venv-voz` do projeto. Depois, feche e abra o app. A exportação com
-**Sem música** demora mais: nos testes, perto de 12 segundos para um corte de 20 segundos.
+**Remover música** demora mais: nos testes, perto de 12 segundos para um corte de 20 segundos.
 
 ## Para quem desenvolve
 

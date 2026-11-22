@@ -517,6 +517,6 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:v
 .dlx-spb button:hover{color:var(--fg);border-color:var(--border-strong)}
 .dlx-spb button[aria-pressed="true"]{background:var(--soft);color:var(--soft-fg);border-color:var(--primary)}
 
-.dlx-spb button:disabled{opacity:.45;cursor:not-allowed}
+.dlx-sw:disabled{opacity:.4;cursor:not-allowed}
 .dlx-hint{font-size:12px;line-height:1.45;color:var(--muted);margin:0 0 18px}
 .dlx-hint code{font-size:11.5px}
