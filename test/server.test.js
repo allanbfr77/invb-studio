@@ -419,3 +419,43 @@ test('exportar com velocidade 2x gera um corte com metade da duração, com víd
   assert.equal(normal.speed, 1);
   assert.ok(Math.abs(ffDuration(path.join(dir, 'clips', normal.file)) - 6) < 0.4, 'duração normal');
 });
+
+// --- isolamento de voz e remoção de silêncio ---
+const meanVolume = (f) => +(/mean_volume: (-?[\d.]+) dB/.exec(spawnSync('ffmpeg', ['-hide_banner', '-i', f, '-af', 'volumedetect', '-f', 'null', '-']).stderr.toString()) || [])[1];
+const waitRender = async (s, id) => { let k; for (let i = 0; i < 300; i++) { k = (await s.api(`/uploads/${id}/clips`)).body[0]; if (k.render && k.render.status !== 'rendering') break; await new Promise((r) => setTimeout(r, 100)); } assert.equal(k.render.status, 'done', k.render.error); return k.render; };
+
+test('isolar a voz reduz o ruído de fundo do corte, e o forte reduz mais que o leve', { skip: !HAS_FFMPEG }, async (t) => {
+  const d = tmp(t); const dir = seed(d, 'dddddddddde1', { duration: 6 }, { clips: [clip({ start: 0, end: 6, render: null })] });
+  // vídeo com chiado constante (ruído branco), sem voz: é o que o isolamento tem que abaixar
+  spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=25:duration=6', '-f', 'lavfi', '-i', 'anoisesrc=color=white:amplitude=0.08:duration=6', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', path.join(dir, 'original.mp4')]);
+  const s = await boot(t, d);
+  const vol = async (opts) => { await s.api('/uploads/dddddddddde1/clips/m111111111111/render', { json: { captions: false, ...opts } }); const r = await waitRender(s, 'dddddddddde1'); return { r, db: meanVolume(path.join(dir, 'clips', r.file)) }; };
+  const normal = await vol({}), leve = await vol({ voice: 'leve' }), forte = await vol({ voice: 'forte' });
+  assert.equal(normal.r.voice, 'off'); assert.equal(leve.r.voice, 'leve'); assert.equal(forte.r.voice, 'forte');
+  assert.ok(leve.db < normal.db - 3, `leve: ${leve.db} dB contra ${normal.db} dB`);
+  assert.ok(forte.db < leve.db - 3, `forte: ${forte.db} dB contra leve ${leve.db} dB`);
+});
+
+test('isolar a voz funciona junto com velocidade e com exportação só de áudio', { skip: !HAS_FFMPEG }, async (t) => {
+  const d = tmp(t); const dir = seed(d, 'eeeeeeeeeef1', { duration: 6 }, { clips: [clip({ start: 0, end: 6, render: null })] });
+  spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=25:duration=6', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=6', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', path.join(dir, 'original.mp4')]);
+  const s = await boot(t, d);
+  await s.api('/uploads/eeeeeeeeeef1/clips/m111111111111/render', { json: { captions: false, voice: 'forte', speed: 2 } });
+  const v = await waitRender(s, 'eeeeeeeeeef1');
+  assert.ok(Math.abs(ffDuration(path.join(dir, 'clips', v.file)) - 3) < 0.4);
+  await s.api('/uploads/eeeeeeeeeef1/clips/m111111111111/render', { json: { audio: true, voice: 'leve', speed: 1.5 } });
+  const a = await waitRender(s, 'eeeeeeeeeef1');
+  assert.match(a.file, /\.mp3$/); assert.ok(Math.abs(ffDuration(path.join(dir, 'clips', a.file)) - 4) < 0.4);
+});
+
+test('remover silêncio corta as pausas maiores que o limite escolhido', { skip: !HAS_FFMPEG }, async (t) => {
+  const d = tmp(t); const dir = seed(d, 'fffffffffg01', { duration: 6 }, { clips: [clip({ start: 0, end: 6, render: null })] });
+  spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=25:duration=6', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=6', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', path.join(dir, 'original.mp4')]);
+  // duas falas de 1 s separadas por 2 s de silêncio
+  fs.writeFileSync(path.join(dir, 'transcript.json'), JSON.stringify({ language: 'pt', segments: [{ id: 0, speaker: 'Pessoa 1', start: 0, end: 4, text: 'um dois', words: [{ w: 'um', s: 0, e: 1 }, { w: 'dois', s: 3, e: 4 }] }] }));
+  const s = await boot(t, d);
+  const dur = async (opts) => { await s.api('/uploads/fffffffffg01/clips/m111111111111/render', { json: { captions: false, removePauses: true, ...opts } }); const r = await waitRender(s, 'fffffffffg01'); return ffDuration(path.join(dir, 'clips', r.file)); };
+  const padrao = await dur({}), tolerante = await dur({ pauseGap: 3 });
+  assert.ok(padrao < 2.9, `com o limite padrão (0,5 s) a pausa de 2 s sai: ${padrao}`);
+  assert.ok(tolerante > 3.8, `com limite de 3 s a pausa de 2 s fica: ${tolerante}`);
+});

@@ -39,7 +39,7 @@
     const isAud = upload.kind === 'aud';
     const dur = upload.duration || clip.end + 60;
     const st = {
-      format: 'orig', bw: false, hq: false, removePauses: false, speed: 1,
+      format: 'orig', bw: false, hq: false, removePauses: false, pauseGap: 0.5, voice: 'off', speed: 1,
       cap: { on: false, style: 'Clássicos/Clássica', size: 16, pos: 'bottom', upper: null, pop: null, font: null, ow: null, shadow: null },
       start: clip.start, end: clip.end, title: clip.title || '', removed: [], edits: {}, lang: null, overlays: [], sel: null,
       panel: null, tab: 'estilos', cat: 'Todos', q: '', styleChosen: false, tplCat: 'Todos', tq: '', lib: null, templates: null,
@@ -55,7 +55,7 @@
     const segsIn = () => segs.filter((s) => s.end > st.start && s.t < st.end);
 
     /* ----- histórico (desfazer/refazer) ----- */
-    const snap = () => JSON.stringify({ format: st.format, bw: st.bw, hq: st.hq, removePauses: st.removePauses, speed: st.speed, cap: st.cap, start: st.start, end: st.end, removed: st.removed, edits: st.edits, lang: st.lang, overlays: st.overlays, title: st.title });
+    const snap = () => JSON.stringify({ format: st.format, bw: st.bw, hq: st.hq, removePauses: st.removePauses, pauseGap: st.pauseGap, voice: st.voice, speed: st.speed, cap: st.cap, start: st.start, end: st.end, removed: st.removed, edits: st.edits, lang: st.lang, overlays: st.overlays, title: st.title });
     const restore = (j) => { Object.assign(st, JSON.parse(j)); wordsDirty = true; reloadAll(); };
     const commit = () => { st.hist.push(snap()); if (st.hist.length > 80) st.hist.shift(); st.fut = []; refreshBar(); };
     st.hist.push(snap()); // estado inicial (a interface ainda não existe, então sem refreshBar)
@@ -197,6 +197,7 @@
     };
 
     /* ----- painel esquerdo (sempre visível) ----- */
+    const gapLabel = (x) => String(+(+x).toFixed(1)).replace('.', ',') + ' s';
     const spLabel = (x) => String(+(+x).toFixed(2)).replace('.', ',') + 'x';
     const sw = (id, on) => `<button class="dlx-sw" role="switch" aria-checked="${on}" id="${id}"></button>`;
     function drawLeft() {
@@ -206,13 +207,18 @@
         <h4>Aparência</h4>
         <div class="dlx-row"><div><b>Preto e branco</b><small>Deixa o vídeo em tons de cinza</small></div>${sw('dx-bw', st.bw)}</div>
         <div class="dlx-row"><div><b>Preservar qualidade</b><small>Arquivo maior e render mais lento. Ideal pra levar pro editor.</small></div>${sw('dx-hq', st.hq)}</div><hr>`}
-        <h4>Áudio</h4><div class="dlx-row"><div><b>Remover pausas</b><small>Corta automaticamente os silêncios entre as palavras, deixando uma pequena pausa natural. Não aparece na prévia.</small></div>${sw('dx-rp', st.removePauses)}</div>
+        <h4>Áudio</h4><div class="dlx-row"${st.removePauses ? ' style="margin-bottom:8px"' : ''}><div><b>Remover silêncio</b><small>Corta os trechos sem fala entre as palavras, deixando uma pequena pausa natural. Não aparece na prévia.</small></div>${sw('dx-rp', st.removePauses)}</div>
+        ${st.removePauses ? `<div class="dlx-row" style="margin-bottom:6px"><div><small><label for="dx-gap">Cortar pausas maiores que</label></small></div><output id="dx-gapv" for="dx-gap" class="dlx-spv" style="font-size:13px">${gapLabel(st.pauseGap)}</output></div><input type="range" id="dx-gap" class="dlx-sp" min="0.2" max="3" step="0.1" value="${st.pauseGap}" style="margin-bottom:18px">` : ''}
+        <div class="dlx-row" style="margin-bottom:8px"><div><b>Isolar voz</b><small>Reduz o ruído de fundo (chiado, zumbido, ar-condicionado) e destaca a fala. Não remove música nem outras vozes. Não aparece na prévia.</small></div></div>
+        <div class="dlx-spb" role="group" aria-label="Isolar voz">${[['off', 'Desligado'], ['leve', 'Leve'], ['forte', 'Forte']].map(([k, l]) => `<button data-vo="${k}" aria-pressed="${st.voice === k}">${l}</button>`).join('')}</div>
         <div class="dlx-row" style="margin-bottom:8px"><div><b><label for="dx-sp">Velocidade</label></b><small>Acelera ou desacelera o corte sem mudar o tom da voz. A prévia acompanha.</small></div><output id="dx-spv" for="dx-sp" class="dlx-spv">${spLabel(st.speed)}</output></div>
         <input type="range" id="dx-sp" class="dlx-sp" min="0.25" max="2" step="0.05" value="${st.speed}">
         <div class="dlx-spb">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((x) => `<button data-sp="${x}" aria-pressed="${st.speed === x}">${spLabel(x)}</button>`).join('')}</div>`;
       $$('[data-f]', L).forEach((b) => b.onclick = () => { st.format = b.dataset.f; commit(); layoutStage(); drawLeft(); });
       const tg = (id, key) => { const e = $('#' + id, L); if (e) e.onclick = () => { st[key] = !st[key]; commit(); layoutStage(); drawLeft(); }; };
       tg('dx-bw', 'bw'); tg('dx-hq', 'hq'); tg('dx-rp', 'removePauses');
+      $$('[data-vo]', L).forEach((b) => b.onclick = () => { st.voice = b.dataset.vo; commit(); drawLeft(); });
+      const gp = $('#dx-gap', L); if (gp) { gp.oninput = () => { st.pauseGap = +gp.value; $('#dx-gapv', L).textContent = gapLabel(st.pauseGap); }; gp.onchange = () => commit(); }
       // Velocidade: de 0,25x a 2x, em passos de 0,05. A prévia toca na mesma velocidade (o navegador mantém o tom da voz).
       const sp = $('#dx-sp', L), setSp = (x, redraw) => { st.speed = Math.max(0.25, Math.min(2, Math.round(x * 100) / 100)); v.playbackRate = st.speed; $('#dx-spv', L).textContent = spLabel(st.speed); if (redraw) { commit(); drawLeft(); } };
       if (sp) { sp.oninput = () => setSp(+sp.value, false); sp.onchange = () => setSp(+sp.value, true); $$('[data-sp]', L).forEach((b) => b.onclick = () => setSp(+b.dataset.sp, true)); v.playbackRate = st.speed; }
@@ -424,7 +430,7 @@
       if (st.busy) return; st.busy = true; const lab = $('#dx-golab', root), btn = $('#dx-go', root), cancel = $('#dx-cancel', root); btn.disabled = true; cancel.hidden = false; lab.textContent = 'Renderizando…';
       let cancelled = false; cancel.onclick = async () => { cancelled = true; try { await api(`/uploads/${upload.id}/clips/${clip.id}/render/cancel`, { json: {} }); } catch { /* ok */ } };
       try {
-        const opts = o2.raw ? { format: 'orig', captions: { on: false }, start: st.start, end: st.end } : { format: st.format, bw: st.bw, hq: st.hq, removePauses: st.removePauses, speed: st.speed, audio, start: st.start, end: st.end, removed: st.removed, edits: st.edits, captions: { ...st.cap }, overlays: st.overlays.filter((o) => !o.hidden).map(({ tpl, hidden, ...o }) => o) };
+        const opts = o2.raw ? { format: 'orig', captions: { on: false }, start: st.start, end: st.end } : { format: st.format, bw: st.bw, hq: st.hq, removePauses: st.removePauses, pauseGap: st.pauseGap, voice: st.voice, speed: st.speed, audio, start: st.start, end: st.end, removed: st.removed, edits: st.edits, captions: { ...st.cap }, overlays: st.overlays.filter((o) => !o.hidden).map(({ tpl, hidden, ...o }) => o) };
         if (st.title && st.title !== clip.title) api(`/uploads/${upload.id}/clips/${clip.id}`, { method: 'PATCH', json: { title: st.title } }).catch(() => {});
         await api(`/uploads/${upload.id}/clips/${clip.id}/render`, { json: opts });
         for (let i = 0; i < 1200; i++) {
