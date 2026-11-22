@@ -132,7 +132,9 @@ async function detectTools() {
       if (r.code === 0) cfg.ffmpeg = r.out.trim();
     }
   }
-  tools.ffmpeg = cfg.ffmpeg && (await run(cfg.ffmpeg, ['-version'])).code === 0 ? cfg.ffmpeg : null;
+  const fv = cfg.ffmpeg ? await run(cfg.ffmpeg, ['-version']) : { code: 1 };
+  tools.ffmpeg = fv.code === 0 ? cfg.ffmpeg : null;
+  tools.ffmpegMajor = +((/ffmpeg version n?(\d+)\./i.exec(fv.out || '') || [])[1] || 0);
   tools.whisper = (await run(cfg.python, ['-c', 'import faster_whisper'])).code === 0;
   if (cfg.ytdlp) tools.ytdlp = [cfg.ytdlp];
   else if ((await run('yt-dlp', ['--version'])).code === 0) tools.ytdlp = ['yt-dlp'];
@@ -615,9 +617,12 @@ async function renderClip(id, cid, rawOpt) {
     // Velocidade: aplicada no fim, depois da legenda e das imagens, para tudo continuar sincronizado. A voz não muda de tom.
     const fast = opt.speed !== 1;
     const af = fast ? atempo(opt.speed) : '';
+    // O filtro vai direto na linha de comando: a opção -filter_complex_script foi retirada do ffmpeg 8 (o que o Homebrew instala hoje).
+    // Só um filtro enorme (centenas de trechos) vai por arquivo, pela opção que a versão instalada aceitar.
+    const fcArgs = async (fc) => { if (fc.length <= 20000) return ['-filter_complex', fc]; await fsp.writeFile(path.join(dir, fcFile), fc); return tools.ffmpegMajor >= 7 ? ['-/filter_complex', fcFile] : ['-filter_complex_script', fcFile]; };
     const build = async (withSubs) => {
       if (audioOnly) {
-        if (useIv) { await fsp.writeFile(path.join(dir, fcFile), trims(false) + (af ? `;[a]${af}[ao]` : '')); return [...inArgs, '-filter_complex_script', fcFile, '-map', af ? '[ao]' : '[a]', '-c:a', 'libmp3lame', '-b:a', '128k', out]; }
+        if (useIv) { return [...inArgs, ...(await fcArgs(trims(false) + (af ? `;[a]${af}[ao]` : ''))), '-map', af ? '[ao]' : '[a]', '-c:a', 'libmp3lame', '-b:a', '128k', out]; }
         return [...inArgs, '-vn', ...(aIn !== '0:a' ? ['-map', aIn] : []), ...(af ? ['-af', af] : []), '-c:a', 'libmp3lame', '-b:a', '128k', out];
       }
       const pre = [];
@@ -637,8 +642,7 @@ async function renderClip(id, cid, rawOpt) {
       if (af) { if (useIv) { chain.push(`[a]${af}[ao]`); aMap = '[ao]'; } else aFilter = ['-af', af]; }
       const enc = ['-c:v', 'libx264', '-preset', opt.hq ? 'slow' : 'veryfast', '-crf', opt.hq ? '16' : '22', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', opt.hq ? '256k' : '160k', '-movflags', '+faststart', out];
       const fc = (useIv ? `${trims(true)};` : '') + chain.join(';');
-      await fsp.writeFile(path.join(dir, fcFile), fc);
-      return [...inArgs, '-filter_complex_script', fcFile, '-map', `[${cur}]`, '-map', aMap, ...aFilter, ...enc];
+      return [...inArgs, ...(await fcArgs(fc)), '-map', `[${cur}]`, '-map', aMap, ...aFilter, ...enc];
     };
     let captions = wantCaps, r = await runP(tools.ffmpeg, await build(true), { cwd: dir });
     if (state.cancelled) return void (await setR({ status: 'cancelled' }));
