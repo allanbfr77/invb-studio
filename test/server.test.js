@@ -199,3 +199,21 @@ test('arquivo acima do limite recebe mensagem com o tamanho, o limite e a config
   assert.match(r.body.error, /MAX_UPLOAD_GB/);
   assert.match(r.body.error, /\d/);
 });
+
+// --- recursos de IA só para quem tem a chave do Claude na configuração pessoal ---
+test('sem chave do Claude, a IA fica desligada e a rota recusa', async (t) => {
+  const d = tmp(t); seed(d, 'nnnnnnnnnnnn');
+  const s = await boot(t, d, { env: { ANTHROPIC_API_KEY: '' } });
+  assert.equal((await s.api('/status')).body.ai, false);
+  const r = await s.api('/uploads/nnnnnnnnnnnn/ai/cuts', { json: {} });
+  assert.equal(r.status, 501);
+  assert.equal((await s.api('/uploads/nnnnnnnnnnnn/clips')).body.length, 0);
+});
+
+test('com a chave, o app avisa a tela que a IA está disponível, sem expor a chave', async (t) => {
+  const d = tmp(t); seed(d, 'oooooooooooo');
+  const s = await boot(t, d, { env: { ANTHROPIC_API_KEY: 'sk-ant-chave-de-teste-000' } });
+  const st = (await s.api('/status')).body;
+  assert.equal(st.ai, true);
+  assert.ok(!JSON.stringify(st).includes('sk-ant-chave-de-teste-000'));
+});

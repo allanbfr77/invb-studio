@@ -11,11 +11,14 @@ const { parseDriveLink, openDrive, ensureFolder, uploadFile } = require('./lib/d
 const { splitLines } = require('./lib/lines');
 const { parseCutList, buildPrompt } = require('./lib/cutlist');
 const { staleOriginals, canRefetch } = require('./lib/cleanup');
+const { suggestCuts, aiAvailable } = require('./lib/claude');
 const { Readable } = require('stream');
 
-/* ---------- Configuração (.env opcional) ---------- */
-try {
-  for (const line of fs.readFileSync(path.join(__dirname, '.env'), 'utf8').split(/\r?\n/)) {
+/* ---------- Configuração (.env opcional) ----------
+   install/pessoal.env é a configuração só deste computador (ex.: a chave do Claude). Ela nunca é copiada
+   nem compartilhada com a equipe, e vale sobre o .env, que vem do equipe.env de todos. */
+for (const envFile of [path.join(__dirname, 'install', 'pessoal.env'), path.join(__dirname, '.env')]) try {
+  for (const line of fs.readFileSync(envFile, 'utf8').split(/\r?\n/)) {
     const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
     if (m && !line.trim().startsWith('#') && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
   }
@@ -41,6 +44,8 @@ const cfg = {
   openaiModel: E.OPENAI_MODEL || 'gpt-4o-mini',
   openaiTranscribeModel: E.OPENAI_TRANSCRIBE_MODEL || 'whisper-1',
   googleClientId: E.GOOGLE_CLIENT_ID || '',
+  // Recursos de IA com o Claude: só aparecem em quem tem esta chave (na configuração pessoal).
+  anthropicKey: E.ANTHROPIC_API_KEY || '',
   // Pasta compartilhada do Drive onde os cortes prontos ficam disponíveis para a equipe editar.
   driveCutsFolder: /^[\w-]{10,}$/.test(E.DRIVE_CUTS_FOLDER_ID || '') ? E.DRIVE_CUTS_FOLDER_ID : '',
   // Fica salvo só o link: o vídeo original sai do computador depois de N dias sem uso (negativo desliga a limpeza).
@@ -179,6 +184,7 @@ async function pump() { if (busy) return; busy = true; while (queue.length) { tr
 
 /* ---------- Original sob demanda (só o link fica salvo) ---------- */
 const lastTouch = new Map();
+const aiBusy = new Set();
 const driveBusy = new Set(), refetchBusy = new Set(); // envios e novos downloads em andamento, por id do envio
 function touchUsed(id, force) { const now = Date.now(); if (!force && now - (lastTouch.get(id) || 0) < 60000) return; lastTouch.set(id, now); update(id, { lastUsedAt: now }).catch(() => {}); }
 // Primeiro H.264 + AAC: é o que todo navegador toca (o Safari não toca VP9/AV1 nem Opus dentro de mp4).
@@ -588,7 +594,7 @@ async function api(req, res, url, q) {
   if (a === 'logout' && method === 'POST') return send(res, 200, { ok: true }, { 'set-cookie': 'invb_sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' });
   if (method !== 'GET' && req.headers['x-invb'] !== '1') return send(res, 403, { error: 'Requisição inválida' });
 
-  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, driveCuts: !!(cfg.googleClientId && cfg.driveCutsFolder), provider_name: isCloud() ? cloud().name : 'Local', llm: cfg.llmEnabled, llmModel: cfg.llmEnabled ? cfg.openaiModel : null, queue: queue.length + (busy ? 1 : 0) });
+  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, ai: aiAvailable(cfg.anthropicKey), driveCuts: !!(cfg.googleClientId && cfg.driveCutsFolder), provider_name: isCloud() ? cloud().name : 'Local', llm: cfg.llmEnabled, llmModel: cfg.llmEnabled ? cfg.openaiModel : null, queue: queue.length + (busy ? 1 : 0) });
 
   if (a === 'uploads') {
     if (!b) {
@@ -757,6 +763,20 @@ async function api(req, res, url, q) {
         if (!res.writableEnded) send(res, 404, { error: 'Rota não encontrada' });
       });
       return;
+    }
+    if (c === 'ai' && d === 'cuts' && method === 'POST') { // sugestões de corte pelo Claude, só para quem tem a chave
+      if (!aiAvailable(cfg.anthropicKey)) return send(res, 501, { error: 'Os recursos de IA não estão ativos neste computador.' });
+      if (aiBusy.has(b)) return send(res, 409, { error: 'Já há uma análise com IA em andamento para esta pregação.' });
+      const tr = await readJson(U(b, 'transcript.json'), null); if (!tr) return send(res, 409, { error: 'Sem transcrição.' });
+      const j = await body(req); aiBusy.add(b);
+      try {
+        const cuts = await suggestCuts({ apiKey: cfg.anthropicKey, name: m.name, lines: splitLines(tr.segments), duration: m.duration || 0, count: j.count });
+        const created = cuts.map((k) => ({ ...manualClip(k.title, k.start, k.end), description: k.reason || 'Sugerido pelo Claude.', tags: ['IA'], type: 'IA' }));
+        if (created.length) await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); await writeJson(U(b, 'clips.json'), [...l, ...created]); });
+        log('IA sugeriu cortes', b, created.length);
+        return send(res, 201, { created });
+      } catch (e) { log('erro na IA', b, e.message); return send(res, e.status === 401 ? 502 : e.status || 502, { error: e.message }); } // 401 da API do Claude não pode derrubar a sessão do app
+      finally { aiBusy.delete(b); }
     }
     if (c === 'claude' && method === 'GET') { // transcrição em linhas curtas, pronta para colar no Claude
       const tr = await readJson(U(b, 'transcript.json'), null); if (!tr) return send(res, 409, { error: 'Sem transcrição.' });

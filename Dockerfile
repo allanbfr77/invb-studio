@@ -3,7 +3,8 @@ FROM node:20-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg fontconfig fonts-liberation fonts-dejavu-core ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY package.json server.js ./
+COPY package.json package-lock.json server.js ./
+RUN npm ci --omit=dev --no-audit --no-fund
 COPY lib ./lib
 COPY public ./public
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8080 DATA_DIR=/data TRUST_PROXY=1 COOKIE_SECURE=1 TRANSCRIBE_PROVIDER=openai

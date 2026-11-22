@@ -63,6 +63,13 @@ if not exist ".env" (
   goto :fim_erro
 )
 
+rem Biblioteca do Claude: so e usada por quem tem a chave na configuracao pessoal.
+if not exist "node_modules\@anthropic-ai\sdk" (
+  echo Instalando bibliotecas do app...
+  call npm install --omit=dev --no-audit --no-fund >nul 2>nul
+  if errorlevel 1 echo Aviso: nao consegui instalar as bibliotecas. O app abre normalmente, so sem os recursos de IA.
+)
+
 set PORTA=4321
 for /f "tokens=1,* delims==" %%a in ('findstr /b /c:"PORT=" ".env" 2^>nul') do set PORTA=%%b
 

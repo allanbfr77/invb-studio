@@ -94,10 +94,25 @@ e não fica salvo em disco.
 > O envio real ao Drive foi testado apenas contra uma simulação da API do Google. Faça um envio de
 > teste depois de configurar.
 
+## Recursos de IA (opcional, por computador)
+
+Quem tiver uma chave da API do Claude pode ativar os recursos de IA só no próprio computador:
+
+1. Copie `install/pessoal.env.example` para `install/pessoal.env`.
+2. Preencha `ANTHROPIC_API_KEY` com a sua chave.
+3. Feche e abra o app.
+
+Com a chave, a página **Cortes** ganha o botão **✨ Sugerir cortes com IA**: o Claude lê a transcrição e
+cria os cortes direto no app, cada um com título e o motivo da escolha. Sem a chave, o botão não aparece.
+
+- O `pessoal.env` é só seu: não vai para o GitHub e não deve ser repassado junto com o `equipe.env`.
+- Cada análise é cobrada na conta dona da chave. O modelo usado é o Claude Opus 5.5.
+- A transcrição da pregação é enviada à API da Anthropic para ser analisada.
+
 ## Para quem desenvolve
 
-- Sem dependências npm. `npm start` sobe o servidor; `npm test` roda os testes (`node --test`).
+- Uma única dependência npm, o SDK oficial da Anthropic, carregada só quando há chave. `npm start` sobe o servidor; `npm test` roda os testes (`node --test`).
 - Variáveis de ambiente: veja `.env.example`.
 - Lógica testável em `lib/`: `lines.js` (linhas curtas), `cutlist.js` (ida e volta com o Claude),
-  `drive.js` (importar e enviar), `cleanup.js` (limpeza do original), `analyze.js`.
+  `drive.js` (importar e enviar), `cleanup.js` (limpeza do original), `claude.js` (IA), `analyze.js`.
 - O projeto e o plano desta mudança estão em `docs/superpowers/`.

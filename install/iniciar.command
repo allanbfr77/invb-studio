@@ -50,6 +50,12 @@ Peça o arquivo equipe.env a quem configurou o INVB Studio e coloque na pasta in
 Depois dê dois cliques neste arquivo de novo."
 fi
 
+# Biblioteca do Claude: só é usada por quem tem a chave na configuração pessoal, mas instalar não custa nada.
+if [ ! -d node_modules/@anthropic-ai/sdk ]; then
+  echo "Instalando bibliotecas do app..."
+  npm install --omit=dev --no-audit --no-fund >/dev/null 2>&1 || echo "Aviso: não consegui instalar as bibliotecas. O app abre normalmente, só sem os recursos de IA."
+fi
+
 porta=$(grep -E '^PORT=' .env 2>/dev/null | tail -1 | cut -d= -f2 | tr -d '[:space:]')
 porta=${porta:-4321}
 

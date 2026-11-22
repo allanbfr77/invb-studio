@@ -4,3 +4,4 @@ node_modules/
 __pycache__/
 install/equipe.env
 .superpowers/
+install/pessoal.env
