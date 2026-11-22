@@ -29,3 +29,12 @@ test('mostra a velocidade e o tempo que falta, quando o yt-dlp informa', () => {
   assert.equal(ytProgress('[download]  40.0% of ~ 1.20GiB at  512.00KiB/s ETA 23:10 (frag 40/100)\n', {}).detail, '512,00 KB/s, faltam 23:10');
   assert.equal(ytProgress('[download]  40.0% of 9MiB at Unknown B/s ETA Unknown\n', {}).detail, undefined);
 });
+
+const { ytInfo } = require('../lib/ytprogress');
+test('ytInfo separa a situação da transmissão e o título', () => {
+  assert.deepEqual(ytInfo('post_live\tCulto de domingo | 22/11\n'), { live: 'post_live', title: 'Culto de domingo | 22/11' });
+  assert.deepEqual(ytInfo('not_live\tNa oficina do oleiro\n'), { live: 'not_live', title: 'Na oficina do oleiro' });
+  assert.deepEqual(ytInfo('NA\tSem situação\n'), { live: '', title: 'Sem situação' });
+  assert.deepEqual(ytInfo(''), { live: '', title: '' });
+  assert.deepEqual(ytInfo('WARNING: algo\nwas_live\tTítulo com\ttab\n'), { live: 'was_live', title: 'Título com\ttab' });
+});

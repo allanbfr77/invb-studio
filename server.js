@@ -12,7 +12,7 @@ const { splitLines } = require('./lib/lines');
 const { parseCutList, buildPrompt } = require('./lib/cutlist');
 const { staleOriginals, canRefetch } = require('./lib/cleanup');
 const { suggestCuts, toAutoClips, describeCut, aiAvailable } = require('./lib/claude');
-const { ytProgress } = require('./lib/ytprogress');
+const { ytProgress, ytInfo } = require('./lib/ytprogress');
 const { needsPreview } = require('./lib/preview');
 const { Readable } = require('stream');
 
@@ -224,7 +224,7 @@ async function sweepOriginals() {
     try { await dropOriginal(m); } catch (e) { log('falha ao liberar original', id, e.message); }
   }
 }
-async function fetchYoutube(id, url, onProgress) {
+async function fetchYoutube(id, url, onProgress, opts = {}) {
   const [cmd, ...pre] = tools.ytdlp;
   await clearOriginals(id); // sobras de uma tentativa anterior não podem ser confundidas com o vídeo
   // O yt-dlp trata --ffmpeg-location como caminho de arquivo: receber só "ffmpeg" faz ele rodar SEM ffmpeg e não juntar
@@ -232,6 +232,7 @@ async function fetchYoutube(id, url, onProgress) {
   const ffLoc = path.isAbsolute(tools.ffmpeg || '') ? ['--ffmpeg-location', tools.ffmpeg] : [];
   // --newline faz o yt-dlp escrever o andamento linha a linha, que é o que mostramos na tela (no máximo uma vez por segundo).
   for (let k = 0; k < YT_ATTEMPTS.length; k++) {
+    if (opts.slowOnly && YT_ATTEMPTS[k].fast) continue; // o modo rápido não funciona em live recém-encerrada
     const st = {}; let last = 0;
     const dl = await run(cmd, [...pre, '--no-playlist', '--newline', ...(YT_ATTEMPTS[k].fast ? YT_FAST : []), '-f', YT_ATTEMPTS[k].f, '--merge-output-format', 'mp4', ...ffLoc, '-o', U(id, 'original.%(ext)s'), url], { onStdout: (d) => { const p = ytProgress(d, st); if (p && onProgress && (Date.now() - last > 1000 || p.pct >= 99)) { last = Date.now(); onProgress(p); } } });
     const all = (await fsp.readdir(U(id))).filter((x) => MEDIA_FILE.test(x));
@@ -688,9 +689,13 @@ async function api(req, res, url, q) {
       await saveMeta(m);
       enqueue(async () => {
         const [cmd, ...pre] = tools.ytdlp;
-        const t = await run(cmd, [...pre, '--no-playlist', '--get-title', j.url]);
-        const f = await fetchYoutube(id, j.url, (p) => update(id, { stage: p.label + (p.detail ? ' (' + p.detail + ')' : ''), progress: p.pct }).catch(() => {}));
-        if (!f) return void (await update(id, { status: 'error', stage: 'Erro', error: 'Falha ao baixar o vídeo do YouTube.' }));
+        const info = ytInfo((await run(cmd, [...pre, '--no-playlist', '--print', '%(live_status)s\t%(title)s', j.url])).out), t = { out: info.title };
+        if (info.live === 'is_live' || info.live === 'is_upcoming') return void (await update(id, { status: 'error', stage: 'Erro', error: info.live === 'is_live' ? 'Esta transmissão ainda está ao vivo. Espere ela terminar para importar.' : 'Esta transmissão ainda não começou.' }));
+        // Live que acabou de terminar: o YouTube ainda está processando a gravação e só a entrega devagar, numa conexão.
+        const postLive = info.live === 'post_live';
+        if (postLive) { log('live recém-encerrada: o YouTube ainda está processando; o download será lento', id); await update(id, { liveNote: true }); }
+        const f = await fetchYoutube(id, j.url, (p) => update(id, { stage: (postLive ? 'Live recém-encerrada, download lento. ' : '') + p.label + (p.detail ? ' (' + p.detail + ')' : ''), progress: p.pct }).catch(() => {}), { slowOnly: postLive });
+        if (!f) return void (await update(id, { status: 'error', stage: 'Erro', error: postLive ? 'Não consegui baixar esta live recém-encerrada. O YouTube ainda está processando a gravação; tente de novo em algumas horas.' : 'Falha ao baixar o vídeo do YouTube.' }));
         const st = await fsp.stat(U(id, f));
         await update(id, { file: f, size: st.size, name: (t.out.trim() || 'video_do_youtube') + path.extname(f) });
         makePreview(id);
