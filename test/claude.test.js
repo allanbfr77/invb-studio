@@ -31,9 +31,9 @@ test('pede os cortes ao Claude com o modelo, a transcrição com tempos e saída
 });
 
 test('devolve os cortes com tempos em segundos, título e motivo', async () => {
-  const c = fake(answer([{ start_seconds: 60, end_seconds: 120, title: 'O amor de Deus', reason: 'Trecho central.' }]));
+  const c = fake(answer([{ start_seconds: 60, end_seconds: 120, title: 'O amor de Deus', reason: 'Trecho central.', score: 88 }]));
   const r = await suggestCuts({ client: c, name: 'x', lines, duration: 5400 });
-  assert.deepEqual(r, [{ start: 60, end: 120, title: 'O amor de Deus', reason: 'Trecho central.' }]);
+  assert.deepEqual(r, [{ start: 60, end: 120, title: 'O amor de Deus', reason: 'Trecho central.', score: 88 }]);
 });
 
 test('descarta sugestões impossíveis e ajusta o fim ao tamanho do vídeo', async () => {
@@ -132,8 +132,8 @@ test('suggestCuts pede os cortes em ordem, do melhor para o mais fraco', async (
 });
 
 test('toAutoClips monta os cortes automáticos com nota decrescente, etiqueta IA e o motivo na descrição', () => {
-  const r = toAutoClips([{ start: 60, end: 120, title: 'Primeiro', reason: 'Ideia completa.' }, { start: 300, end: 350, title: 'Segundo', reason: '' }]);
-  assert.deepEqual(r.map((k) => [k.id, k.title, k.start, k.end, k.score, k.type, k.manual]), [['a0', 'Primeiro', 60, 120, 95, 'IA', false], ['a1', 'Segundo', 300, 350, 90, 'IA', false]]);
+  const r = toAutoClips([{ start: 60, end: 120, title: 'Primeiro', reason: 'Ideia completa.', score: 92 }, { start: 300, end: 350, title: 'Segundo', reason: '', score: 71 }]);
+  assert.deepEqual(r.map((k) => [k.id, k.title, k.start, k.end, k.score, k.type, k.manual]), [['a0', 'Primeiro', 60, 120, 92, 'IA', false], ['a1', 'Segundo', 300, 350, 71, 'IA', false]]);
   assert.equal(r[0].description, 'Ideia completa.');
   assert.equal(r[1].description, 'Sugerido pela IA.');
   assert.deepEqual(r[0].tags, ['IA']);
@@ -142,6 +142,35 @@ test('toAutoClips monta os cortes automáticos com nota decrescente, etiqueta IA
 
 test('toAutoClips: a nota nunca fica abaixo de 60 nem lista vazia quebra', () => {
   assert.deepEqual(toAutoClips([]), []);
+  // sem nota da IA (resposta antiga), a ordem vira a nota, sem cair abaixo de 60
   const many = toAutoClips(Array.from({ length: 12 }, (_, i) => ({ start: i * 100, end: i * 100 + 40, title: 't' + i, reason: '' })));
-  assert.equal(Math.min(...many.map((k) => k.score)), 60);
+  assert.equal(many[0].score, 95); assert.equal(Math.min(...many.map((k) => k.score)), 60);
+  // com prefixo, os ids não colidem com os cortes automáticos que já existem
+  const extra = toAutoClips([{ start: 1, end: 40, title: 't', reason: '', score: 80 }], 'i');
+  assert.match(extra[0].id, /^i[0-9a-f]{12}$/);
+});
+
+// --- nota dada pela IA e o que ela deve evitar ---
+test('a IA dá uma nota de 0 a 100 a cada corte e eles voltam do mais forte para o mais fraco', async () => {
+  const c = fake(answer([
+    { start_seconds: 100, end_seconds: 160, title: 'Médio', reason: '', score: 64 },
+    { start_seconds: 300, end_seconds: 360, title: 'Forte', reason: '', score: 93.6 },
+    { start_seconds: 500, end_seconds: 560, title: 'Fora da escala', reason: '', score: 250 },
+    { start_seconds: 700, end_seconds: 760, title: 'Sem nota', reason: '' },
+  ]));
+  const r = await suggestCuts({ client: c, name: 'x', lines, duration: 5400 });
+  assert.deepEqual(r.map((k) => [k.title, k.score]), [['Fora da escala', 100], ['Forte', 94], ['Médio', 64], ['Sem nota', 0]]);
+  assert.ok(c.calls[0].output_config.format.schema.properties.cuts.items.required.includes('score'));
+});
+
+test('as instruções pedem pregação forte sobre a Palavra e proíbem oração, louvor e avisos', async () => {
+  const c = fake(answer([]));
+  await suggestCuts({ client: c, name: 'x', lines, duration: 5400 });
+  const s = c.calls[0].system;
+  assert.match(s, /oração|orando/i);
+  assert.match(s, /final da pregação/i);
+  assert.match(s, /Palavra de Deus/);
+  assert.match(s, /reflex/i);
+  assert.match(s, /louvor|música/i);
+  assert.match(s, /avisos|anúncios/i);
 });

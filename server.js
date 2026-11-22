@@ -355,21 +355,22 @@ async function transcribeOpenAI(id, audio, dur, setProgress) {
 }
 
 /**
- * Cortes automáticos de um envio. Com a chave do Claude, quem escolhe os trechos é a IA; sem a chave, ou se a IA
- * falhar, valem os da análise local. O resultado da tentativa fica no meta (aiCuts / aiCutsError) para a tela avisar.
+ * Cortes automáticos de um envio. Com a chave do Claude, quem escolhe os trechos é a IA; sem a chave, valem os da
+ * análise local. O resultado da tentativa fica no meta (aiCuts / aiCutsError) para a tela avisar.
  */
 async function autoClips(id, tr, an) {
-  const local = an.clips.map((c, i) => ({ id: 'a' + i, ...c, emotion: c.emotion || (an.emotions.find((e) => e.i === c.first) || {}).emotion || null, fav: false, hid: false, manual: false, downloaded: false, render: null }));
-  if (!aiAvailable(cfg.anthropicKey)) return local;
+  // Sem a chave do Claude, valem os trechos da análise local. Com a chave, só entram cortes escolhidos pela IA:
+  // se ela falhar, a aba fica vazia e a tela oferece tentar de novo, em vez de preencher com trechos automáticos fracos.
+  if (!aiAvailable(cfg.anthropicKey)) return an.clips.map((c, i) => ({ id: 'a' + i, ...c, emotion: c.emotion || (an.emotions.find((e) => e.i === c.first) || {}).emotion || null, fav: false, hid: false, manual: false, downloaded: false, render: null }));
   const m = await getMeta(id);
   try {
     const cuts = await suggestCuts({ apiKey: cfg.anthropicKey, name: String(m.name || '').replace(/\.[^.]+$/, ''), lines: splitLines(tr.segments), duration: m.duration || 0, count: 6 });
-    if (!cuts.length) throw new Error('A IA não devolveu nenhum corte.');
+    if (!cuts.length) throw new Error('A IA não encontrou trechos fortes o bastante nesta pregação.');
     await update(id, { aiCuts: true, aiCutsError: null, aiCutsAt: Date.now() }); log('cortes automáticos pela IA', id, cuts.length);
     return toAutoClips(cuts);
   } catch (e) {
-    await update(id, { aiCuts: false, aiCutsError: String(e.message || e).slice(0, 300), aiCutsAt: Date.now() }); log('IA falhou nos cortes automáticos; usando a análise local', id, e.message);
-    return local;
+    await update(id, { aiCuts: false, aiCutsError: String(e.message || e).slice(0, 300), aiCutsAt: Date.now() }); log('IA falhou nos cortes automáticos', id, e.message);
+    return [];
   }
 }
 async function pipeline(id) {
@@ -851,7 +852,7 @@ async function api(req, res, url, q) {
       const j = await body(req); aiBusy.add(b);
       try {
         const cuts = await suggestCuts({ apiKey: cfg.anthropicKey, name: m.name, lines: splitLines(tr.segments), duration: m.duration || 0, count: j.count });
-        const created = cuts.map((k) => ({ ...manualClip(k.title, k.start, k.end), description: k.reason || 'Sugerido pelo Claude.', tags: ['IA'], type: 'IA' }));
+        const created = toAutoClips(cuts, 'i'); // vão para a aba Automáticos; a aba Manuais é só do que a pessoa cria
         if (created.length) await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); await writeJson(U(b, 'clips.json'), [...l, ...created]); });
         log('IA sugeriu cortes', b, created.length);
         return send(res, 201, { created });

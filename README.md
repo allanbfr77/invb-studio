@@ -103,11 +103,13 @@ Quem tiver uma chave da API do Claude pode ativar os recursos de IA só no próp
 3. Feche e abra o app.
 
 Com a chave, os cortes da aba **Automáticos** passam a ser escolhidos pelo Claude logo depois da
-transcrição (6 sugestões, da mais forte para a mais fraca), no lugar da análise local. Se a IA falhar, o app
-usa a análise local e mostra um aviso com o botão **Tentar de novo com IA**.
+transcrição: até 6 trechos, cada um com uma nota de 0 a 100 pela força como pregação. A IA procura momentos
+de ensino, exortação e reflexão sobre a Palavra, e não escolhe oração, louvor, avisos nem ofertas. Os trechos
+de texto pré-feito da análise local deixam de aparecer; se a IA falhar, a aba fica vazia e a tela mostra o
+motivo com o botão **Tentar de novo com IA**. A aba **Manuais** guarda só os cortes que você cria.
 
 A página **Cortes** ganha também o botão **✨ Sugerir cortes com IA**: o Claude lê a transcrição e
-cria os cortes direto no app, cada um com título e o motivo da escolha. Cada corte ganha também o botão
+acrescenta mais cortes à aba Automáticos, cada um com título, nota e o motivo da escolha. Cada corte ganha também o botão
 **✨ Gerar texto**, que escreve título, descrição e hashtags para a publicação, a partir do que foi dito
 naquele trecho; dá para ajustar, copiar tudo ou pedir outra versão. Sem a chave, esses botões não aparecem.
 

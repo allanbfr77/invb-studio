@@ -275,3 +275,62 @@ test('"liberar espaço" apaga também a cópia do navegador', { skip: !HAS_FFMPE
   assert.equal((await s.api('/uploads/uuuuuuuuuuuu/free', { json: {} })).status, 200);
   assert.ok(!has(dir, 'preview.mp4') && !has(dir, 'original.mp4') && has(dir, 'transcript.json'));
 });
+
+// --- cortes da IA: aba Automáticos, com nota, sem os trechos de texto pré-feito ---
+const http = require('node:http');
+/** API do Claude de mentira para estes testes: devolve os cortes combinados (ou falha, se cuts for null). */
+const fakeClaude = (t, cuts) => new Promise((ok) => {
+  const srv = http.createServer((req, res) => { let b = ''; req.on('data', (x) => { b += x; }); req.on('end', () => {
+    if (!cuts) { res.writeHead(401, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } })); }
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-opus-5-5', stop_reason: 'end_turn', stop_sequence: null, content: [{ type: 'text', text: JSON.stringify({ cuts }) }], usage: { input_tokens: 1, output_tokens: 1 } }));
+  }); });
+  srv.listen(0, '127.0.0.1', () => { t.after(() => srv.close()); ok('http://127.0.0.1:' + srv.address().port); });
+});
+const untilAnalyzed = async (s, id) => { let m; for (let i = 0; i < 100; i++) { m = (await s.api('/uploads/' + id)).body; if (m.aiCutsAt) break; await new Promise((r) => setTimeout(r, 50)); } return m; };
+const heuristicClip = { id: 'a0', title: 'Trecho antigo', description: 'Trecho sugerido por heurística local (sem IA): boa densidade de fala e fim de frase limpo.', type: 'Trecho', score: 70, start: 5, end: 40, manual: false, fav: false, hid: false, render: null };
+
+test('com a chave, os cortes automáticos vêm da IA com a nota dela, e os de texto pré-feito somem', async (t) => {
+  const base = await fakeClaude(t, [{ start_seconds: 300, end_seconds: 360, title: 'Bom', reason: 'Reflexão clara.', score: 78 }, { start_seconds: 60, end_seconds: 120, title: 'Forte', reason: 'Exortação marcante.', score: 94 }]);
+  const d = tmp(t); seed(d, 'wwwwwwwwwwww', {}, { clips: [heuristicClip, clip({ title: 'Meu corte manual' })] });
+  const s = await boot(t, d, { env: { ANTHROPIC_API_KEY: 'sk-ant-teste', ANTHROPIC_BASE_URL: base } });
+  assert.equal((await s.api('/uploads/wwwwwwwwwwww/reanalyze', { json: {} })).status, 202);
+  const m = await untilAnalyzed(s, 'wwwwwwwwwwww');
+  assert.equal(m.aiCuts, true);
+  const auto = m.clips.filter((c) => !c.manual), manual = m.clips.filter((c) => c.manual);
+  assert.deepEqual(auto.map((c) => [c.title, c.score, c.type, c.description]), [['Forte', 94, 'IA', 'Exortação marcante.'], ['Bom', 78, 'IA', 'Reflexão clara.']]);
+  assert.deepEqual(manual.map((c) => c.title), ['Meu corte manual']);
+  assert.ok(!JSON.stringify(m.clips).includes('heurística'));
+});
+
+test('"Sugerir cortes com IA" acrescenta na aba Automáticos, sem tocar na Manuais', async (t) => {
+  const base = await fakeClaude(t, [{ start_seconds: 200, end_seconds: 250, title: 'Mais um', reason: 'Aplicação direta.', score: 81 }]);
+  const d = tmp(t); seed(d, 'xxxxxxxxxxxx', {}, { clips: [clip({ title: 'Meu corte manual' })] });
+  const s = await boot(t, d, { env: { ANTHROPIC_API_KEY: 'sk-ant-teste', ANTHROPIC_BASE_URL: base } });
+  const r = await s.api('/uploads/xxxxxxxxxxxx/ai/cuts', { json: { count: 4 } });
+  assert.equal(r.status, 201);
+  assert.deepEqual(r.body.created.map((c) => [c.title, c.manual, c.score, /^i[0-9a-f]{12}$/.test(c.id)]), [['Mais um', false, 81, true]]);
+  const all = (await s.api('/uploads/xxxxxxxxxxxx/clips')).body;
+  assert.deepEqual(all.filter((c) => c.manual).map((c) => c.title), ['Meu corte manual']);
+  assert.equal(all.filter((c) => !c.manual).length, 1);
+});
+
+test('com a chave e a IA falhando, a aba Automáticos fica vazia e o motivo vai para a tela', async (t) => {
+  const base = await fakeClaude(t, null);
+  const d = tmp(t); seed(d, 'yyyyyyyyyyyy', {}, { clips: [heuristicClip, clip({ title: 'Meu corte manual' })] });
+  const s = await boot(t, d, { env: { ANTHROPIC_API_KEY: 'sk-ant-teste', ANTHROPIC_BASE_URL: base } });
+  await s.api('/uploads/yyyyyyyyyyyy/reanalyze', { json: {} });
+  const m = await untilAnalyzed(s, 'yyyyyyyyyyyy');
+  assert.equal(m.aiCuts, false); assert.match(m.aiCutsError, /chave/i);
+  assert.deepEqual(m.clips.filter((c) => !c.manual), []);
+  assert.deepEqual(m.clips.filter((c) => c.manual).map((c) => c.title), ['Meu corte manual']);
+});
+
+test('sem a chave, quem não usa IA continua com os trechos da análise local', async (t) => {
+  const d = tmp(t); seed(d, 'zzzzzzzzzzzz');
+  fs.writeFileSync(path.join(d, 'uploads', 'zzzzzzzzzzzz', 'transcript.json'), JSON.stringify({ language: 'pt', segments: Array.from({ length: 30 }, (_, i) => ({ id: i, speaker: 'Pessoa 1', start: i * 10, end: i * 10 + 9, text: 'Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito para todo aquele que nele crê.' })) }));
+  const s = await boot(t, d, { env: { ANTHROPIC_API_KEY: '' } });
+  await s.api('/uploads/zzzzzzzzzzzz/reanalyze', { json: {} });
+  let m; for (let i = 0; i < 60; i++) { m = (await s.api('/uploads/zzzzzzzzzzzz')).body; if (m.clips.length) break; await new Promise((r) => setTimeout(r, 50)); }
+  assert.ok(m.clips.length > 0); assert.ok(m.clips.every((c) => c.type !== 'IA'));
+});
