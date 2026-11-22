@@ -36,3 +36,8 @@ test('pausa mínima para cortar: entre 0,2 e 3 segundos, padrão 0,5', () => {
   assert.equal(cleanGap(undefined), 0.5); assert.equal(cleanGap('abc'), 0.5);
   assert.equal(cleanGap(1.2), 1.2); assert.equal(cleanGap(0.01), 0.2); assert.equal(cleanGap(10), 3); assert.equal(cleanGap('0.8'), 0.8);
 });
+
+test('nível "ia" (remover música) é aceito e não usa os filtros comuns', () => {
+  assert.equal(cleanVoice('ia'), 'ia');
+  assert.deepEqual(voiceFilters('ia', ALL), []);
+});

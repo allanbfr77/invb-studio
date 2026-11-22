@@ -459,3 +459,45 @@ test('remover silêncio corta as pausas maiores que o limite escolhido', { skip:
   assert.ok(padrao < 2.9, `com o limite padrão (0,5 s) a pausa de 2 s sai: ${padrao}`);
   assert.ok(tolerante > 3.8, `com limite de 3 s a pausa de 2 s fica: ${tolerante}`);
 });
+
+// --- remover música com o modelo de separação de voz (IA local) ---
+/** Faz o papel do "python -m demucs": devolve como "voz isolada" um áudio em silêncio, para o teste reconhecer de onde veio o som. */
+const fakeDemucs = (dir) => {
+  const f = path.join(dir, 'demucs-falso.sh');
+  fs.writeFileSync(f, '#!/bin/bash\nfor a in "$@"; do [ "$a" = "--help" ] && exit 0; done\nout=""; inp=""\nwhile [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift;; -m|-n) shift;; --*) ;; *) inp="$1";; esac; shift; done\nbase=$(basename "$inp" .wav); mkdir -p "$out/htdemucs/$base"\nffmpeg -y -loglevel error -i "$inp" -af volume=0 "$out/htdemucs/$base/vocals.wav"\n', { mode: 0o755 });
+  return f;
+};
+const seedTone = (d, id) => { const dir = seed(d, id, { duration: 6 }, { clips: [clip({ start: 0, end: 6, render: null })] }); spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=25:duration=6', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=6', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', path.join(dir, 'original.mp4')]); return dir; };
+
+test('remover música: o áudio do corte passa a ser a voz separada pelo modelo, com vídeo e duração intactos', { skip: !HAS_FFMPEG || process.platform === 'win32' }, async (t) => {
+  const d = tmp(t); const dir = seedTone(d, 'ggggggggggh1');
+  const s = await boot(t, d, { env: { DEMUCS_PYTHON: fakeDemucs(d) } });
+  assert.equal((await s.api('/status')).body.voiceAI, true);
+  await s.api('/uploads/ggggggggggh1/clips/m111111111111/render', { json: { captions: false } });
+  const normal = await waitRender(s, 'ggggggggggh1'); const dbNormal = meanVolume(path.join(dir, 'clips', normal.file));
+  await s.api('/uploads/ggggggggggh1/clips/m111111111111/render', { json: { captions: false, voice: 'ia' } });
+  const ia = await waitRender(s, 'ggggggggggh1'); const out = path.join(dir, 'clips', ia.file);
+  assert.equal(ia.voice, 'ia');
+  assert.ok(meanVolume(out) < dbNormal - 40, `o áudio deveria vir do arquivo separado (silêncio no teste): ${meanVolume(out)} dB contra ${dbNormal} dB`);
+  assert.ok(Math.abs(ffDuration(out) - 6) < 0.4);
+  assert.match(spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', out]).stdout.toString(), /video[\s\S]*audio|audio[\s\S]*video/);
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'clips')).filter((f) => /\.wav$|\.sep$/.test(f)), [], 'arquivos temporários da separação devem ser apagados');
+});
+
+test('remover música funciona junto com velocidade e remoção de silêncio', { skip: !HAS_FFMPEG || process.platform === 'win32' }, async (t) => {
+  const d = tmp(t); const dir = seedTone(d, 'hhhhhhhhhhi1');
+  fs.writeFileSync(path.join(dir, 'transcript.json'), JSON.stringify({ language: 'pt', segments: [{ id: 0, speaker: 'Pessoa 1', start: 0, end: 4, text: 'um dois', words: [{ w: 'um', s: 0, e: 1 }, { w: 'dois', s: 3, e: 4 }] }] }));
+  const s = await boot(t, d, { env: { DEMUCS_PYTHON: fakeDemucs(d) } });
+  await s.api('/uploads/hhhhhhhhhhi1/clips/m111111111111/render', { json: { captions: false, voice: 'ia', speed: 2, removePauses: true } });
+  const r = await waitRender(s, 'hhhhhhhhhhi1');
+  assert.ok(ffDuration(path.join(dir, 'clips', r.file)) < 1.6);
+});
+
+test('sem o modelo instalado, pedir para remover música dá um erro que diz como instalar', { skip: !HAS_FFMPEG }, async (t) => {
+  const d = tmp(t); seedTone(d, 'iiiiiiiiiij1');
+  const s = await boot(t, d, { env: { DEMUCS_PYTHON: path.join(d, 'nao-existe') } });
+  assert.equal((await s.api('/status')).body.voiceAI, false);
+  await s.api('/uploads/iiiiiiiiiij1/clips/m111111111111/render', { json: { captions: false, voice: 'ia' } });
+  let k; for (let i = 0; i < 100; i++) { k = (await s.api('/uploads/iiiiiiiiiij1/clips')).body[0]; if (k.render && k.render.status !== 'rendering') break; await new Promise((r) => setTimeout(r, 100)); }
+  assert.equal(k.render.status, 'error'); assert.match(k.render.error, /instalar-voz-ia/);
+});

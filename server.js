@@ -140,6 +140,9 @@ async function detectTools() {
   // As versões recentes do yt-dlp precisam de um runtime JavaScript para o YouTube e, por padrão, só procuram o Deno.
   // O Node já está instalado (é ele que roda este servidor), então apontamos para ele. Versões antigas não conhecem a opção.
   if (tools.ytdlp) { const js = ['--js-runtimes', 'node:' + process.execPath]; if ((await run(tools.ytdlp[0], [...tools.ytdlp.slice(1), ...js, '--version'])).code === 0) tools.ytdlp = [...tools.ytdlp, ...js]; }
+  // Remoção de música: modelo de separação de voz (Demucs) instalado à parte por install/instalar-voz-ia, na pasta .venv-voz.
+  const vozPy = E.DEMUCS_PYTHON || path.join(__dirname, '.venv-voz', process.platform === 'win32' ? 'Scripts\\python.exe' : 'bin/python');
+  tools.demucs = fs.existsSync(vozPy) && (await run(vozPy, ['-m', 'demucs', '--help'])).code === 0 ? [vozPy, '-m', 'demucs'] : null;
   tools.checked = true;
 }
 
@@ -567,13 +570,27 @@ async function renderClip(id, cid, rawOpt) {
     const rel = (t) => (useIv ? remap(t) : t);
     const total = iv.reduce((s, [a0, b0]) => s + b0 - a0, 0);
     const fcFile = `${cid}.fc`;
-    const trims = (video) => iv.map(([a0, b0], i) => `${video ? `[0:v]trim=start=${a0.toFixed(3)}:end=${b0.toFixed(3)},setpts=PTS-STARTPTS[v${i}];` : ''}[0:a]atrim=start=${a0.toFixed(3)}:end=${b0.toFixed(3)},asetpts=PTS-STARTPTS[a${i}];`).join('') + iv.map((_, i) => `${video ? `[v${i}]` : ''}[a${i}]`).join('') + `concat=n=${iv.length}:v=${video ? 1 : 0}:a=1${video ? '[v][a]' : '[a]'}`;
+    let aIn = '0:a'; // de onde vem o áudio: do vídeo ou, na remoção de música, do arquivo com a voz separada
+    const trims = (video) => iv.map(([a0, b0], i) => `${video ? `[0:v]trim=start=${a0.toFixed(3)}:end=${b0.toFixed(3)},setpts=PTS-STARTPTS[v${i}];` : ''}[${aIn}]atrim=start=${a0.toFixed(3)}:end=${b0.toFixed(3)},asetpts=PTS-STARTPTS[a${i}];`).join('') + iv.map((_, i) => `${video ? `[v${i}]` : ''}[a${i}]`).join('') + `concat=n=${iv.length}:v=${video ? 1 : 0}:a=1${video ? '[v][a]' : '[a]'}`;
     const baseIn = ['-y', '-ss', String(c.start), '-t', String(d), '-i', orig];
     // imagens sobre o corte (biblioteca)
     const images = audioOnly ? [] : opt.overlays.filter((o) => o.type === 'image');
     const imgFiles = []; const lib = await readJson(LIB('index.json'), []);
     for (const o of images) { const it = lib.find((x) => x.id === o.imgId); if (it) imgFiles.push({ o, file: LIB(it.id + it.ext) }); }
     const inArgs = [...baseIn, ...imgFiles.flatMap((f) => ['-i', f.file])];
+    // Remover música: separa a voz do trecho com o modelo e usa esse arquivo como o áudio do corte.
+    if (opt.voice === 'ia') {
+      if (!tools.demucs) throw new Error('A remoção de música não está instalada neste computador. Rode uma vez o arquivo install/instalar-voz-ia e abra o app de novo.');
+      const src = `${cid}.src.wav`, sep = `${cid}.sep`;
+      const ex = await runP(tools.ffmpeg, ['-y', '-ss', String(c.start), '-t', String(d), '-i', orig, '-vn', '-ac', '2', '-ar', '44100', src], { cwd: dir });
+      if (state.cancelled) return void (await setR({ status: 'cancelled' }));
+      if (ex.code !== 0) throw new Error('Não consegui ler o áudio do corte para separar a voz.');
+      const sp = await runP(tools.demucs[0], [...tools.demucs.slice(1), '--two-stems=vocals', '-n', 'htdemucs', '-o', sep, src], { cwd: dir });
+      if (state.cancelled) return void (await setR({ status: 'cancelled' }));
+      const voc = path.join(sep, 'htdemucs', `${cid}.src`, 'vocals.wav');
+      if (sp.code !== 0 || !fs.existsSync(path.join(dir, voc))) throw new Error('A separação da voz falhou. ' + (sp.err || '').split(/[\r\n]+/).filter(Boolean).slice(-1).join('').slice(0, 200));
+      inArgs.push('-i', voc); aIn = `${1 + imgFiles.length}:a`;
+    }
     // tamanho final (para a legenda/overlays)
     const fmt = FORMATS[opt.format];
     let W = fmt ? fmt[0] : 0, H = fmt ? fmt[1] : 0;
@@ -587,7 +604,7 @@ async function renderClip(id, cid, rawOpt) {
     const build = async (withSubs) => {
       if (audioOnly) {
         if (useIv) { await fsp.writeFile(path.join(dir, fcFile), trims(false) + (af ? `;[a]${af}[ao]` : '')); return [...inArgs, '-filter_complex_script', fcFile, '-map', af ? '[ao]' : '[a]', '-c:a', 'libmp3lame', '-b:a', '128k', out]; }
-        return [...inArgs, '-vn', ...(af ? ['-af', af] : []), '-c:a', 'libmp3lame', '-b:a', '128k', out];
+        return [...inArgs, '-vn', ...(aIn !== '0:a' ? ['-map', aIn] : []), ...(af ? ['-af', af] : []), '-c:a', 'libmp3lame', '-b:a', '128k', out];
       }
       const pre = [];
       if (fmt) { const ar = `${W}/${H}`; pre.push(`crop=w='if(gt(iw/ih,${ar}),ih*${ar},iw)':h='if(gt(iw/ih,${ar}),ih,iw/(${ar}))'`, `scale=${W}:${H}`, 'setsar=1'); }
@@ -601,7 +618,7 @@ async function renderClip(id, cid, rawOpt) {
         chain.push(`[${cur}][im${i}]overlay=x=main_w*${o.x.toFixed(4)}-overlay_w/2:y=main_h*${o.y.toFixed(4)}-overlay_h/2:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'[p${i + 1}]`); cur = `p${i + 1}`;
       });
       if (withSubs && wantCaps) { await fsp.writeFile(path.join(dir, `${cid}.ass`), buildAss(tr, c, opt, W, H, rel, useIv)); chain.push(`[${cur}]subtitles=${cid}.ass[vo]`); cur = 'vo'; }
-      let aMap = useIv ? '[a]' : '0:a?', aFilter = [];
+      let aMap = useIv ? '[a]' : aIn === '0:a' ? '0:a?' : aIn, aFilter = [];
       if (fast) { chain.push(`[${cur}]setpts=PTS/${opt.speed}[vs]`); cur = 'vs'; }
       if (af) { if (useIv) { chain.push(`[a]${af}[ao]`); aMap = '[ao]'; } else aFilter = ['-af', af]; }
       const enc = ['-c:v', 'libx264', '-preset', opt.hq ? 'slow' : 'veryfast', '-crf', opt.hq ? '16' : '22', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', opt.hq ? '256k' : '160k', '-movflags', '+faststart', out];
@@ -616,7 +633,7 @@ async function renderClip(id, cid, rawOpt) {
     if (r.code !== 0) { const ls = r.err.split(/[\r\n]+/).filter(Boolean); throw new Error((ls.filter((l) => /error|invalid|no such|unable|not found|failed|unknown/i.test(l) && !/Conversion failed/i.test(l)).slice(-2).join(' ') || ls.slice(-2).join(' ')).slice(0, 300)); }
     await setR({ status: 'done', file: out, format: audioOnly ? null : opt.format, vertical: opt.format === '9:16', bw: opt.bw, hq: opt.hq, removePauses: opt.removePauses, speed: opt.speed, voice: opt.voice, removedWords: rm.length, overlays: imgFiles.length + opt.overlays.filter((o) => o.type === 'text').length, captions, audio: audioOnly, seconds: +(total / opt.speed).toFixed(1), at: Date.now() });
   } catch (e) { await setR(state.cancelled ? { status: 'cancelled' } : { status: 'error', error: e.message }); }
-  finally { renders.delete(key); }
+  finally { renders.delete(key); for (const f of [`${cid}.src.wav`, `${cid}.sep`]) await fsp.rm(U(id, 'clips', f), { recursive: true, force: true }).catch(() => {}); }
 }
 
 /* ---------- HTTP ---------- */
@@ -680,7 +697,7 @@ async function api(req, res, url, q) {
   if (a === 'logout' && method === 'POST') return send(res, 200, { ok: true }, { 'set-cookie': 'invb_sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' });
   if (method !== 'GET' && req.headers['x-invb'] !== '1') return send(res, 403, { error: 'Requisição inválida' });
 
-  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, ai: !!AI, driveCuts: !!(cfg.googleClientId && cfg.driveCutsFolder), provider_name: isCloud() ? cloud().name : 'Local', aiName: AI ? AI.label : null, llm: !!AI, llmModel: AI ? AI.label : null, queue: queue.length + (busy ? 1 : 0) });
+  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, voiceAI: !!tools.demucs, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, ai: !!AI, driveCuts: !!(cfg.googleClientId && cfg.driveCutsFolder), provider_name: isCloud() ? cloud().name : 'Local', aiName: AI ? AI.label : null, llm: !!AI, llmModel: AI ? AI.label : null, queue: queue.length + (busy ? 1 : 0) });
 
   if (a === 'uploads') {
     if (!b) {

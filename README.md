@@ -119,6 +119,20 @@ naquele trecho; dá para ajustar, copiar tudo ou pedir outra versão. Sem a chav
   use os cortes. Cada "Sugerir cortes", "Gerar texto" e "Tentar de novo" é outra chamada. O modelo usado é o Claude Opus 5.5.
 - A transcrição da pregação é enviada à API da Anthropic para ser analisada.
 
+## Remover música (opcional, por computador)
+
+No editor do corte, em **Áudio → Isolar voz**, há quatro opções: Desligado, Leve, Forte e **Sem música**.
+Leve e Forte reduzem ruído de fundo e já vêm prontas. **Sem música** usa um modelo de IA que separa a voz
+da música e roda no próprio computador, sem enviar áudio para fora e sem custo por uso.
+
+Para liberar essa opção, rode uma vez, com dois cliques:
+
+- **Mac:** `install/instalar-voz-ia.command`
+- **Windows:** `install\instalar-voz-ia.bat`
+
+Ele baixa cerca de 1 GB para a pasta `.venv-voz` do projeto. Depois, feche e abra o app. A exportação com
+**Sem música** demora mais: nos testes, perto de 12 segundos para um corte de 20 segundos.
+
 ## Para quem desenvolve
 
 - Uma única dependência npm, o SDK oficial da Anthropic, carregada só quando há chave. `npm start` sobe o servidor; `npm test` roda os testes (`node --test`).
