@@ -22,3 +22,15 @@ test('filtro de áudio: um atempo entre 0,5x e 2x, dois encadeados abaixo de 0,5
   assert.equal(atempo(0.25), 'atempo=0.5,atempo=0.5');
   assert.equal(atempo(0.4), 'atempo=0.5,atempo=0.8');
 });
+
+test('sincronia do áudio: entre -5 e 5 segundos, com milésimos; o resto vira 0', () => {
+  const { cleanShift } = require('../lib/speed');
+  assert.equal(cleanShift(0.12), 0.12);
+  assert.equal(cleanShift('-0.3'), -0.3);
+  assert.equal(cleanShift(0.12345), 0.123);
+  assert.equal(cleanShift(9), 5);
+  assert.equal(cleanShift(-9), -5);
+  assert.equal(cleanShift(undefined), 0);
+  assert.equal(cleanShift('abc'), 0);
+  assert.equal(cleanShift(null), 0);
+});

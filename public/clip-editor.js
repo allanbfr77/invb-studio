@@ -39,7 +39,7 @@
     const isAud = upload.kind === 'aud';
     const dur = upload.duration || clip.end + 60;
     const st = {
-      format: 'orig', bw: false, hq: false, removePauses: false, voice: 'off', speed: 1,
+      format: 'orig', bw: false, hq: false, removePauses: false, voice: 'off', speed: 1, sync: 0,
       cap: { on: false, style: 'Clássicos/Clássica', size: 16, pos: 'bottom', upper: null, pop: null, font: null, ow: null, shadow: null },
       start: clip.start, end: clip.end, title: clip.title || '', removed: [], edits: {}, lang: null, overlays: [], sel: null,
       panel: null, tab: 'estilos', cat: 'Todos', q: '', styleChosen: false, tplCat: 'Todos', tq: '', lib: null, templates: null,
@@ -60,7 +60,7 @@
     const segsIn = () => segs.filter((s) => s.end > st.start && s.t < st.end);
 
     /* ----- histórico (desfazer/refazer) ----- */
-    const snap = () => JSON.stringify({ format: st.format, bw: st.bw, hq: st.hq, removePauses: st.removePauses, voice: st.voice, speed: st.speed, cap: st.cap, start: st.start, end: st.end, removed: st.removed, edits: st.edits, lang: st.lang, overlays: st.overlays, title: st.title });
+    const snap = () => JSON.stringify({ format: st.format, bw: st.bw, hq: st.hq, removePauses: st.removePauses, voice: st.voice, speed: st.speed, sync: st.sync, cap: st.cap, start: st.start, end: st.end, removed: st.removed, edits: st.edits, lang: st.lang, overlays: st.overlays, title: st.title });
     const restore = (j) => { Object.assign(st, JSON.parse(j)); wordsDirty = true; reloadAll(); };
     const commit = () => { st.hist.push(snap()); if (st.hist.length > 80) st.hist.shift(); st.fut = []; refreshBar(); };
     st.hist.push(snap()); // estado inicial (a interface ainda não existe, então sem refreshBar)
@@ -87,6 +87,21 @@
     const v = $('#dx-v', root), stage = $('#dx-stage', root), capEl = $('#dx-cap', root), ovsEl = $('#dx-ovs', root), guides = $('#dx-guides', root);
     if (isAud) { v.style.display = 'none'; stage.classList.add('aud'); stage.insertAdjacentHTML('afterbegin', '<div class="dlx-audio">🎧<small>Áudio</small></div>'); }
     v.src = `/api/uploads/${upload.id}/media`;
+    /* Sincronia do áudio na prévia: com ajuste, o vídeo fica mudo e o som sai de um segundo player, adiantado ou atrasado. */
+    const au = isAud ? null : new Audio(); if (au) au.preload = 'none';
+    const syncOn = () => !!au && Math.abs(st.sync) >= 0.005;
+    const syncAudio = (force) => {
+      if (!au) return;
+      if (!syncOn()) { if (!au.paused) au.pause(); v.muted = false; return; }
+      if (!au.src) au.src = v.src;
+      v.muted = true; au.playbackRate = v.playbackRate;
+      const want = Math.max(0, v.currentTime - st.sync);
+      if (force || Math.abs((au.currentTime || 0) - want) > 0.12) { try { au.currentTime = want; } catch { /* ainda carregando */ } }
+      if (v.paused || v.seeking) { if (!au.paused) au.pause(); } else if (au.paused) au.play().catch(() => {});
+    };
+    ['play', 'pause', 'seeked', 'ratechange'].forEach((ev) => v.addEventListener(ev, () => syncAudio(ev !== 'ratechange')));
+    v.addEventListener('timeupdate', () => syncAudio(false));
+    const syLabel = (x) => { const ms = Math.round(x * 1000); return ms === 0 ? 'Sem ajuste' : (ms > 0 ? '+' : '−') + Math.abs(ms) + ' ms'; };
 
     /* ----- palavras ----- */
     const approx = (sg, text) => { const parts = text.split(/\s+/).filter(Boolean), tot = parts.reduce((a, x) => a + x.length, 0) || 1; let t0 = sg.t; return parts.map((x) => { const d = ((sg.end - sg.t) * x.length) / tot; const w = { t: x, s: t0, e: t0 + d, seg: sg.id }; t0 += d; return w; }); };
@@ -220,6 +235,9 @@
         <div class="dlx-row" style="margin-bottom:8px"><div><b><label for="dx-sp">Velocidade</label></b><small>Acelera ou desacelera o corte sem mudar o tom da voz. A prévia acompanha.</small><small id="dx-spd" class="dlx-spd">${durTxt()}</small></div><output id="dx-spv" for="dx-sp" class="dlx-spv">${spLabel(st.speed)}</output></div>
         <input type="range" id="dx-sp" class="dlx-sp" min="0.25" max="2" step="0.05" value="${st.speed}">
         <div class="dlx-spb">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((x) => `<button data-sp="${x}" aria-pressed="${st.speed === x}">${spLabel(x)}</button>`).join('')}</div>
+        ${isAud ? '' : `<div class="dlx-row" style="margin-bottom:8px"><div><b><label for="dx-sy">Sincronia do áudio</label></b><small>Se o som chega depois da boca, puxe para a esquerda (adianta o áudio). Se chega antes, puxe para a direita (atrasa). A prévia acompanha.</small></div><output id="dx-syv" for="dx-sy" class="dlx-spv">${syLabel(st.sync)}</output></div>
+        <input type="range" id="dx-sy" class="dlx-sp" min="-2" max="2" step="0.01" value="${st.sync}">
+        <div class="dlx-spb">${[[-0.1, '−100'], [-0.01, '−10'], [0, 'Zerar'], [0.01, '+10'], [0.1, '+100']].map((x) => `<button style="min-width:36px" title="${x[0] ? x[1] + ' milissegundos' : 'Voltar ao áudio original'}" data-sy="${x[0]}">${x[1]}</button>`).join('')}</div>`}
         <hr><h4>Remover trecho</h4><p class="dlx-hint" style="margin-bottom:10px">Pare o vídeo onde o trecho começa e marque o início. Depois pare onde ele termina e marque o fim. O trecho sai do corte e a prévia passa a pulá-lo.</p>
         <div class="dlx-spb" style="margin-bottom:10px"><button id="dx-ca" aria-pressed="${st.cutA !== null}">${st.cutA === null ? 'Marcar início' : 'Início: ' + tm(st.cutA - st.start)}</button><button id="dx-cb" ${st.cutA === null ? 'disabled' : ''}>Marcar fim e remover</button></div>
         ${cutList().length ? `<ul class="dlx-cuts">${cutList().map((r) => `<li><span>${tm(r[0] - st.start)} → ${tm(r[1] - st.start)} <small>(${(r[1] - r[0]).toFixed(1).replace('.', ',')} s)</small></span><button data-cx="${r[0]}" aria-label="Desfazer a remoção deste trecho" title="Devolver este trecho ao corte">✕</button></li>`).join('')}</ul>` : ''}`;
@@ -239,6 +257,8 @@
       $$('[data-cx]', L).forEach((bt) => bt.onclick = () => { const i = st.removed.findIndex((r) => r[2] && String(r[0]) === bt.dataset.cx); if (i >= 0) { st.removed.splice(i, 1); wordsDirty = true; commit(); paintCap(); drawLeft(); tickUI(); } });
       // Velocidade: de 0,25x a 2x, em passos de 0,05. A prévia toca na mesma velocidade (o navegador mantém o tom da voz).
       const sp = $('#dx-sp', L), setSp = (x, redraw) => { st.speed = Math.max(0.25, Math.min(2, Math.round(x * 100) / 100)); v.playbackRate = st.speed; $('#dx-spv', L).textContent = spLabel(st.speed); $('#dx-spd', L).textContent = durTxt(); tickUI(); refreshBar(); if (redraw) { commit(); drawLeft(); } };
+      const sy = $('#dx-sy', L), setSy = (x, save) => { st.sync = Math.max(-2, Math.min(2, Math.round(x * 100) / 100)); sy.value = st.sync; $('#dx-syv', L).textContent = syLabel(st.sync); syncAudio(true); if (save) commit(); };
+      if (sy) { sy.oninput = () => setSy(+sy.value, false); sy.onchange = () => setSy(+sy.value, true); $$('[data-sy]', L).forEach((b) => b.onclick = () => setSy(+b.dataset.sy === 0 ? 0 : st.sync + +b.dataset.sy, true)); }
       if (sp) { sp.oninput = () => setSp(+sp.value, false); sp.onchange = () => setSp(+sp.value, true); $$('[data-sp]', L).forEach((b) => b.onclick = () => setSp(+b.dataset.sp, true)); v.playbackRate = st.speed; }
     }
 
@@ -448,7 +468,7 @@
       if (st.busy) return; st.busy = true; const lab = $('#dx-golab', root), btn = $('#dx-go', root), cancel = $('#dx-cancel', root); btn.disabled = true; cancel.hidden = false; lab.textContent = 'Renderizando…';
       let cancelled = false; cancel.onclick = async () => { cancelled = true; try { await api(`/uploads/${upload.id}/clips/${clip.id}/render/cancel`, { json: {} }); } catch { /* ok */ } };
       try {
-        const opts = o2.raw ? { format: 'orig', captions: { on: false }, start: st.start, end: st.end } : { format: st.format, bw: st.bw, hq: st.hq, removePauses: st.removePauses, voice: st.voice, speed: st.speed, audio, start: st.start, end: st.end, removed: st.removed, edits: st.edits, captions: { ...st.cap }, overlays: st.overlays.filter((o) => !o.hidden).map(({ tpl, hidden, ...o }) => o) };
+        const opts = o2.raw ? { format: 'orig', captions: { on: false }, start: st.start, end: st.end } : { format: st.format, bw: st.bw, hq: st.hq, removePauses: st.removePauses, voice: st.voice, speed: st.speed, audioShift: st.sync, audio, start: st.start, end: st.end, removed: st.removed, edits: st.edits, captions: { ...st.cap }, overlays: st.overlays.filter((o) => !o.hidden).map(({ tpl, hidden, ...o }) => o) };
         if (st.title && st.title !== clip.title) api(`/uploads/${upload.id}/clips/${clip.id}`, { method: 'PATCH', json: { title: st.title } }).catch(() => {});
         await api(`/uploads/${upload.id}/clips/${clip.id}/render`, { json: opts });
         for (let i = 0; i < 1200; i++) {
@@ -472,7 +492,7 @@
       $$('button', m).forEach((b) => b.onclick = () => { m.remove(); const a = b.dataset.a; if (a === 'v') render(false); else if (a === 'd') ctx.drive.token().then(() => render(false, { drive: true })).catch((e) => toast(e.message)); else if (a === 'a') render(true); else if (a === 's') dl(base + '.srt', srt()); else dl(base + '.txt', excerpt()); });
       setTimeout(() => document.addEventListener('click', function h(ev) { if (!m.contains(ev.target)) { m.remove(); document.removeEventListener('click', h); } }), 0);
     };
-    const close = () => { v.pause(); clearInterval(st.animT); root.remove(); document.body.style.overflow = ''; window.removeEventListener('resize', layoutStage); document.removeEventListener('keydown', onKey); $$('.menu').forEach((m) => m.remove()); };
+    const close = () => { v.pause(); if (au) { au.pause(); au.removeAttribute('src'); } clearInterval(st.animT); root.remove(); document.body.style.overflow = ''; window.removeEventListener('resize', layoutStage); document.removeEventListener('keydown', onKey); $$('.menu').forEach((m) => m.remove()); };
     const onKey = (e) => {
       if (e.target.closest && e.target.closest('input,textarea,select')) return;
       const o = ovById(st.sel), step = e.shiftKey ? 0.02 : 0.005;

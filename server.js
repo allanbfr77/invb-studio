@@ -15,7 +15,7 @@ const { suggestCuts, toAutoClips, describeCut } = require('./lib/claude');
 const { pickProvider } = require('./lib/ai');
 const { ytProgress, ytInfo, ytId } = require('./lib/ytprogress');
 const { needsPreview } = require('./lib/preview');
-const { cleanSpeed, atempo } = require('./lib/speed');
+const { cleanSpeed, atempo, cleanShift } = require('./lib/speed');
 const { cleanVoice } = require('./lib/voice');
 const { Readable } = require('stream');
 
@@ -478,7 +478,7 @@ function cleanOpts(j) {
   const edits = {}; if (j.edits && typeof j.edits === 'object') Object.entries(j.edits).slice(0, 400).forEach(([k, v]) => { if (/^\d{1,6}$/.test(k) && typeof v === 'string') edits[k] = v.slice(0, 800); });
   return {
     format: Object.prototype.hasOwnProperty.call(FORMATS, j.format) ? j.format : (j.vertical ? '9:16' : 'orig'),
-    bw: !!j.bw, hq: !!j.hq, removePauses: !!j.removePauses, audio: !!j.audio, speed: cleanSpeed(j.speed), voice: cleanVoice(j.voice),
+    bw: !!j.bw, hq: !!j.hq, removePauses: !!j.removePauses, audio: !!j.audio, speed: cleanSpeed(j.speed), audioShift: cleanShift(j.audioShift), voice: cleanVoice(j.voice),
     start: num(j.start), end: num(j.end),
     removed: (Array.isArray(j.removed) ? j.removed : []).slice(0, 800).map((r) => [num(r && r[0]), num(r && r[1])]).filter((r) => r[0] !== null && r[1] !== null && r[1] > r[0]),
     edits, overlays: ovs,
@@ -596,11 +596,13 @@ async function renderClip(id, cid, rawOpt) {
     const imgFiles = []; const lib = await readJson(LIB('index.json'), []);
     for (const o of images) { const it = lib.find((x) => x.id === o.imgId); if (it) imgFiles.push({ o, file: LIB(it.id + it.ext) }); }
     const inArgs = [...baseIn, ...imgFiles.flatMap((f) => ['-i', f.file])];
+    // Sincronia: o áudio é lido do mesmo arquivo, começando um pouco antes ou depois do vídeo.
+    const aStart = Math.max(0, c.start - opt.audioShift);
     // Remover música: separa a voz do trecho com o modelo e usa esse arquivo como o áudio do corte.
     if (opt.voice === 'ia') {
       if (!tools.demucs) throw new Error('A remoção de música não está instalada neste computador. Rode uma vez o arquivo install/instalar-voz-ia e abra o app de novo.');
       const src = `${cid}.src.wav`, sep = `${cid}.sep`;
-      const ex = await runP(tools.ffmpeg, ['-y', '-ss', String(c.start), '-t', String(d), '-i', orig, '-vn', '-ac', '2', '-ar', '44100', src], { cwd: dir });
+      const ex = await runP(tools.ffmpeg, ['-y', '-ss', String(aStart), '-t', String(d), '-i', orig, '-vn', '-ac', '2', '-ar', '44100', src], { cwd: dir });
       if (state.cancelled) return void (await setR({ status: 'cancelled' }));
       if (ex.code !== 0) throw new Error('Não consegui ler o áudio do corte para separar a voz.');
       const sp = await runP(tools.demucs[0], [...tools.demucs.slice(1), '--two-stems=vocals', '-n', 'htdemucs', '-o', sep, src], { cwd: dir });
@@ -608,7 +610,7 @@ async function renderClip(id, cid, rawOpt) {
       const voc = path.join(sep, 'htdemucs', `${cid}.src`, 'vocals.wav');
       if (sp.code !== 0 || !fs.existsSync(path.join(dir, voc))) throw new Error('A separação da voz falhou. ' + (sp.err || '').split(/[\r\n]+/).filter(Boolean).slice(-1).join('').slice(0, 200));
       inArgs.push('-i', voc); aIn = `${1 + imgFiles.length}:a`;
-    }
+    } else if (aStart !== c.start && m.kind !== 'aud') { inArgs.push('-ss', String(aStart), '-t', String(d), '-i', orig); aIn = `${1 + imgFiles.length}:a`; }
     // tamanho final (para a legenda/overlays)
     const fmt = FORMATS[opt.format];
     let W = fmt ? fmt[0] : 0, H = fmt ? fmt[1] : 0;
@@ -649,7 +651,7 @@ async function renderClip(id, cid, rawOpt) {
     if (r.code !== 0 && wantCaps) { captions = false; r = await runP(tools.ffmpeg, await build(false), { cwd: dir }); } // sem libass/fonte: tenta sem legenda
     if (state.cancelled) return void (await setR({ status: 'cancelled' }));
     if (r.code !== 0) { const ls = r.err.split(/[\r\n]+/).filter(Boolean); throw new Error((ls.filter((l) => /error|invalid|no such|unable|not found|failed|unknown/i.test(l) && !/Conversion failed/i.test(l)).slice(-2).join(' ') || ls.slice(-2).join(' ')).slice(0, 300)); }
-    await setR({ status: 'done', file: out, format: audioOnly ? null : opt.format, vertical: opt.format === '9:16', bw: opt.bw, hq: opt.hq, removePauses: opt.removePauses, speed: opt.speed, voice: opt.voice, removedWords: rm.length, overlays: imgFiles.length + opt.overlays.filter((o) => o.type === 'text').length, captions, audio: audioOnly, seconds: +(total / opt.speed).toFixed(1), at: Date.now() });
+    await setR({ status: 'done', file: out, format: audioOnly ? null : opt.format, vertical: opt.format === '9:16', bw: opt.bw, hq: opt.hq, removePauses: opt.removePauses, speed: opt.speed, audioShift: opt.audioShift, voice: opt.voice, removedWords: rm.length, overlays: imgFiles.length + opt.overlays.filter((o) => o.type === 'text').length, captions, audio: audioOnly, seconds: +(total / opt.speed).toFixed(1), at: Date.now() });
   } catch (e) { await setR(state.cancelled ? { status: 'cancelled' } : { status: 'error', error: e.message }); }
   finally { renders.delete(key); for (const f of [`${cid}.src.wav`, `${cid}.sep`]) await fsp.rm(U(id, 'clips', f), { recursive: true, force: true }).catch(() => {}); }
 }
