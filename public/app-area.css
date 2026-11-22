@@ -508,3 +508,11 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:v
 /* Texto de publicação do corte */
 .po-x{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .cut .bt .ap-btn.has{border-color:var(--primary);color:var(--primary)}
+
+/* Editor: velocidade do corte */
+.dlx-spv{font-weight:700;font-size:15px;color:var(--fg);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dlx-sp{width:100%;accent-color:var(--primary);margin:0 0 10px}
+.dlx-spb{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.dlx-spb button{flex:1;min-width:48px;height:30px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer}
+.dlx-spb button:hover{color:var(--fg);border-color:var(--border-strong)}
+.dlx-spb button[aria-pressed="true"]{background:var(--soft);color:var(--soft-fg);border-color:var(--primary)}

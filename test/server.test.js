@@ -396,3 +396,26 @@ test('quem usa a chave da OpenAI só para transcrever não ganha IA (e gasto) se
   const d2 = tmp(t); const s2 = await boot(t, d2, { env: { ANTHROPIC_API_KEY: '', OPENAI_API_KEY: 'sk-x', TRANSCRIBE_PROVIDER: 'openai', AI_PROVIDER: 'openai' } });
   assert.equal((await s2.api('/status')).body.ai, true);
 });
+
+// --- velocidade do corte exportado ---
+const ffDuration = (f) => +spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]).stdout.toString().trim();
+test('exportar com velocidade 2x gera um corte com metade da duração, com vídeo e áudio', { skip: !HAS_FFMPEG }, async (t) => {
+  const d = tmp(t); const dir = seed(d, 'cccccccccd01', { duration: 6 }, { clips: [clip({ start: 0, end: 6, render: null })] });
+  spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=25:duration=6', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=6', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', path.join(dir, 'original.mp4')]);
+  const s = await boot(t, d);
+  const render = async (opts) => {
+    assert.equal((await s.api('/uploads/cccccccccd01/clips/m111111111111/render', { json: { captions: false, ...opts } })).status, 202);
+    let k; for (let i = 0; i < 200; i++) { k = (await s.api('/uploads/cccccccccd01/clips')).body[0]; if (k.render && k.render.status !== 'rendering') break; await new Promise((r) => setTimeout(r, 100)); }
+    assert.equal(k.render.status, 'done', k.render.error); return k.render;
+  };
+  const fast = await render({ speed: 2 });
+  assert.equal(fast.speed, 2);
+  assert.ok(Math.abs(ffDuration(path.join(dir, 'clips', fast.file)) - 3) < 0.4, 'duração em 2x: ' + ffDuration(path.join(dir, 'clips', fast.file)));
+  const streams = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', path.join(dir, 'clips', fast.file)]).stdout.toString();
+  assert.match(streams, /video/); assert.match(streams, /audio/);
+  const slow = await render({ speed: 0.5 });
+  assert.ok(Math.abs(ffDuration(path.join(dir, 'clips', slow.file)) - 12) < 0.6, 'duração em 0,5x');
+  const normal = await render({});
+  assert.equal(normal.speed, 1);
+  assert.ok(Math.abs(ffDuration(path.join(dir, 'clips', normal.file)) - 6) < 0.4, 'duração normal');
+});

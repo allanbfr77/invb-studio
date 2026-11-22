@@ -15,6 +15,7 @@ const { suggestCuts, toAutoClips, describeCut } = require('./lib/claude');
 const { pickProvider } = require('./lib/ai');
 const { ytProgress, ytInfo } = require('./lib/ytprogress');
 const { needsPreview } = require('./lib/preview');
+const { cleanSpeed, atempo } = require('./lib/speed');
 const { Readable } = require('stream');
 
 /* ---------- Configuração (.env opcional) ----------
@@ -455,7 +456,7 @@ function cleanOpts(j) {
   const edits = {}; if (j.edits && typeof j.edits === 'object') Object.entries(j.edits).slice(0, 400).forEach(([k, v]) => { if (/^\d{1,6}$/.test(k) && typeof v === 'string') edits[k] = v.slice(0, 800); });
   return {
     format: Object.prototype.hasOwnProperty.call(FORMATS, j.format) ? j.format : (j.vertical ? '9:16' : 'orig'),
-    bw: !!j.bw, hq: !!j.hq, removePauses: !!j.removePauses, audio: !!j.audio,
+    bw: !!j.bw, hq: !!j.hq, removePauses: !!j.removePauses, audio: !!j.audio, speed: cleanSpeed(j.speed),
     start: num(j.start), end: num(j.end),
     removed: (Array.isArray(j.removed) ? j.removed : []).slice(0, 800).map((r) => [num(r && r[0]), num(r && r[1])]).filter((r) => r[0] !== null && r[1] !== null && r[1] > r[0]),
     edits, overlays: ovs,
@@ -577,10 +578,12 @@ async function renderClip(id, cid, rawOpt) {
     let W = fmt ? fmt[0] : 0, H = fmt ? fmt[1] : 0;
     if (!audioOnly && !fmt) { const pr = await runP(tools.ffmpeg, ['-i', orig]); const mm = pr.err.match(/Video:[^\n]*?(\d{2,5})x(\d{2,5})/); W = mm ? Math.round(+mm[1] / 2) * 2 : 1080; H = mm ? Math.round(+mm[2] / 2) * 2 : 1920; }
     const wantCaps = !audioOnly && (opt.cap.on || opt.overlays.some((o) => o.type === 'text'));
+    // Velocidade: aplicada no fim, depois da legenda e das imagens, para tudo continuar sincronizado. A voz não muda de tom.
+    const fast = opt.speed !== 1;
     const build = async (withSubs) => {
       if (audioOnly) {
-        if (useIv) { await fsp.writeFile(path.join(dir, fcFile), trims(false)); return [...inArgs, '-filter_complex_script', fcFile, '-map', '[a]', '-c:a', 'libmp3lame', '-b:a', '128k', out]; }
-        return [...inArgs, '-vn', '-c:a', 'libmp3lame', '-b:a', '128k', out];
+        if (useIv) { await fsp.writeFile(path.join(dir, fcFile), trims(false) + (fast ? `;[a]${atempo(opt.speed)}[ao]` : '')); return [...inArgs, '-filter_complex_script', fcFile, '-map', fast ? '[ao]' : '[a]', '-c:a', 'libmp3lame', '-b:a', '128k', out]; }
+        return [...inArgs, '-vn', ...(fast ? ['-af', atempo(opt.speed)] : []), '-c:a', 'libmp3lame', '-b:a', '128k', out];
       }
       const pre = [];
       if (fmt) { const ar = `${W}/${H}`; pre.push(`crop=w='if(gt(iw/ih,${ar}),ih*${ar},iw)':h='if(gt(iw/ih,${ar}),ih,iw/(${ar}))'`, `scale=${W}:${H}`, 'setsar=1'); }
@@ -594,17 +597,22 @@ async function renderClip(id, cid, rawOpt) {
         chain.push(`[${cur}][im${i}]overlay=x=main_w*${o.x.toFixed(4)}-overlay_w/2:y=main_h*${o.y.toFixed(4)}-overlay_h/2:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'[p${i + 1}]`); cur = `p${i + 1}`;
       });
       if (withSubs && wantCaps) { await fsp.writeFile(path.join(dir, `${cid}.ass`), buildAss(tr, c, opt, W, H, rel, useIv)); chain.push(`[${cur}]subtitles=${cid}.ass[vo]`); cur = 'vo'; }
+      let aMap = useIv ? '[a]' : '0:a?', aFilter = [];
+      if (fast) {
+        chain.push(`[${cur}]setpts=PTS/${opt.speed}[vs]`); cur = 'vs';
+        if (useIv) { chain.push(`[a]${atempo(opt.speed)}[ao]`); aMap = '[ao]'; } else aFilter = ['-af', atempo(opt.speed)];
+      }
       const enc = ['-c:v', 'libx264', '-preset', opt.hq ? 'slow' : 'veryfast', '-crf', opt.hq ? '16' : '22', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', opt.hq ? '256k' : '160k', '-movflags', '+faststart', out];
       const fc = (useIv ? `${trims(true)};` : '') + chain.join(';');
       await fsp.writeFile(path.join(dir, fcFile), fc);
-      return [...inArgs, '-filter_complex_script', fcFile, '-map', `[${cur}]`, '-map', useIv ? '[a]' : '0:a?', ...enc];
+      return [...inArgs, '-filter_complex_script', fcFile, '-map', `[${cur}]`, '-map', aMap, ...aFilter, ...enc];
     };
     let captions = wantCaps, r = await runP(tools.ffmpeg, await build(true), { cwd: dir });
     if (state.cancelled) return void (await setR({ status: 'cancelled' }));
     if (r.code !== 0 && wantCaps) { captions = false; r = await runP(tools.ffmpeg, await build(false), { cwd: dir }); } // sem libass/fonte: tenta sem legenda
     if (state.cancelled) return void (await setR({ status: 'cancelled' }));
     if (r.code !== 0) { const ls = r.err.split(/[\r\n]+/).filter(Boolean); throw new Error((ls.filter((l) => /error|invalid|no such|unable|not found|failed|unknown/i.test(l) && !/Conversion failed/i.test(l)).slice(-2).join(' ') || ls.slice(-2).join(' ')).slice(0, 300)); }
-    await setR({ status: 'done', file: out, format: audioOnly ? null : opt.format, vertical: opt.format === '9:16', bw: opt.bw, hq: opt.hq, removePauses: opt.removePauses, removedWords: rm.length, overlays: imgFiles.length + opt.overlays.filter((o) => o.type === 'text').length, captions, audio: audioOnly, seconds: +total.toFixed(1), at: Date.now() });
+    await setR({ status: 'done', file: out, format: audioOnly ? null : opt.format, vertical: opt.format === '9:16', bw: opt.bw, hq: opt.hq, removePauses: opt.removePauses, speed: opt.speed, removedWords: rm.length, overlays: imgFiles.length + opt.overlays.filter((o) => o.type === 'text').length, captions, audio: audioOnly, seconds: +(total / opt.speed).toFixed(1), at: Date.now() });
   } catch (e) { await setR(state.cancelled ? { status: 'cancelled' } : { status: 'error', error: e.message }); }
   finally { renders.delete(key); }
 }
