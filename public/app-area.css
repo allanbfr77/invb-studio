@@ -534,3 +534,5 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:v
 .dlx-cuts small{color:var(--muted)}
 .dlx-cuts button{width:26px;height:26px;border-radius:6px;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:13px}
 .dlx-cuts button:hover{background:var(--hover);color:var(--fg)}
+
+.drv-err{font-size:12.5px;line-height:1.4;color:#b42318;background:#fef3f2;border:1px solid #fecdca;border-radius:8px;padding:8px 10px}

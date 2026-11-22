@@ -857,9 +857,12 @@ async function api(req, res, url, q) {
         const folder = await ensureFolder(token, cfg.driveCutsFolder, clean(m.name.replace(/\.[^.]+$/, ''), 'Culto'));
         const up = await uploadFile(token, { folderId: folder, name: clean(cl.title, 'corte') + ext, filePath: file, mime: mime[ext] || 'application/octet-stream' });
         const drive = { link: up.webViewLink, at: Date.now() };
-        await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); const t = l.find((x) => x.id === d); if (t) { t.drive = drive; await writeJson(U(b, 'clips.json'), l); } });
+        await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); const t = l.find((x) => x.id === d); if (t) { t.drive = drive; delete t.driveError; await writeJson(U(b, 'clips.json'), l); } });
         return send(res, 200, { webViewLink: up.webViewLink, drive });
-      } catch (e) { log('erro ao enviar ao Drive', b, d, e.message, e.reason || '', e.detail || ''); return send(res, e.status === 401 ? 403 : e.status || 502, { error: e.message, needsLogin: !!e.needsLogin }); }
+      } catch (e) { log('erro ao enviar ao Drive', b, d, e.message, e.reason || '', e.detail || '');
+        // O motivo fica guardado no corte: aparece no cartão e dá para conferir depois, sem depender do aviso na tela.
+        const driveError = { msg: String(e.message || '').slice(0, 400), google: [e.status, e.reason, e.detail].filter(Boolean).join(' | ').slice(0, 400), at: Date.now() };
+        await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); const t = l.find((x) => x.id === d); if (t) { t.driveError = driveError; await writeJson(U(b, 'clips.json'), l); } }).catch(() => {}); return send(res, e.status === 401 ? 403 : e.status || 502, { error: e.message, needsLogin: !!e.needsLogin }); }
       finally { driveBusy.delete(b); }
     }
     if (c === 'clips') {
