@@ -102,13 +102,18 @@ Quem tiver uma chave da API do Claude pode ativar os recursos de IA só no próp
 2. Preencha `ANTHROPIC_API_KEY` com a sua chave.
 3. Feche e abra o app.
 
-Com a chave, a página **Cortes** ganha o botão **✨ Sugerir cortes com IA**: o Claude lê a transcrição e
+Com a chave, os cortes da aba **Automáticos** passam a ser escolhidos pelo Claude logo depois da
+transcrição (6 sugestões, da mais forte para a mais fraca), no lugar da análise local. Se a IA falhar, o app
+usa a análise local e mostra um aviso com o botão **Tentar de novo com IA**.
+
+A página **Cortes** ganha também o botão **✨ Sugerir cortes com IA**: o Claude lê a transcrição e
 cria os cortes direto no app, cada um com título e o motivo da escolha. Cada corte ganha também o botão
 **✨ Gerar texto**, que escreve título, descrição e hashtags para a publicação, a partir do que foi dito
 naquele trecho; dá para ajustar, copiar tudo ou pedir outra versão. Sem a chave, esses botões não aparecem.
 
 - O `pessoal.env` é só seu: não vai para o GitHub e não deve ser repassado junto com o `equipe.env`.
-- Cada análise é cobrada na conta dona da chave. O modelo usado é o Claude Opus 5.5.
+- Cada pregação processada faz uma chamada ao Claude, cobrada na conta dona da chave, mesmo que você não
+  use os cortes. Cada "Sugerir cortes", "Gerar texto" e "Tentar de novo" é outra chamada. O modelo usado é o Claude Opus 5.5.
 - A transcrição da pregação é enviada à API da Anthropic para ser analisada.
 
 ## Para quem desenvolve

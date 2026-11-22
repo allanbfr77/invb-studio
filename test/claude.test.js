@@ -120,3 +120,28 @@ test('describeCut: recusa e erro da API viram mensagens claras', async () => {
   const err = new Anthropic.RateLimitError(429, { type: 'error', error: { type: 'x', message: 'm' } }, 'm', new Headers());
   await assert.rejects(() => describeCut({ client: fake(err), name: 'x', text: 't', seconds: 9 }), (e) => e.status === 429);
 });
+
+// --- cortes automáticos pela IA, logo depois da transcrição ---
+const { toAutoClips } = require('../lib/claude');
+
+test('suggestCuts pede os cortes em ordem, do melhor para o mais fraco', async () => {
+  const c = fake(answer([]));
+  await suggestCuts({ client: c, name: 'x', lines, duration: 5400, count: 6 });
+  assert.match(c.calls[0].messages[0].content, /6 cortes/);
+  assert.match(c.calls[0].system + c.calls[0].messages[0].content, /do melhor para o/i);
+});
+
+test('toAutoClips monta os cortes automáticos com nota decrescente, etiqueta IA e o motivo na descrição', () => {
+  const r = toAutoClips([{ start: 60, end: 120, title: 'Primeiro', reason: 'Ideia completa.' }, { start: 300, end: 350, title: 'Segundo', reason: '' }]);
+  assert.deepEqual(r.map((k) => [k.id, k.title, k.start, k.end, k.score, k.type, k.manual]), [['a0', 'Primeiro', 60, 120, 95, 'IA', false], ['a1', 'Segundo', 300, 350, 90, 'IA', false]]);
+  assert.equal(r[0].description, 'Ideia completa.');
+  assert.equal(r[1].description, 'Sugerido pela IA.');
+  assert.deepEqual(r[0].tags, ['IA']);
+  assert.ok(r.every((k) => k.fav === false && k.hid === false && k.render === null && k.downloaded === false));
+});
+
+test('toAutoClips: a nota nunca fica abaixo de 60 nem lista vazia quebra', () => {
+  assert.deepEqual(toAutoClips([]), []);
+  const many = toAutoClips(Array.from({ length: 12 }, (_, i) => ({ start: i * 100, end: i * 100 + 40, title: 't' + i, reason: '' })));
+  assert.equal(Math.min(...many.map((k) => k.score)), 60);
+});
