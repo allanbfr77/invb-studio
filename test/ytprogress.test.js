@@ -38,3 +38,14 @@ test('ytInfo separa a situação da transmissão e o título', () => {
   assert.deepEqual(ytInfo(''), { live: '', title: '' });
   assert.deepEqual(ytInfo('WARNING: algo\nwas_live\tTítulo com\ttab\n'), { live: 'was_live', title: 'Título com\ttab' });
 });
+
+const { ytId } = require('../lib/ytprogress');
+test('ytId tira o código do vídeo dos formatos de link do YouTube', () => {
+  assert.equal(ytId('https://www.youtube.com/watch?v=PFyDkicLdgk'), 'PFyDkicLdgk');
+  assert.equal(ytId('https://youtu.be/PFyDkicLdgk?si=Cj5oOtm3lnplvvm3'), 'PFyDkicLdgk');
+  assert.equal(ytId('https://www.youtube.com/live/fq7WJc0rcn4?feature=share'), 'fq7WJc0rcn4');
+  assert.equal(ytId('https://m.youtube.com/watch?feature=x&v=fq7WJc0rcn4&t=10s'), 'fq7WJc0rcn4');
+  assert.equal(ytId('https://www.youtube.com/shorts/abcdEFGH_-1'), 'abcdEFGH_-1');
+  assert.equal(ytId('https://drive.google.com/file/d/1AbCdEfGhIjKl/view'), '');
+  assert.equal(ytId(''), ''); assert.equal(ytId(undefined), '');
+});

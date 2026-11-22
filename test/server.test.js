@@ -465,3 +465,33 @@ test('sem o modelo instalado, pedir para remover música dá um erro que diz com
   let k; for (let i = 0; i < 100; i++) { k = (await s.api('/uploads/iiiiiiiiiij1/clips')).body[0]; if (k.render && k.render.status !== 'rendering') break; await new Promise((r) => setTimeout(r, 100)); }
   assert.equal(k.render.status, 'error'); assert.match(k.render.error, /instalar-voz-ia/);
 });
+
+// --- capa do vídeo: a do YouTube quando veio de lá; senão, o primeiro quadro ---
+test('vídeo do YouTube usa a capa do YouTube, guardada no computador', { skip: !HAS_FFMPEG }, async (t) => {
+  const hits = [];
+  const img = http.createServer((req, res) => { hits.push(req.url); if (req.url === '/vi/PFyDkicLdgk/hqdefault.jpg') { res.writeHead(200, { 'content-type': 'image/jpeg' }); return res.end(Buffer.from('capa-do-youtube')); } res.writeHead(404); res.end(); });
+  await new Promise((r) => img.listen(0, '127.0.0.1', r)); t.after(() => img.close());
+  const d = tmp(t); const dir = seed(d, 'jjjjjjjjjjk1', { url: 'https://youtu.be/PFyDkicLdgk?si=x' });
+  const s = await boot(t, d, { env: { INVB_YTIMG_BASE: 'http://127.0.0.1:' + img.address().port } });
+  const get = async () => { const r = await fetch(s.url + '/api/uploads/jjjjjjjjjjk1/thumb', { headers: { 'x-invb': '1', cookie: s.cookie } }); return { status: r.status, type: r.headers.get('content-type'), body: await r.text() }; };
+  const a = await get();
+  assert.equal(a.status, 200); assert.equal(a.type, 'image/jpeg'); assert.equal(a.body, 'capa-do-youtube');
+  assert.deepEqual(hits, ['/vi/PFyDkicLdgk/maxresdefault.jpg', '/vi/PFyDkicLdgk/hqdefault.jpg']);
+  assert.ok(has(dir, 'thumb.jpg'));
+  await get(); assert.equal(hits.length, 2, 'a segunda vez usa a cópia guardada, sem pedir de novo ao YouTube');
+});
+
+test('vídeo que não veio do YouTube usa o primeiro quadro como capa', { skip: !HAS_FFMPEG }, async (t) => {
+  const d = tmp(t); const dir = seedTone(d, 'kkkkkkkkkkl1'); const m = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'), 'utf8')); m.source = 'upload'; delete m.url; fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(m));
+  const s = await boot(t, d);
+  const r = await fetch(s.url + '/api/uploads/kkkkkkkkkkl1/thumb', { headers: { 'x-invb': '1', cookie: s.cookie } });
+  assert.equal(r.status, 200); assert.equal(r.headers.get('content-type'), 'image/jpeg');
+  const buf = Buffer.from(await r.arrayBuffer());
+  assert.ok(buf.length > 500 && buf[0] === 0xff && buf[1] === 0xd8, 'deveria ser um JPEG de verdade');
+});
+
+test('sem capa do YouTube e sem vídeo no computador, a capa responde 404 e não quebra a tela', async (t) => {
+  const d = tmp(t); seed(d, 'lllllllllm01', { source: 'upload', url: undefined }, { original: false });
+  const s = await boot(t, d);
+  assert.equal((await fetch(s.url + '/api/uploads/lllllllllm01/thumb', { headers: { 'x-invb': '1', cookie: s.cookie } })).status, 404);
+});

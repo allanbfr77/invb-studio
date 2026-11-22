@@ -13,7 +13,7 @@ const { parseCutList, buildPrompt } = require('./lib/cutlist');
 const { staleOriginals, canRefetch } = require('./lib/cleanup');
 const { suggestCuts, toAutoClips, describeCut } = require('./lib/claude');
 const { pickProvider } = require('./lib/ai');
-const { ytProgress, ytInfo } = require('./lib/ytprogress');
+const { ytProgress, ytInfo, ytId } = require('./lib/ytprogress');
 const { needsPreview } = require('./lib/preview');
 const { cleanSpeed, atempo } = require('./lib/speed');
 const { cleanVoice } = require('./lib/voice');
@@ -281,6 +281,22 @@ async function makePreview(id) {
     await fsp.rename(tmp, out); await update(id, { preview: 'preview.mp4' }); log('cópia para o navegador pronta', id);
   } catch (e) { log('cópia para o navegador falhou', id, e.message); await update(id, { preview: null }).catch(() => {}); }
 }
+/**
+ * Capa do envio (thumb.jpg na pasta dele): a do YouTube quando o vídeo veio de lá; senão, o primeiro quadro do vídeo.
+ * É criada na primeira vez que a tela pede e fica guardada. Devolve o caminho, ou null se não houver de onde tirar.
+ */
+const YTIMG = (E.INVB_YTIMG_BASE || 'https://i.ytimg.com').replace(/\/$/, '');
+const ensureThumb = (m) => withLock('thumb:' + m.id, async () => {
+  const out = U(m.id, 'thumb.jpg'); if (fs.existsSync(out)) return out;
+  const vid = m.source === 'youtube' ? ytId(m.url) : '';
+  if (vid) for (const size of ['maxresdefault', 'hqdefault']) { // a maior nem sempre existe
+    try { const r = await fetch(`${YTIMG}/vi/${vid}/${size}.jpg`); if (r.ok) { const buf = Buffer.from(await r.arrayBuffer()); if (buf.length) { await fsp.writeFile(out, buf); return out; } } } catch { /* sem internet: tenta o quadro do vídeo */ }
+  }
+  if (m.kind !== 'vid' || !m.file || !tools.ffmpeg) return null;
+  const src = [m.file, m.preview].filter((f) => f && f !== 'making' && fs.existsSync(U(m.id, f)))[0]; if (!src) return null;
+  const r = await run(tools.ffmpeg, ['-y', '-hide_banner', '-i', U(m.id, src), '-frames:v', '1', '-vf', "scale='min(960,iw)':-2", '-q:v', '4', out]);
+  return r.code === 0 && fs.existsSync(out) ? out : null;
+});
 /** Arquivo que o navegador deve tocar: a cópia compatível, quando existe; senão o original. */
 const playable = (m) => (m.preview && m.preview !== 'making' && fs.existsSync(U(m.id, m.preview)) ? m.preview : m.file);
 /** Grava em disco o download aberto por openDrive. Devolve o total de bytes. */
@@ -770,6 +786,7 @@ async function api(req, res, url, q) {
       if (method === 'PATCH') { const j = await body(req); if (typeof j.name === 'string' && j.name.trim()) m.name = j.name.trim().slice(0, 160); if ('projectId' in j) m.projectId = j.projectId || null; await saveMeta(m); return send(res, 200, m); }
       if (method === 'DELETE') { await fsp.rm(U(b), { recursive: true, force: true }); return send(res, 200, { ok: true }); }
     }
+    if (c === 'thumb' && method === 'GET') { const f = await ensureThumb(m); return f ? serveFile(req, res, f, 'image/jpeg') : send(res, 404, { error: 'Sem capa' }); }
     if (c === 'media' && method === 'GET' && (m.refetching || isGone(m))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
     if (c === 'media' && method === 'GET') touchUsed(b);
     if (c === 'free' && method === 'POST') { // apaga o original agora; o link continua salvo

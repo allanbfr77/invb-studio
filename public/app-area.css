@@ -520,3 +520,8 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:v
 .dlx-sw:disabled{opacity:.4;cursor:not-allowed}
 .dlx-hint{font-size:12px;line-height:1.45;color:var(--muted);margin:0 0 18px}
 .dlx-hint code{font-size:11.5px}
+
+/* Capa do vídeo nos cartões de envio */
+.ap-up .th{overflow:hidden}
+.ap-up .th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ap-up .th em{z-index:1}

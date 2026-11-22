@@ -69,7 +69,7 @@
     const id = S.cur.id; if (S.media && S.mediaId === id) return S.media;
     if (S.media) { S.media.pause(); S.media.remove(); }
     const el = document.createElement(S.cur.kind === 'vid' ? 'video' : 'audio');
-    el.preload = 'metadata'; el.src = `/api/uploads/${id}/media`; el.playsInline = true; el.playbackRate = S.speed;
+    el.preload = 'metadata'; if (S.cur.kind === 'vid') el.poster = `/api/uploads/${id}/thumb`; el.src = `/api/uploads/${id}/media`; el.playsInline = true; el.playbackRate = S.speed;
     ['timeupdate', 'play', 'pause', 'ended', 'loadedmetadata'].forEach((ev) => el.addEventListener(ev, paintPlayer));
     S.media = el; S.mediaId = id; return el;
   }
@@ -225,8 +225,20 @@
 
   /* ---------- Páginas ---------- */
   const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; };
-  const upCard = (u) => `<a class="ap-up" href="/app/uploads/${u.id}/overview"><div class="th"><i>${u.kind === 'aud' ? ic.aud : ic.vid}</i>${u.duration ? `<em>${tm(u.duration)}</em>` : ''}</div><b>${esc(u.name)}</b><small>${fmtDate(u.createdAt).split(',')[0]} · ${fmtSize(u.size)}</small></a>`;
-  const note = (c) => c.analysis && c.analysis.mode === 'heuristic' ? `<div class="ap-demo" style="background:#f3f2ff;border-color:#d5d2ff;color:#3b2fc0">${esc(c.analysis.note)}</div>` : '';
+  const upCard = (u) => `<a class="ap-up" href="/app/uploads/${u.id}/overview"><div class="th"><i>${u.kind === 'aud' ? ic.aud : ic.vid}</i>${u.kind === 'vid' && u.status === 'done' ? `<img src="/api/uploads/${u.id}/thumb" alt="" loading="lazy" onerror="this.remove()">` : ''}${u.duration ? `<em>${tm(u.duration)}</em>` : ''}</div><b>${esc(u.name)}</b><small>${fmtDate(u.createdAt).split(',')[0]} · ${fmtSize(u.size)}</small></a>`;
+  const aiOn = () => !!(S.status && S.status.ai);
+  const aiFailNote = (c) => { const n = String((c.analysis && c.analysis.note) || ''), m = /^A IA não conseguiu analisar esta pregação \((.*?)\)\./.exec(n); return m ? m[1] : ''; };
+  const note = (c) => !(c.analysis && c.analysis.mode === 'heuristic') ? '' : aiOn()
+    ? `<div class="ap-demo gone" role="status"><span>${aiFailNote(c) ? 'A IA não conseguiu analisar esta pregação: ' + esc(aiFailNote(c)) + '.' : 'Esta pregação foi analisada sem IA, antes de a chave estar ligada neste computador.'} Capítulos, emoções e cortes podem ser refeitos com ${esc(S.status.aiName || 'a IA')}.</span><button class="ap-btn" data-reana>Refazer com IA</button></div>`
+    : '<div class="ap-demo" style="background:#f3f2ff;border-color:#d5d2ff;color:#3b2fc0">Análise local simples, sem IA: capítulos por pausas e cortes por ritmo de fala. Com uma chave do Claude ou da OpenAI neste computador, capítulos, emoções e cortes passam a vir da IA.</div>';
+  // Refaz a análise e espera o resultado (capítulos e emoções pela IA; os cortes automáticos são trocados; os manuais ficam).
+  const reanalyze = guard(async (btn) => {
+    const id = S.cur.id, before = JSON.stringify([S.cur.analysis && S.cur.analysis.mode, S.cur.aiCutsAt || 0, (S.cur.analysis && S.cur.analysis.note) || '']);
+    if (btn) { btn.disabled = true; btn.textContent = 'Analisando…'; }
+    await api(`/uploads/${id}/reanalyze`, { json: {} });
+    for (let i = 0; i < 100; i++) { await new Promise((r) => setTimeout(r, 3000)); const m = await api('/uploads/' + id); if (JSON.stringify([m.analysis && m.analysis.mode, m.aiCutsAt || 0, (m.analysis && m.analysis.note) || '']) !== before) { toast('Análise refeita.'); return go(location.pathname); } }
+    if (btn) { btn.disabled = false; btn.textContent = 'Refazer com IA'; } toast('A análise está demorando. Recarregue a página em instantes.');
+  });
   const procView = (c) => `<div class="empty" id="proc"><div class="ci">${c.status === 'error' ? '⚠️' : '⏳'}</div><h3>${c.status === 'error' ? 'Não foi possível processar' : 'Processando…'}</h3><p id="procmsg">${c.status === 'error' ? esc(c.error || 'Erro desconhecido.') : esc(statusLabel(c))}</p>${c.status === 'error' ? `<button class="ap-btn pri" id="retry">Tentar de novo</button> ` : `<div class="bigbar" style="max-width:320px;margin:10px auto"><i id="procbar" style="width:${c.progress || 3}%"></i></div>`}<a class="ap-btn" href="/app/uploads">Voltar aos Envios</a></div>`;
 
   const pages = {
@@ -241,7 +253,7 @@
         : `<div class="empty"><div class="ci">${ic.folder}</div><h3>Nenhum projeto encontrado</h3><p>Crie seu primeiro projeto para organizar seus envios.</p><button class="ap-btn pri" id="newproj">Novo Projeto</button></div>`}`,
     overview: (c) => {
       const segs = segsOf(c), spk = new Set(segs.map((s) => s.who)).size, ch = chaptersOf(c), emo = (c.analysis.emotions || []).length;
-      const cards = [['transcription', ic.doc, 'Transcrição', 'Seu áudio foi transcrito automaticamente, com segmentação por trecho.', `Palavras transcritas: ${c.words || 0}`], ['chapters', ic.book, 'Capítulos', 'O conteúdo foi dividido em capítulos para facilitar a navegação.', `Capítulos: ${ch.length}`], ['emotions', ic.heart, 'Emoções', 'Tom emocional de cada fala (desativado).', emo ? `${emo} falas marcadas` : 'Desativado'], ['clips', ic.cut, 'Cortes', 'Trechos sugeridos, com nota.', `${(c.clips || []).length} cortes`], ['scripts', ic.script, 'Roteiros', 'Roteiros que apontam para as falas exatas do arquivo.', `${(c.scripts || []).length} criados`]];
+      const cards = [['transcription', ic.doc, 'Transcrição', 'Seu áudio foi transcrito automaticamente, com segmentação por trecho.', `Palavras transcritas: ${c.words || 0}`], ['chapters', ic.book, 'Capítulos', 'O conteúdo foi dividido em capítulos para facilitar a navegação.', `Capítulos: ${ch.length}`], ['emotions', ic.heart, 'Emoções', emo ? 'Tom emocional das falas mais marcantes.' : aiOn() ? 'Ainda não analisado com a IA.' : 'Marcado pela IA (Claude ou OpenAI).', emo ? `${emo} falas marcadas` : aiOn() ? 'Refaça a análise' : 'Sem IA'], ['clips', ic.cut, 'Cortes', 'Trechos sugeridos, com nota.', `${(c.clips || []).length} cortes`], ['scripts', ic.script, 'Roteiros', 'Roteiros que apontam para as falas exatas do arquivo.', `${(c.scripts || []).length} criados`]];
       return `${note(c)}<div class="ov"><div class="vid vid-slot"><div class="pl">▶</div></div><div><span class="eyebrow" style="font-size:10px">Resumo</span><h1 style="font-size:24px;margin-top:4px">${esc(c.name)}</h1><div class="metachips"><span class="metachip">${c.kind === 'aud' ? 'Áudio' : 'Vídeo'} enviado</span><span class="metachip">${tm(c.duration)}</span><span class="metachip">${esc(c.language || '—')}</span><span class="metachip">${fmtDate(c.createdAt)}</span></div>
         <p style="margin:12px 0">Transcrevemos <b>${c.words || 0}</b> palavras, divididas em <b>${ch.length}</b> capítulos.</p><a class="ap-btn" href="/app/uploads/${c.id}/transcription">Abrir transcrição</a> <a class="ap-btn" href="/app/uploads/${c.id}/clips">Ver cortes</a> <button class="ap-btn" id="reana">Refazer análise</button></div></div>
         <div class="kpis">${[['Duração do áudio', tm(c.duration)], ['Palavras transcritas', String(c.words || 0)], ['Segmentos de fala', String(segs.length)], ['Falantes identificados', String(spk)], ['Momentos-chave', String((c.clips || []).length)]].map((k) => `<div><small>${k[0]}</small><b>${k[1]}</b></div>`).join('')}</div>
@@ -260,7 +272,7 @@
     chapters: (c) => `${note(c)}<div class="ap-head"><div><h1>Capítulos</h1><p class="sub2">Navegue pelo conteúdo do áudio por temas e tópicos.</p></div><button class="ap-btn" id="ch-exp">Exportar timestamps ⌄</button></div>
       <p class="sub2" style="margin-bottom:12px">${chaptersOf(c).length} capítulos</p><div id="chps">${chaptersOf(c).map((k, i) => `<div class="chp ${i === 0 ? 'open' : ''}" data-i="${i}" style="cursor:pointer"><div class="n">${i + 1}</div><div style="flex:1"><h3>${esc(k.title)}</h3><p>${esc(k.summary)}</p><div class="mt"><span>⏱ ${tm(k.start)}</span><span>${tm(k.end - k.start)} de duração</span>${k.moments.length ? `<span>${k.moments.length} momentos</span>` : ''}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${(k.tags || []).map((t) => `<span class="tag2">${esc(t)}</span>`).join('')}</div></div><button class="ap-ic" data-dlc="${i}" aria-label="Baixar">${ic.dl}</button></div><div class="moms" ${i === 0 ? '' : 'hidden'}><div class="mom" data-t="${k.start}"><span>${tm(k.start)}</span>Ir para o início do capítulo</div>${k.moments.map((m) => `<div class="mom" data-t="${m.t}"><span>${tm(m.t)}</span>${esc(m.title)}</div>`).join('')}</div>`).join('')}</div>`,
     emotions: (c) => (c.analysis.emotions || []).length ? `<div class="ap-head"><div><h1>Emoções</h1><p class="sub2">Análise emocional da transcrição.</p></div><button class="ap-btn" id="em-ord">⇅ Ordem no vídeo ⌄</button></div><label class="ap-search" style="max-width:none">${ic.search}<input id="eq" placeholder="Buscar na transcrição..."></label><div class="chiprow" id="echips"></div><div class="emo" id="emo"></div>`
-      : `<h1>Emoções</h1><div class="empty"><div class="ci">${ic.heart}</div><h3>Análise de emoções indisponível</h3><p>Está desativada no momento (análise com IA fora de uso). Para reativar: <code>ANALYSIS_LLM=1</code> e <code>OPENAI_API_KEY</code> no servidor, depois “Refazer análise” no Resumo.</p><a class="ap-btn" href="/app/uploads/${c.id}/overview">Ir ao Resumo</a></div>`,
+      : `<h1>Emoções</h1><div class="empty"><div class="ci">${ic.heart}</div><h3>${aiOn() ? 'Emoções ainda não analisadas' : 'Emoções precisam de IA'}</h3><p>${aiOn() ? `Esta pregação foi analisada antes de a IA estar ligada. Refaça a análise para o ${esc(S.status.aiName || 'modelo')} marcar o tom emocional das falas.` : 'O tom emocional das falas é marcado pela IA. Para ativar, coloque uma chave do Claude ou da OpenAI no arquivo <code>install/pessoal.env</code> e abra o app de novo.'}</p>${aiOn() ? '<button class="ap-btn pri" data-reana>Refazer análise com IA</button>' : `<a class="ap-btn" href="/app/uploads/${c.id}/overview">Ir ao Resumo</a>`}</div>`,
     scripts: (c) => `<div class="ap-head"><div><h1>Roteiros</h1><p class="sub2">Cada roteiro aponta para as falas exatas do seu arquivo, pronto pro editor.</p></div>${(c.scripts || []).length ? '<button class="ap-btn pri" id="sc-new">+ Novo roteiro</button>' : ''}</div><div id="sc-body"></div>`,
     diagrams: (c) => `<h1>Diagramas</h1><p class="sub2">Sua transcrição em mapa mental, fluxo e linha do tempo, montados a partir dos capítulos. Clique em qualquer ponto para abrir o trecho no player.</p><div style="height:16px"></div><div id="dg-body"></div>`,
   };
@@ -535,7 +547,8 @@
           if (['home', 'uploadsNew'].includes(r.v)) bindUpload(root);
           if (binds[r.v]) binds[r.v]();
           if (r.id) { mountMedia(); bindPlayer(); }
-          const ra = $('#reana'); if (ra) ra.onclick = guard(async () => { await api(`/uploads/${r.id}/reanalyze`, { json: {} }); toast('Refazendo a análise… recarregue em instantes.'); });
+          const ra = $('#reana'); if (ra) ra.onclick = () => reanalyze(ra);
+          $$('[data-reana]').forEach((b) => b.onclick = () => reanalyze(b));
           // polling da lista/início enquanto algo processa
           if (['uploads', 'home'].includes(r.v) && S.uploads.some((u) => ['queued', 'processing'].includes(u.status))) S.poll = setInterval(() => refreshList().then(() => { if (!S.uploads.some((u) => ['queued', 'processing'].includes(u.status))) clearInterval(S.poll); }).catch(() => {}), 2000);
         }
