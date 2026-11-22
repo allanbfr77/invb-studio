@@ -199,7 +199,12 @@ const YT_FORMAT = `bv*[vcodec^=avc1][height<=${YT_H}]+ba[ext=m4a]/b[ext=mp4][hei
 // Às vezes o YouTube lista o H.264 mas entrega um arquivo vazio. Aí tentamos de novo com o melhor formato que houver
 // (em geral AV1 + Opus, que baixa bem) e, por fim, com o arquivo único mais simples. O que o navegador não tocar
 // ganha uma cópia compatível (ver makePreview).
-const YT_ATTEMPTS = [YT_FORMAT, `bv*[height<=${YT_H}]+ba/b`, 'b'];
+// O YouTube limita a velocidade de cada conexão (na prática, perto de 1 MB/s). No modo rápido o yt-dlp divide o arquivo
+// em pedaços de 10 MB (formats=dashy) e baixa 8 ao mesmo tempo (-N 8), o que aproveita a internet de verdade.
+// Se o modo rápido falhar, as últimas tentativas usam uma conexão só, que é mais lento mas sempre funcionou.
+const YT_FAST = ['--extractor-args', 'youtube:formats=dashy', '-N', '8'];
+const YT_ANY = `bv*[height<=${YT_H}]+ba/b`;
+const YT_ATTEMPTS = [{ f: YT_FORMAT, fast: true }, { f: YT_ANY, fast: true }, { f: YT_ANY, fast: false }, { f: 'b', fast: false }];
 const MEDIA_FILE = /^original\.(mp4|mov|mkv|webm|avi|m4v|mp3|wav|m4a|aac|opus|flac|ogg|oga)$/i;
 /** Remove o original e qualquer sobra de download (pedaços .part, faixas separadas). */
 async function clearOriginals(id) { for (const f of await fsp.readdir(U(id)).catch(() => [])) if (f.startsWith('original.')) await fsp.rm(U(id, f), { force: true }); }
@@ -228,7 +233,7 @@ async function fetchYoutube(id, url, onProgress) {
   // --newline faz o yt-dlp escrever o andamento linha a linha, que é o que mostramos na tela (no máximo uma vez por segundo).
   for (let k = 0; k < YT_ATTEMPTS.length; k++) {
     const st = {}; let last = 0;
-    const dl = await run(cmd, [...pre, '--no-playlist', '--newline', '-N', '4', '-f', YT_ATTEMPTS[k], '--merge-output-format', 'mp4', ...ffLoc, '-o', U(id, 'original.%(ext)s'), url], { onStdout: (d) => { const p = ytProgress(d, st); if (p && onProgress && (Date.now() - last > 1000 || p.pct >= 99)) { last = Date.now(); onProgress(p); } } });
+    const dl = await run(cmd, [...pre, '--no-playlist', '--newline', ...(YT_ATTEMPTS[k].fast ? YT_FAST : []), '-f', YT_ATTEMPTS[k].f, '--merge-output-format', 'mp4', ...ffLoc, '-o', U(id, 'original.%(ext)s'), url], { onStdout: (d) => { const p = ytProgress(d, st); if (p && onProgress && (Date.now() - last > 1000 || p.pct >= 99)) { last = Date.now(); onProgress(p); } } });
     const all = (await fsp.readdir(U(id))).filter((x) => MEDIA_FILE.test(x));
     const f = dl.code === 0 ? (all.includes('original.mp4') ? 'original.mp4' : all[0]) : null;
     if (f && (await fsp.stat(U(id, f))).size > 0) { if (k) log('yt-dlp: baixou na tentativa', k + 1, id); return f; }

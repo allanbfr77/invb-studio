@@ -249,10 +249,14 @@ test('se o primeiro formato falhar, o download tenta de novo com formatos mais s
   const s = await boot(t, d, { env: { YTDLP_PATH: y.f } });
   await s.api('/uploads/ssssssssssss/refetch', { json: {} }); await untilNotRefetching(s, 'ssssssssssss');
   const formats = fs.readFileSync(y.log, 'utf8').trim().split('\n').map((l) => (l.match(/-f (\S+)/) || [])[1]);
-  assert.equal(formats.length, 3);
+  assert.equal(formats.length, 4);
   assert.match(formats[0], /vcodec\^=avc1/);
   assert.equal(formats[1], 'bv*[height<=1080]+ba/b');
-  assert.equal(formats[2], 'b');
+  assert.equal(formats[2], 'bv*[height<=1080]+ba/b');
+  assert.equal(formats[3], 'b');
+  // as duas primeiras tentativas baixam em várias conexões ao mesmo tempo; as últimas usam o modo simples, mais lento e mais seguro
+  const lines = fs.readFileSync(y.log, 'utf8').trim().split('\n');
+  assert.deepEqual(lines.map((l) => /--extractor-args youtube:formats=dashy/.test(l) && /-N 8\b/.test(l)), [true, true, false, false]);
 });
 
 test('o navegador recebe a cópia compatível quando ela existe, e o original quando pede o original', { skip: !HAS_FFMPEG }, async (t) => {
