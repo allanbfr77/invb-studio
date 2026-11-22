@@ -182,6 +182,13 @@ const mime = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quickt
 /* ---------- Fila de trabalhos (um por vez: CPU) ---------- */
 const queue = []; let busy = false;
 function enqueue(fn) { queue.push(fn); pump(); }
+// Downloads ficam fora dessa fila: são espera de rede, não de processador. Assim um download lento (como o de uma live
+// recém-encerrada) não segura a transcrição, a análise nem a exportação de cortes de outros vídeos. Até 3 ao mesmo tempo.
+const dlWaiting = []; let dlActive = 0;
+function download(fn) {
+  const start = () => { dlActive++; Promise.resolve().then(fn).catch((e) => log('erro no download', e && e.message)).finally(() => { dlActive--; const next = dlWaiting.shift(); if (next) next(); }); };
+  if (dlActive < 3) start(); else dlWaiting.push(start);
+}
 async function pump() { if (busy) return; busy = true; while (queue.length) { try { await queue.shift()(); } catch (e) { log('job falhou:', e.message); } } busy = false; }
 
 /* ---------- Original sob demanda (só o link fica salvo) ---------- */
@@ -688,7 +695,7 @@ async function api(req, res, url, q) {
       const id = rid(); await fsp.mkdir(U(id), { recursive: true });
       const m = { id, name: 'Importando do YouTube…', file: '', size: 0, kind: 'vid', createdAt: Date.now(), status: 'processing', stage: 'Baixando do YouTube', progress: 0, source: 'youtube', url: j.url };
       await saveMeta(m);
-      enqueue(async () => {
+      download(async () => {
         const [cmd, ...pre] = tools.ytdlp;
         const info = ytInfo((await run(cmd, [...pre, '--no-playlist', '--print', '%(live_status)s\t%(title)s', j.url])).out), t = { out: info.title };
         if (info.live === 'is_live' || info.live === 'is_upcoming') return void (await update(id, { status: 'error', stage: 'Erro', error: info.live === 'is_live' ? 'Esta transmissão ainda está ao vivo. Espere ela terminar para importar.' : 'Esta transmissão ainda não começou.' }));
@@ -700,7 +707,8 @@ async function api(req, res, url, q) {
         const st = await fsp.stat(U(id, f));
         await update(id, { file: f, size: st.size, name: (t.out.trim() || 'video_do_youtube') + path.extname(f) });
         makePreview(id);
-        await pipeline(id);
+        await update(id, { status: 'queued', stage: 'Na fila para transcrever', progress: 0 });
+        enqueue(() => pipeline(id)); // a transcrição e a análise seguem na fila de processamento
       });
       return send(res, 201, m);
     }
@@ -748,7 +756,7 @@ async function api(req, res, url, q) {
       if (m.source === 'youtube') {
         if (!tools.ytdlp || !tools.ffmpeg) return send(res, 501, { error: 'yt-dlp ou ffmpeg não está instalado neste computador.' });
         const mm = await update(b, { refetching: true, refetchError: null, originalGone: true });
-        enqueue(async () => { try { const f = await fetchYoutube(b, m.url); if (!f) return void (await fail('Não consegui baixar do YouTube. Confira se o vídeo ainda está no ar.')); await ok(f, (await fsp.stat(U(b, f))).size); } catch (e) { await fail('Falha ao baixar do YouTube: ' + e.message); } });
+        download(async () => { try { const f = await fetchYoutube(b, m.url); if (!f) return void (await fail('Não consegui baixar do YouTube. Confira se o vídeo ainda está no ar.')); await ok(f, (await fsp.stat(U(b, f))).size); } catch (e) { await fail('Falha ao baixar do YouTube: ' + e.message); } });
         return send(res, 202, mm);
       }
       const j = await body(req); const ref = parseDriveLink(m.url); if (!ref.ok) return send(res, 400, { error: ref.error });

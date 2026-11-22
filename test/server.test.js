@@ -334,3 +334,21 @@ test('sem a chave, quem não usa IA continua com os trechos da análise local', 
   let m; for (let i = 0; i < 60; i++) { m = (await s.api('/uploads/zzzzzzzzzzzz')).body; if (m.clips.length) break; await new Promise((r) => setTimeout(r, 50)); }
   assert.ok(m.clips.length > 0); assert.ok(m.clips.every((c) => c.type !== 'IA'));
 });
+
+// --- um download lento (ex.: live recém-encerrada) não pode travar o resto do app ---
+test('enquanto um vídeo baixa do YouTube, outras tarefas (análise, exportação) continuam andando', { skip: !HAS_FFMPEG || process.platform === 'win32' }, async (t) => {
+  const d = tmp(t); seed(d, 'aaaaaaaaaab1');
+  fs.writeFileSync(path.join(d, 'uploads', 'aaaaaaaaaab1', 'transcript.json'), JSON.stringify({ language: 'pt', segments: Array.from({ length: 30 }, (_, i) => ({ id: i, speaker: 'Pessoa 1', start: i * 10, end: i * 10 + 9, text: 'Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito para todo aquele que nele crê.' })) }));
+  const slow = path.join(d, 'yt-lento.sh');
+  fs.writeFileSync(slow, '#!/bin/bash\nfor a in "$@"; do [ "$a" = "--version" ] && { echo 2026.01.01; exit 0; }; [ "$a" = "--print" ] && { printf "not_live\\tVideo lento\\n"; exit 0; }; done\nsleep 4\nexit 1\n', { mode: 0o755 });
+  const s = await boot(t, d, { env: { YTDLP_PATH: slow, ANTHROPIC_API_KEY: '' } });
+  const imp = await s.api('/uploads/youtube', { json: { url: 'https://www.youtube.com/watch?v=abc' } });
+  assert.equal(imp.status, 201);
+  await new Promise((r) => setTimeout(r, 300)); // o download já começou
+  const t0 = Date.now();
+  await s.api('/uploads/aaaaaaaaaab1/reanalyze', { json: {} });
+  let m; for (let i = 0; i < 40; i++) { m = (await s.api('/uploads/aaaaaaaaaab1')).body; if (m.clips.length) break; await new Promise((r) => setTimeout(r, 50)); }
+  assert.ok(m.clips.length > 0, 'a análise do outro vídeo ficou presa atrás do download');
+  assert.ok(Date.now() - t0 < 2500, `demorou ${Date.now() - t0} ms`);
+  assert.equal((await s.api('/uploads/' + imp.body.id)).body.status, 'processing');
+});
