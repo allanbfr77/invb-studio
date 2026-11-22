@@ -193,11 +193,13 @@ const driveBusy = new Set(), refetchBusy = new Set(); // envios e novos download
 function touchUsed(id, force) { const now = Date.now(); if (!force && now - (lastTouch.get(id) || 0) < 60000) return; lastTouch.set(id, now); update(id, { lastUsedAt: now }).catch(() => {}); }
 // Primeiro H.264 + AAC: é o que todo navegador toca (o Safari não toca VP9/AV1 nem Opus dentro de mp4).
 // Depois um mp4 já pronto e, por último, o melhor que houver, para vídeos que não têm H.264.
-const YT_FORMAT = 'bv*[vcodec^=avc1][height<=1080]+ba[ext=m4a]/b[ext=mp4][height<=1080]/bv*[height<=1080]+ba/b';
+// Altura máxima do vídeo baixado. 1080 dá mais nitidez (ajuda no corte vertical); 720 baixa bem mais rápido.
+const YT_H = [1080, 720, 480, 360].includes(+process.env.YT_MAX_HEIGHT) ? +process.env.YT_MAX_HEIGHT : 1080;
+const YT_FORMAT = `bv*[vcodec^=avc1][height<=${YT_H}]+ba[ext=m4a]/b[ext=mp4][height<=${YT_H}]/bv*[height<=${YT_H}]+ba/b`;
 // Às vezes o YouTube lista o H.264 mas entrega um arquivo vazio. Aí tentamos de novo com o melhor formato que houver
 // (em geral AV1 + Opus, que baixa bem) e, por fim, com o arquivo único mais simples. O que o navegador não tocar
 // ganha uma cópia compatível (ver makePreview).
-const YT_ATTEMPTS = [YT_FORMAT, 'bv*[height<=1080]+ba/b', 'b'];
+const YT_ATTEMPTS = [YT_FORMAT, `bv*[height<=${YT_H}]+ba/b`, 'b'];
 const MEDIA_FILE = /^original\.(mp4|mov|mkv|webm|avi|m4v|mp3|wav|m4a|aac|opus|flac|ogg|oga)$/i;
 /** Remove o original e qualquer sobra de download (pedaços .part, faixas separadas). */
 async function clearOriginals(id) { for (const f of await fsp.readdir(U(id)).catch(() => [])) if (f.startsWith('original.')) await fsp.rm(U(id, f), { force: true }); }
@@ -226,7 +228,7 @@ async function fetchYoutube(id, url, onProgress) {
   // --newline faz o yt-dlp escrever o andamento linha a linha, que é o que mostramos na tela (no máximo uma vez por segundo).
   for (let k = 0; k < YT_ATTEMPTS.length; k++) {
     const st = {}; let last = 0;
-    const dl = await run(cmd, [...pre, '--no-playlist', '--newline', '-f', YT_ATTEMPTS[k], '--merge-output-format', 'mp4', ...ffLoc, '-o', U(id, 'original.%(ext)s'), url], { onStdout: (d) => { const p = ytProgress(d, st); if (p && onProgress && (Date.now() - last > 1000 || p.pct >= 99)) { last = Date.now(); onProgress(p); } } });
+    const dl = await run(cmd, [...pre, '--no-playlist', '--newline', '-N', '4', '-f', YT_ATTEMPTS[k], '--merge-output-format', 'mp4', ...ffLoc, '-o', U(id, 'original.%(ext)s'), url], { onStdout: (d) => { const p = ytProgress(d, st); if (p && onProgress && (Date.now() - last > 1000 || p.pct >= 99)) { last = Date.now(); onProgress(p); } } });
     const all = (await fsp.readdir(U(id))).filter((x) => MEDIA_FILE.test(x));
     const f = dl.code === 0 ? (all.includes('original.mp4') ? 'original.mp4' : all[0]) : null;
     if (f && (await fsp.stat(U(id, f))).size > 0) { if (k) log('yt-dlp: baixou na tentativa', k + 1, id); return f; }
@@ -682,7 +684,7 @@ async function api(req, res, url, q) {
       enqueue(async () => {
         const [cmd, ...pre] = tools.ytdlp;
         const t = await run(cmd, [...pre, '--no-playlist', '--get-title', j.url]);
-        const f = await fetchYoutube(id, j.url, (p) => update(id, { stage: p.label, progress: p.pct }).catch(() => {}));
+        const f = await fetchYoutube(id, j.url, (p) => update(id, { stage: p.label + (p.detail ? ' (' + p.detail + ')' : ''), progress: p.pct }).catch(() => {}));
         if (!f) return void (await update(id, { status: 'error', stage: 'Erro', error: 'Falha ao baixar o vídeo do YouTube.' }));
         const st = await fsp.stat(U(id, f));
         await update(id, { file: f, size: st.size, name: (t.out.trim() || 'video_do_youtube') + path.extname(f) });

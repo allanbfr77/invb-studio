@@ -4,7 +4,7 @@ const { ytProgress } = require('../lib/ytprogress');
 
 test('lê a porcentagem das linhas de download do yt-dlp', () => {
   const st = {};
-  assert.deepEqual(ytProgress('[download]  12.3% of  812.40MiB at  3.10MiB/s ETA 03:50\n', st), { pct: 12, label: 'Baixando do YouTube: vídeo' });
+  assert.deepEqual(ytProgress('[download]  12.3% of  812.40MiB at  3.10MiB/s ETA 03:50\n', st), { pct: 12, label: 'Baixando do YouTube: vídeo', detail: '3,10 MB/s, faltam 03:50' });
 });
 
 test('o segundo arquivo baixado é o áudio; depois vem a junção', () => {
@@ -22,4 +22,10 @@ test('pedaços sem informação de progresso não mudam nada', () => {
 
 test('usa a última porcentagem quando chegam várias linhas juntas', () => {
   assert.equal(ytProgress('[download]  1.0% of 9MiB\n[download]  2.0% of 9MiB\n[download]  41.9% of 9MiB\n', {}).pct, 41);
+});
+
+test('mostra a velocidade e o tempo que falta, quando o yt-dlp informa', () => {
+  assert.deepEqual(ytProgress('[download]  12.3% of  812.40MiB at  3.10MiB/s ETA 03:50\n', {}), { pct: 12, label: 'Baixando do YouTube: vídeo', detail: '3,10 MB/s, faltam 03:50' });
+  assert.equal(ytProgress('[download]  40.0% of ~ 1.20GiB at  512.00KiB/s ETA 23:10 (frag 40/100)\n', {}).detail, '512,00 KB/s, faltam 23:10');
+  assert.equal(ytProgress('[download]  40.0% of 9MiB at Unknown B/s ETA Unknown\n', {}).detail, undefined);
 });
