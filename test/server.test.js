@@ -217,3 +217,27 @@ test('com a chave, o app avisa a tela que a IA está disponível, sem expor a ch
   assert.equal(st.ai, true);
   assert.ok(!JSON.stringify(st).includes('sk-ant-chave-de-teste-000'));
 });
+
+// --- texto de publicação do corte (título, descrição, hashtags) ---
+test('sem chave do Claude, gerar o texto do corte é recusado', async (t) => {
+  const d = tmp(t); seed(d, 'pppppppppppp', {}, { clips: [clip()] });
+  const s = await boot(t, d, { env: { ANTHROPIC_API_KEY: '' } });
+  assert.equal((await s.api('/uploads/pppppppppppp/clips/m111111111111/ai/post', { json: {} })).status, 501);
+});
+
+test('o texto editado pela pessoa fica salvo no corte, com hashtags normalizadas', async (t) => {
+  const d = tmp(t); seed(d, 'qqqqqqqqqqqq', {}, { clips: [clip()] });
+  const s = await boot(t, d);
+  const r = await s.api('/uploads/qqqqqqqqqqqq/clips/m111111111111', { method: 'PATCH', json: { post: { title: ' Meu título ', description: 'Minha descrição.', hashtags: 'fé #pregação  igreja' } } });
+  assert.equal(r.status, 200);
+  const [c] = (await s.api('/uploads/qqqqqqqqqqqq/clips')).body;
+  assert.equal(c.post.title, 'Meu título'); assert.equal(c.post.description, 'Minha descrição.');
+  assert.deepEqual(c.post.hashtags, ['#fé', '#pregação', '#igreja']);
+});
+
+test('mudar o tempo do corte descarta o texto de publicação, que era de outro trecho', async (t) => {
+  const d = tmp(t); seed(d, 'rrrrrrrrrrrr', {}, { clips: [clip({ post: { title: 'Antigo', description: 'x', hashtags: ['#a'], at: 1 } })] });
+  const s = await boot(t, d);
+  await s.api('/uploads/rrrrrrrrrrrr/clips/m111111111111', { method: 'PATCH', json: { start: 12, end: 44 } });
+  assert.equal((await s.api('/uploads/rrrrrrrrrrrr/clips')).body[0].post, undefined);
+});

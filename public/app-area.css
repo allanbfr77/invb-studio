@@ -504,3 +504,7 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:v
 .cut .tlink:hover,.cut .tlink:focus-visible{color:var(--fg);background:var(--hover)}
 .cut .tlink svg{width:13px;height:13px}
 .cut .bt{flex-wrap:wrap}
+
+/* Texto de publicação do corte */
+.po-x{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.cut .bt .ap-btn.has{border-color:var(--primary);color:var(--primary)}

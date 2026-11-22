@@ -103,7 +103,9 @@ Quem tiver uma chave da API do Claude pode ativar os recursos de IA só no próp
 3. Feche e abra o app.
 
 Com a chave, a página **Cortes** ganha o botão **✨ Sugerir cortes com IA**: o Claude lê a transcrição e
-cria os cortes direto no app, cada um com título e o motivo da escolha. Sem a chave, o botão não aparece.
+cria os cortes direto no app, cada um com título e o motivo da escolha. Cada corte ganha também o botão
+**✨ Gerar texto**, que escreve título, descrição e hashtags para a publicação, a partir do que foi dito
+naquele trecho; dá para ajustar, copiar tudo ou pedir outra versão. Sem a chave, esses botões não aparecem.
 
 - O `pessoal.env` é só seu: não vai para o GitHub e não deve ser repassado junto com o `equipe.env`.
 - Cada análise é cobrada na conta dona da chave. O modelo usado é o Claude Opus 5.5.

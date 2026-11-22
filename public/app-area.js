@@ -329,12 +329,13 @@
       $('#cuts').innerHTML = l.map((k) => `<div class="cut ${k.hid ? 'hid' : ''}" data-c="${k.id}">${mediaTag(k)}
         <div class="sc">${k.score ? `<span class="chipx">⚡ ${k.score}</span>` : ''}<span class="chipx ok">${k.render && k.render.status === 'rendering' ? '⏳ Renderizando' : k.downloaded ? '✓ Baixado' : k.render && k.render.status === 'done' ? 'Pronto' : 'Novo'}</span><button class="tlink" data-a="ed" title="Ajustar título e tempos" aria-label="Ajustar título e tempos do corte">${tm(k.start)} → ${tm(k.end)} · ${Math.round(dur(k))}s ${ic.edit}</button></div><h4>${esc(k.title)}</h4><p class="ds">${esc(k.description)}</p>
         <div class="tg" style="display:flex;gap:6px;flex-wrap:wrap">${[k.type, k.emotion, ...(k.tags || [])].filter(Boolean).map((t, i) => `<span class="tag2 ${'abc'[i % 3]}">${esc(t)}</span>`).join('')}</div>
-        <div class="bt"><button class="ap-btn pri" data-a="dl">Baixar corte</button>${driveBtn(k)}<button class="ap-btn" data-a="open" aria-label="Abrir o editor do corte" title="Abrir o editor do corte">${ic.scissors}</button><button class="ap-btn ${k.fav ? 'on' : ''}" data-a="fav" aria-label="Favoritar">${ic.heartS}</button><button class="ap-btn" data-a="hid" aria-label="${k.hid ? 'Mostrar' : 'Ocultar'}">${ic.eye}</button></div></div>`).join('') || '<div class="empty" style="grid-column:1/-1"><h3>Nenhum corte aqui</h3><p>Ajuste os filtros ou crie um novo corte.</p></div>';
+        <div class="bt"><button class="ap-btn pri" data-a="dl">Baixar corte</button>${driveBtn(k)}${S.status && S.status.ai ? `<button class="ap-btn ${k.post ? 'has' : ''}" data-a="post" title="Título, descrição e hashtags para publicar">✨ ${k.post ? 'Texto' : 'Gerar texto'}</button>` : ''}<button class="ap-btn" data-a="open" aria-label="Abrir o editor do corte" title="Abrir o editor do corte">${ic.scissors}</button><button class="ap-btn ${k.fav ? 'on' : ''}" data-a="fav" aria-label="Favoritar">${ic.heartS}</button><button class="ap-btn" data-a="hid" aria-label="${k.hid ? 'Mostrar' : 'Ocultar'}">${ic.eye}</button></div></div>`).join('') || '<div class="empty" style="grid-column:1/-1"><h3>Nenhum corte aqui</h3><p>Ajuste os filtros ou crie um novo corte.</p></div>';
       $$('.cut video,.cut audio').forEach((m) => m.addEventListener('play', () => { if (S.media) S.media.pause(); $$('.cut video,.cut audio').forEach((o) => { if (o !== m) o.pause(); }); }));
       $$('.cut').forEach((el) => { const k = clips.find((x) => x.id === el.dataset.c); $$('[data-a]', el).forEach((b) => b.onclick = guard(async () => {
         const a = b.dataset.a;
         if (a === 'fav') { await api(`/uploads/${c.id}/clips/${k.id}`, { method: 'PATCH', json: { fav: !k.fav } }); k.fav = !k.fav; draw(); }
         else if (a === 'hid') { await api(`/uploads/${c.id}/clips/${k.id}`, { method: 'PATCH', json: { hid: !k.hid } }); k.hid = !k.hid; draw(); }
+        else if (a === 'post') { if (!k.post) { b.disabled = true; b.textContent = 'Escrevendo…'; try { k.post = (await api(`/uploads/${c.id}/clips/${k.id}/ai/post`, { json: {} })).post; } finally { draw(); } } if (k.post) postModal(k); }
         else if (a === 'drive') { b.disabled = true; b.textContent = 'Enviando…'; try { await sendDrive(k); } finally { draw(); } }
         else if (a === 'dl') { // baixa direto: exporta sem legenda, no formato do vídeo, e salva o arquivo
           if (k.render && k.render.status === 'rendering') return toast('Este corte já está sendo exportado.');
@@ -366,6 +367,18 @@
     };
     // Login do Google feito no próprio clique (o navegador bloqueia a janela se ela abrir depois de uma espera longa).
     const driveToken = async () => { if (!(S.gtok && S.gtok.exp > Date.now())) S.gtok = { t: await googleToken(S.status.driveClientId, G_WRITE), exp: Date.now() + 45 * 60000 }; return S.gtok.t; };
+    // Texto de publicação do corte (título, descrição e hashtags): dá para ajustar, copiar, usar o título no corte ou pedir outro.
+    const postModal = (k) => {
+      const m = modal('Texto para publicar', `<label for="po-t">Título</label><input id="po-t" value="${esc(k.post.title)}"><label for="po-d">Descrição</label><textarea id="po-d" rows="5">${esc(k.post.description)}</textarea><label for="po-h">Hashtags</label><textarea id="po-h" rows="2">${esc((k.post.hashtags || []).join(' '))}</textarea><div class="po-x"><button class="ap-btn" id="po-use">Usar como título do corte</button><button class="ap-btn" id="po-new">Gerar de novo</button></div>`, guard(async (mm) => {
+        const cur = read(mm); k.post = (await api(`/uploads/${c.id}/clips/${k.id}`, { method: 'PATCH', json: { post: cur } })).post;
+        const all = [cur.title, cur.description, cur.hashtags].filter(Boolean).join('\n\n');
+        if (navigator.clipboard) await navigator.clipboard.writeText(all).then(() => toast('Texto copiado.')).catch(() => dl('texto-do-corte.txt', all)); else dl('texto-do-corte.txt', all);
+        draw();
+      }), 'Copiar tudo', `${tm(k.start)} → ${tm(k.end)} · escrito pela IA a partir da transcrição deste trecho. Revise antes de publicar.`);
+      const read = (mm) => ({ title: $('#po-t', mm).value.trim(), description: $('#po-d', mm).value.trim(), hashtags: $('#po-h', mm).value.trim() });
+      $('#po-use', m).onclick = guard(async () => { const t = $('#po-t', m).value.trim(); if (!t) return; await api(`/uploads/${c.id}/clips/${k.id}`, { method: 'PATCH', json: { title: t } }); k.title = t; draw(); toast('Título do corte atualizado.'); });
+      $('#po-new', m).onclick = guard(async (e) => { const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Escrevendo…'; try { k.post = (await api(`/uploads/${c.id}/clips/${k.id}/ai/post`, { json: {} })).post; $('#po-t', m).value = k.post.title; $('#po-d', m).value = k.post.description; $('#po-h', m).value = (k.post.hashtags || []).join(' '); draw(); } finally { btn.disabled = false; btn.textContent = 'Gerar de novo'; } });
+    };
     // Só existe para quem tem a chave do Claude na configuração pessoal.
     if ($('#cl-ai')) $('#cl-ai').onclick = guard(async (e) => {
       const btn = e.currentTarget, label = btn.textContent; btn.disabled = true; btn.textContent = 'Analisando a pregação…';

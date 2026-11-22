@@ -78,3 +78,45 @@ test('aiAvailable: só com chave', () => {
   assert.equal(aiAvailable(undefined), false);
   assert.equal(aiAvailable('sk-ant-teste'), true);
 });
+
+// --- título, descrição e hashtags de um corte ---
+const { describeCut } = require('../lib/claude');
+const post = (o) => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(o) }] });
+
+test('describeCut envia o texto do corte e o nome da pregação, e pede saída estruturada', async () => {
+  const c = fake(post({ title: 'Deus não desiste de você', description: 'Uma palavra para quem está cansado.', hashtags: ['#fé', '#pregação'] }));
+  await describeCut({ client: c, name: 'Na oficina do oleiro', text: 'O barro se quebrou na mão do oleiro, e ele fez de novo.', seconds: 45 });
+  const req = c.calls[0];
+  assert.equal(req.model, MODEL);
+  assert.equal(req.fallbacks, 'default');
+  assert.equal(req.output_config.format.type, 'json_schema');
+  assert.deepEqual(req.output_config.format.schema.required, ['title', 'description', 'hashtags']);
+  assert.match(req.messages[0].content, /Na oficina do oleiro/);
+  assert.match(req.messages[0].content, /O barro se quebrou na mão do oleiro/);
+  assert.match(req.messages[0].content, /45 segundos/);
+});
+
+test('describeCut devolve título, descrição e hashtags normalizadas', async () => {
+  const c = fake(post({ title: '  Deus não desiste de você  ', description: 'Uma palavra para quem está cansado.\n\nAssista até o fim.', hashtags: ['fé', '#Pregação', '# igreja nova vida', '#fé', '', '#a b!c'] }));
+  const r = await describeCut({ client: c, name: 'x', text: 'texto do corte', seconds: 30 });
+  assert.deepEqual(r, { title: 'Deus não desiste de você', description: 'Uma palavra para quem está cansado.\n\nAssista até o fim.', hashtags: ['#fé', '#Pregação', '#igrejanovavida', '#abc'] });
+});
+
+test('describeCut limita a 12 hashtags e corta título longo', async () => {
+  const c = fake(post({ title: 'x'.repeat(300), description: 'd', hashtags: Array.from({ length: 30 }, (_, i) => '#tag' + i) }));
+  const r = await describeCut({ client: c, name: 'x', text: 'texto', seconds: 30 });
+  assert.equal(r.title.length, 120); assert.equal(r.hashtags.length, 12);
+});
+
+test('describeCut sem texto do corte nem chama a API', async () => {
+  const c = fake(post({}));
+  await assert.rejects(() => describeCut({ client: c, name: 'x', text: '   ', seconds: 30 }), /texto/i);
+  assert.equal(c.calls.length, 0);
+});
+
+test('describeCut: recusa e erro da API viram mensagens claras', async () => {
+  await assert.rejects(() => describeCut({ client: fake({ stop_reason: 'refusal', content: [] }), name: 'x', text: 't', seconds: 9 }), /recusou/i);
+  const Anthropic = require('@anthropic-ai/sdk');
+  const err = new Anthropic.RateLimitError(429, { type: 'error', error: { type: 'x', message: 'm' } }, 'm', new Headers());
+  await assert.rejects(() => describeCut({ client: fake(err), name: 'x', text: 't', seconds: 9 }), (e) => e.status === 429);
+});

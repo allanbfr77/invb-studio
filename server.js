@@ -11,7 +11,7 @@ const { parseDriveLink, openDrive, ensureFolder, uploadFile } = require('./lib/d
 const { splitLines } = require('./lib/lines');
 const { parseCutList, buildPrompt } = require('./lib/cutlist');
 const { staleOriginals, canRefetch } = require('./lib/cleanup');
-const { suggestCuts, aiAvailable } = require('./lib/claude');
+const { suggestCuts, describeCut, aiAvailable } = require('./lib/claude');
 const { Readable } = require('stream');
 
 /* ---------- Configuração (.env opcional) ----------
@@ -185,6 +185,8 @@ async function pump() { if (busy) return; busy = true; while (queue.length) { tr
 /* ---------- Original sob demanda (só o link fica salvo) ---------- */
 const lastTouch = new Map();
 const aiBusy = new Set();
+/** Texto de publicação de um corte, já limitado: é o que fica salvo em clips.json. */
+const cleanPost = (p) => ({ title: String(p.title || '').trim().slice(0, 120), description: String(p.description || '').trim().slice(0, 2000), hashtags: (Array.isArray(p.hashtags) ? p.hashtags : String(p.hashtags || '').split(/\s+/)).map((h) => String(h).trim()).filter(Boolean).slice(0, 20).map((h) => (h.startsWith('#') ? h : '#' + h).slice(0, 60)), at: Date.now() });
 const driveBusy = new Set(), refetchBusy = new Set(); // envios e novos downloads em andamento, por id do envio
 function touchUsed(id, force) { const now = Date.now(); if (!force && now - (lastTouch.get(id) || 0) < 60000) return; lastTouch.set(id, now); update(id, { lastUsedAt: now }).catch(() => {}); }
 // Primeiro H.264 + AAC: é o que todo navegador toca (o Safari não toca VP9/AV1 nem Opus dentro de mp4).
@@ -705,6 +707,20 @@ async function api(req, res, url, q) {
       const j = await body(req); const tr = await readJson(U(b, 'transcript.json'), null); const s = tr && tr.segments[+d]; if (!s) return send(res, 404, { error: 'Fala não encontrada' });
       if (typeof j.text === 'string') s.text = j.text.slice(0, 5000); if (typeof j.speaker === 'string') s.speaker = j.speaker.slice(0, 60); await writeJson(U(b, 'transcript.json'), tr); return send(res, 200, { ok: true });
     }
+    if (c === 'clips' && d && parts[4] === 'ai' && parts[5] === 'post' && method === 'POST') { // título, descrição e hashtags do corte, pelo Claude
+      if (!aiAvailable(cfg.anthropicKey)) return send(res, 501, { error: 'Os recursos de IA não estão ativos neste computador.' });
+      const cl = (await readJson(U(b, 'clips.json'), [])).find((x) => x.id === d); if (!cl) return send(res, 404, { error: 'Corte não encontrado' });
+      const tr = await readJson(U(b, 'transcript.json'), null); if (!tr) return send(res, 409, { error: 'Sem transcrição.' });
+      if (aiBusy.has(b + ':' + d)) return send(res, 409, { error: 'O texto deste corte já está sendo gerado.' });
+      const text = splitLines(tr.segments).filter((l) => l.end > cl.start && l.start < cl.end).map((l) => l.text).join(' ');
+      aiBusy.add(b + ':' + d);
+      try {
+        const post = cleanPost(await describeCut({ apiKey: cfg.anthropicKey, name: m.name.replace(/\.[^.]+$/, ''), text, seconds: cl.end - cl.start }));
+        await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); const t = l.find((x) => x.id === d); if (t) { t.post = post; await writeJson(U(b, 'clips.json'), l); } });
+        return send(res, 200, { post });
+      } catch (e) { log('erro na IA', b, d, e.message); return send(res, e.status === 401 ? 502 : e.status || 502, { error: e.message }); }
+      finally { aiBusy.delete(b + ':' + d); }
+    }
     if (c === 'clips' && d && parts[4] === 'drive' && method === 'POST') { // envia o corte pronto para a pasta da equipe
       if (!cfg.driveCutsFolder) return send(res, 501, { error: 'Pasta da equipe não configurada (DRIVE_CUTS_FOLDER_ID).' });
       const j = await body(req); const token = typeof j.token === 'string' && /^[\w.\-]{20,2048}$/.test(j.token) ? j.token : null;
@@ -741,7 +757,8 @@ async function api(req, res, url, q) {
         return send(res, 201, { created, rejected: r.rejected, adjusted: r.adjusted });
       }
       const cl = clips.find((x) => x.id === d); if (!cl) return send(res, 404, { error: 'Corte não encontrado' });
-      if (!parts[4] && method === 'PATCH') { const j = await body(req); for (const k of ['fav', 'hid']) if (typeof j[k] === 'boolean') cl[k] = j[k]; if (typeof j.title === 'string' && j.title.trim()) cl.title = j.title.trim().slice(0, 120); if (+j.start >= 0 && +j.end > +j.start) { cl.start = +j.start; cl.end = +j.end; cl.render = null; delete cl.drive; } await writeJson(U(b, 'clips.json'), clips); return send(res, 200, cl); }
+      if (!parts[4] && method === 'PATCH') { const j = await body(req); for (const k of ['fav', 'hid']) if (typeof j[k] === 'boolean') cl[k] = j[k]; if (typeof j.title === 'string' && j.title.trim()) cl.title = j.title.trim().slice(0, 120); if (+j.start >= 0 && +j.end > +j.start) { cl.start = +j.start; cl.end = +j.end; cl.render = null; delete cl.drive; delete cl.post; }
+        if (j.post && typeof j.post === 'object') cl.post = cleanPost(j.post); await writeJson(U(b, 'clips.json'), clips); return send(res, 200, cl); }
       if (!parts[4] && method === 'DELETE') { await writeJson(U(b, 'clips.json'), clips.filter((x) => x.id !== d)); return send(res, 200, { ok: true }); }
       if (parts[4] === 'render' && parts[5] === 'cancel' && method === 'POST') {
         const stt = renders.get(`${b}:${d}`); if (stt) { stt.cancelled = true; try { stt.proc && stt.proc.kill(); } catch { /* ok */ } }
