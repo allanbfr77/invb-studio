@@ -43,7 +43,7 @@
       cap: { on: false, style: 'Clássicos/Clássica', size: 16, pos: 'bottom', upper: null, pop: null, font: null, ow: null, shadow: null },
       start: clip.start, end: clip.end, title: clip.title || '', removed: [], edits: {}, lang: null, overlays: [], sel: null,
       panel: null, tab: 'estilos', cat: 'Todos', q: '', styleChosen: false, tplCat: 'Todos', tq: '', lib: null, templates: null,
-      tools: { snap: true, xray: false, axes: false, ruler: false }, busy: false, hist: [], fut: [], anim: true, trMode: 'cut', trLarge: false, tick: 0,
+      tools: { snap: true, xray: false, axes: false, ruler: false }, busy: false, hist: [], fut: [], anim: true, trMode: 'cut', trLarge: false, tick: 0, cutA: null,
     };
     const segs = ctx.segs || [];
     let words = [];
@@ -53,7 +53,9 @@
     const outSize = () => { const f = fmtObj(); return f[2] ? `${f[2]}×${f[3]}` : 'mesmo tamanho do vídeo'; };
     const D = () => st.end - st.start;
     // Duração do arquivo exportado: a do trecho dividida pela velocidade. É a que aparece na tela.
-    const outD = () => D() / (st.speed || 1);
+    // Tempo removido do corte dentro de [a, b], em segundos (trechos e palavras retirados; sobreposições contam uma vez só).
+    const removedIn = (a, b) => { const rs = st.removed.map(([x, y]) => [Math.max(x, a), Math.min(y, b)]).filter(([x, y]) => y > x).sort((p, q) => p[0] - q[0]); let tot = 0, end = -Infinity; for (const [x, y] of rs) { const s = Math.max(x, end); if (y > s) tot += y - s; end = Math.max(end, y); } return tot; };
+    const outD = () => Math.max(0, D() - removedIn(st.start, st.end)) / (st.speed || 1);
     const spTxt = (x) => String(+(+x).toFixed(2)).replace('.', ',') + 'x';
     const segsIn = () => segs.filter((s) => s.end > st.start && s.t < st.end);
 
@@ -130,10 +132,12 @@
     }
     const goStart = () => { v.currentTime = st.start; };
     v.addEventListener('loadedmetadata', () => { goStart(); layoutStage(); });
-    const tickUI = () => { const t = relT(); $('#dx-seek', root).max = D().toFixed(2); $('#dx-seek', root).value = t; $('#dx-t0', root).textContent = tm(t / (st.speed || 1)); $('#dx-t1', root).textContent = tm(outD()); };
+    const tickUI = () => { const t = relT(); $('#dx-seek', root).max = D().toFixed(2); $('#dx-seek', root).value = t; $('#dx-t0', root).textContent = tm(Math.max(0, t - removedIn(st.start, st.start + t)) / (st.speed || 1)); $('#dx-t1', root).textContent = tm(outD()); };
     v.addEventListener('timeupdate', () => {
       if (v.currentTime >= st.end - 0.05 && !v.paused) { v.pause(); goStart(); }
       if (v.currentTime < st.start - 0.3) goStart();
+      // A prévia pula os trechos removidos (os marcados à mão; palavras soltas são curtas demais para pular com precisão).
+      if (!v.paused) { const r = st.removed.find((x) => x[2] && v.currentTime >= x[0] && v.currentTime < x[1] - 0.05); if (r) v.currentTime = Math.min(r[1], st.end); }
       tickUI(); paintCap(); updateOvVisibility(); $('#dx-play', root).style.opacity = v.paused ? 1 : 0;
     });
     v.addEventListener('pause', () => ($('#dx-play', root).style.opacity = 1)); v.addEventListener('play', () => ($('#dx-play', root).style.opacity = 0));
@@ -189,7 +193,7 @@
       b('center').disabled = !st.sel;
       const n = st.overlays.filter((o) => o.type === 'image').length; $('#dx-media', root).textContent = `Mídia: ${n}`;
       $('#dx-chip', root).textContent = isAud ? 'só áudio' : st.cap.on ? 'com legendas' : 'sem legendas';
-      $('#dx-q', root).textContent = `“${segsIn().map((s) => s.text).join(' ')}” · ${tm(outD())}${st.speed !== 1 ? ` em ${spTxt(st.speed)} (original: ${tm(D())})` : ''}`;
+      $('#dx-q', root).textContent = `“${segsIn().map((s) => s.text).join(' ')}” · ${tm(outD())}${st.speed !== 1 ? ` em ${spTxt(st.speed)} (original: ${tm(D())})` : Math.abs(outD() - D()) >= 0.05 ? ` (original: ${tm(D())})` : ''}`;
     }
     const shortcuts = () => { const m = document.createElement('div'); m.className = 'modal-bg'; m.style.zIndex = 130; m.innerHTML = `<div class="modal"><h3>Atalhos do teclado</h3><p>Valem com o editor aberto.</p><table class="tbl"><tr><td><b>Espaço</b></td><td>Reproduzir / pausar</td></tr><tr><td><b>Ctrl+Z</b> · <b>Ctrl+Y</b></td><td>Desfazer · refazer</td></tr><tr><td><b>Setas</b></td><td>Mover o item selecionado (Shift = passo maior)</td></tr><tr><td><b>Delete</b></td><td>Excluir o item selecionado</td></tr><tr><td><b>X</b></td><td>Raio-X (ver o que está embaixo)</td></tr><tr><td><b>Esc</b></td><td>Desmarcar · fechar</td></tr></table><div class="ft"><button class="ap-btn pri" data-x>Fechar</button></div></div>`; document.body.appendChild(m); m.onclick = (e) => { if (e.target === m || e.target.dataset.x !== undefined) m.remove(); }; };
     $('#dx-tools', root).onclick = (e) => {
@@ -200,7 +204,8 @@
     };
 
     /* ----- painel esquerdo (sempre visível) ----- */
-    const durTxt = () => (st.speed === 1 ? `Duração do corte: ${tm(D())}` : `Duração do corte: ${tm(outD())} (era ${tm(D())})`);
+    const cutList = () => st.removed.filter((r) => r[2]).sort((p, q) => p[0] - q[0]);
+    const durTxt = () => (Math.abs(outD() - D()) < 0.05 ? `Duração do corte: ${tm(D())}` : `Duração do corte: ${tm(outD())} (era ${tm(D())})`);
     const spLabel = (x) => String(+(+x).toFixed(2)).replace('.', ',') + 'x';
     const sw = (id, on) => `<button class="dlx-sw" role="switch" aria-checked="${on}" id="${id}"></button>`;
     function drawLeft() {
@@ -214,11 +219,24 @@
         ${ctx.voiceAI ? '' : '<p class="dlx-hint">Para liberar, rode uma vez o arquivo <code>install/instalar-voz-ia</code> e abra o app de novo.</p>'}
         <div class="dlx-row" style="margin-bottom:8px"><div><b><label for="dx-sp">Velocidade</label></b><small>Acelera ou desacelera o corte sem mudar o tom da voz. A prévia acompanha.</small><small id="dx-spd" class="dlx-spd">${durTxt()}</small></div><output id="dx-spv" for="dx-sp" class="dlx-spv">${spLabel(st.speed)}</output></div>
         <input type="range" id="dx-sp" class="dlx-sp" min="0.25" max="2" step="0.05" value="${st.speed}">
-        <div class="dlx-spb">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((x) => `<button data-sp="${x}" aria-pressed="${st.speed === x}">${spLabel(x)}</button>`).join('')}</div>`;
+        <div class="dlx-spb">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((x) => `<button data-sp="${x}" aria-pressed="${st.speed === x}">${spLabel(x)}</button>`).join('')}</div>
+        <hr><h4>Remover trecho</h4><p class="dlx-hint" style="margin-bottom:10px">Pare o vídeo onde o trecho começa e marque o início. Depois pare onde ele termina e marque o fim. O trecho sai do corte e a prévia passa a pulá-lo.</p>
+        <div class="dlx-spb" style="margin-bottom:10px"><button id="dx-ca" aria-pressed="${st.cutA !== null}">${st.cutA === null ? 'Marcar início' : 'Início: ' + tm(st.cutA - st.start)}</button><button id="dx-cb" ${st.cutA === null ? 'disabled' : ''}>Marcar fim e remover</button></div>
+        ${cutList().length ? `<ul class="dlx-cuts">${cutList().map((r) => `<li><span>${tm(r[0] - st.start)} → ${tm(r[1] - st.start)} <small>(${(r[1] - r[0]).toFixed(1).replace('.', ',')} s)</small></span><button data-cx="${r[0]}" aria-label="Desfazer a remoção deste trecho" title="Devolver este trecho ao corte">✕</button></li>`).join('')}</ul>` : ''}`;
       $$('[data-f]', L).forEach((b) => b.onclick = () => { st.format = b.dataset.f; commit(); layoutStage(); drawLeft(); });
       const tg = (id, key) => { const e = $('#' + id, L); if (e) e.onclick = () => { st[key] = !st[key]; commit(); layoutStage(); drawLeft(); }; };
       tg('dx-bw', 'bw'); tg('dx-hq', 'hq');
       const mu = $('#dx-mu', L); if (mu && !mu.disabled) mu.onclick = () => { st.voice = st.voice === 'ia' ? 'off' : 'ia'; commit(); drawLeft(); };
+      // Remover trecho: dois cliques (início e fim) na posição atual do vídeo. Os tempos são do vídeo original.
+      const ca = $('#dx-ca', L), cb = $('#dx-cb', L);
+      if (ca) ca.onclick = () => { st.cutA = st.cutA === null ? Math.max(st.start, Math.min(st.end, v.currentTime || st.start)) : null; drawLeft(); };
+      if (cb) cb.onclick = () => {
+        const a = Math.min(st.cutA, v.currentTime), b = Math.max(st.cutA, v.currentTime), x = Math.max(st.start, a), y = Math.min(st.end, b);
+        if (y - x < 0.3) return toast('O trecho precisa ter pelo menos 0,3 segundo. Avance o vídeo até o fim do trecho e marque de novo.');
+        if (D() - removedIn(st.start, st.end) - (y - x) + removedIn(x, y) < 1) return toast('Assim não sobraria nada do corte.');
+        st.removed.push([+x.toFixed(2), +y.toFixed(2), 1]); st.cutA = null; wordsDirty = true; commit(); paintCap(); drawLeft(); tickUI(); toast('Trecho removido do corte.');
+      };
+      $$('[data-cx]', L).forEach((bt) => bt.onclick = () => { const i = st.removed.findIndex((r) => r[2] && String(r[0]) === bt.dataset.cx); if (i >= 0) { st.removed.splice(i, 1); wordsDirty = true; commit(); paintCap(); drawLeft(); tickUI(); } });
       // Velocidade: de 0,25x a 2x, em passos de 0,05. A prévia toca na mesma velocidade (o navegador mantém o tom da voz).
       const sp = $('#dx-sp', L), setSp = (x, redraw) => { st.speed = Math.max(0.25, Math.min(2, Math.round(x * 100) / 100)); v.playbackRate = st.speed; $('#dx-spv', L).textContent = spLabel(st.speed); $('#dx-spd', L).textContent = durTxt(); tickUI(); refreshBar(); if (redraw) { commit(); drawLeft(); } };
       if (sp) { sp.oninput = () => setSp(+sp.value, false); sp.onchange = () => setSp(+sp.value, true); $$('[data-sp]', L).forEach((b) => b.onclick = () => setSp(+b.dataset.sp, true)); v.playbackRate = st.speed; }

@@ -495,3 +495,16 @@ test('sem capa do YouTube e sem vídeo no computador, a capa responde 404 e não
   const s = await boot(t, d);
   assert.equal((await fetch(s.url + '/api/uploads/lllllllllm01/thumb', { headers: { 'x-invb': '1', cookie: s.cookie } })).status, 404);
 });
+
+// --- remover um trecho do meio do corte ---
+test('exportar com um trecho removido tira esse pedaço do vídeo e do áudio', { skip: !HAS_FFMPEG }, async (t) => {
+  const d = tmp(t); const dir = seedTone(d, 'mmmmmmmmmn01');
+  const s = await boot(t, d);
+  await s.api('/uploads/mmmmmmmmmn01/clips/m111111111111/render', { json: { captions: false, removed: [[2, 4, 1]] } });
+  const r = await waitRender(s, 'mmmmmmmmmn01'); const out = path.join(dir, 'clips', r.file);
+  assert.ok(Math.abs(ffDuration(out) - 4) < 0.4, 'duração: ' + ffDuration(out));
+  await s.api('/uploads/mmmmmmmmmn01/clips/m111111111111/render', { json: { captions: false, removed: [[1, 2, 1], [1.5, 3, 1], [5, 9, 1]], speed: 2 } });
+  const r2 = await waitRender(s, 'mmmmmmmmmn01');
+  // sobram 0–1 e 3–5 = 3 s; em 2x, 1,5 s
+  assert.ok(Math.abs(ffDuration(path.join(dir, 'clips', r2.file)) - 1.5) < 0.4, 'duração com dois trechos e 2x: ' + ffDuration(path.join(dir, 'clips', r2.file)));
+});

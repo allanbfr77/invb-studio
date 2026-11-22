@@ -527,3 +527,10 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:v
 .ap-up .th em{z-index:1}
 
 .dlx-row small.dlx-spd{color:var(--fg);font-weight:600;margin-top:6px}
+
+/* Editor: trechos removidos do corte */
+.dlx-cuts{list-style:none;margin:0 0 18px;padding:0;display:flex;flex-direction:column;gap:6px}
+.dlx-cuts li{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--border);border-radius:8px;padding:6px 6px 6px 10px;font-size:13px;color:var(--fg);font-variant-numeric:tabular-nums}
+.dlx-cuts small{color:var(--muted)}
+.dlx-cuts button{width:26px;height:26px;border-radius:6px;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:13px}
+.dlx-cuts button:hover{background:var(--hover);color:var(--fg)}
