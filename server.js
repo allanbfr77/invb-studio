@@ -11,7 +11,8 @@ const { parseDriveLink, openDrive, ensureFolder, uploadFile } = require('./lib/d
 const { splitLines } = require('./lib/lines');
 const { parseCutList, buildPrompt } = require('./lib/cutlist');
 const { staleOriginals, canRefetch } = require('./lib/cleanup');
-const { suggestCuts, toAutoClips, describeCut, aiAvailable } = require('./lib/claude');
+const { suggestCuts, toAutoClips, describeCut } = require('./lib/claude');
+const { pickProvider } = require('./lib/ai');
 const { ytProgress, ytInfo } = require('./lib/ytprogress');
 const { needsPreview } = require('./lib/preview');
 const { Readable } = require('stream');
@@ -40,8 +41,8 @@ const cfg = {
   language: E.TRANSCRIBE_LANGUAGE || 'auto',
   provider: (E.TRANSCRIBE_PROVIDER || (E.GROQ_API_KEY ? 'groq' : 'openai')).toLowerCase(),
   openaiKey: E.OPENAI_API_KEY || '',
-  // Análise com LLM (emoções, capítulos e cortes com IA): DESATIVADA por padrão. Para reativar: ANALYSIS_LLM=1 + OPENAI_API_KEY.
-  llmEnabled: E.ANALYSIS_LLM === '1' && !!E.OPENAI_API_KEY,
+  // Qual IA usar quando houver as duas chaves: 'claude' (padrão) ou 'openai'. 'off' desliga a IA neste computador.
+  aiProvider: (E.AI_PROVIDER || '').toLowerCase(),
   openaiBase: (E.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
   openaiModel: E.OPENAI_MODEL || 'gpt-4o-mini',
   openaiTranscribeModel: E.OPENAI_TRANSCRIBE_MODEL || 'whisper-1',
@@ -59,6 +60,13 @@ const cloud = () => cfg.provider === 'groq'
   ? { name: 'Groq', base: 'https://api.groq.com/openai/v1', key: E.GROQ_API_KEY || '', model: E.GROQ_WHISPER_MODEL || 'whisper-large-v3-turbo' }
   : { name: 'OpenAI', base: cfg.openaiBase, key: cfg.openaiKey, model: cfg.openaiTranscribeModel };
 const isCloud = () => cfg.provider === 'groq' || cfg.provider === 'openai';
+/* IA dos recursos inteligentes (cortes, texto do corte, capítulos e emoções): Claude ou OpenAI, a que tiver chave.
+   Cuidado com quem usa a chave da OpenAI só para transcrever: ali a IA não liga sozinha (seria um gasto novo sem
+   ninguém pedir). Para ligar nesse caso, defina AI_PROVIDER=openai. */
+const openaiForAI = cfg.openaiKey && (cfg.provider !== 'openai' || cfg.aiProvider === 'openai' || E.ANALYSIS_LLM === '1');
+const AI = cfg.aiProvider === 'off' ? null : pickProvider({ ...cfg, openaiKey: openaiForAI ? cfg.openaiKey : '' });
+// Capítulos e emoções pela IA custam uma chamada a mais por pregação; AI_ANALYSIS=0 deixa só os cortes e o texto.
+if (AI && E.AI_ANALYSIS !== '0') { cfg.aiAsk = AI.ask; cfg.aiLabel = AI.label; }
 const LIB = (...p) => path.join(cfg.dataDir, 'library', ...p);
 const IMG_EXT = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
 const rawBody = (req, max) => new Promise((ok, bad) => { let n = 0; const c = []; req.on('data', (d) => { n += d.length; if (n > max) { bad(new Error('Arquivo grande demais (máx. 8 MB).')); req.destroy(); } else c.push(d); }); req.on('end', () => ok(Buffer.concat(c))); req.on('error', bad); });
@@ -368,10 +376,10 @@ async function transcribeOpenAI(id, audio, dur, setProgress) {
 async function autoClips(id, tr, an) {
   // Sem a chave do Claude, valem os trechos da análise local. Com a chave, só entram cortes escolhidos pela IA:
   // se ela falhar, a aba fica vazia e a tela oferece tentar de novo, em vez de preencher com trechos automáticos fracos.
-  if (!aiAvailable(cfg.anthropicKey)) return an.clips.map((c, i) => ({ id: 'a' + i, ...c, emotion: c.emotion || (an.emotions.find((e) => e.i === c.first) || {}).emotion || null, fav: false, hid: false, manual: false, downloaded: false, render: null }));
+  if (!AI) return an.clips.map((c, i) => ({ id: 'a' + i, ...c, emotion: c.emotion || (an.emotions.find((e) => e.i === c.first) || {}).emotion || null, fav: false, hid: false, manual: false, downloaded: false, render: null }));
   const m = await getMeta(id);
   try {
-    const cuts = await suggestCuts({ apiKey: cfg.anthropicKey, name: String(m.name || '').replace(/\.[^.]+$/, ''), lines: splitLines(tr.segments), duration: m.duration || 0, count: 6 });
+    const cuts = await suggestCuts({ ask: AI.ask, name: String(m.name || '').replace(/\.[^.]+$/, ''), lines: splitLines(tr.segments), duration: m.duration || 0, count: 6 });
     if (!cuts.length) throw new Error('A IA não encontrou trechos fortes o bastante nesta pregação.');
     await update(id, { aiCuts: true, aiCutsError: null, aiCutsAt: Date.now() }); log('cortes automáticos pela IA', id, cuts.length);
     return toAutoClips(cuts);
@@ -406,7 +414,7 @@ async function pipeline(id) {
     await set({ stage: 'Analisando', progress: 99, language: tr.language, words: tr.segments.reduce((a, s) => a + s.text.split(/\s+/).length, 0) });
     const an = await analyze(cfg, tr, log);
     await writeJson(U(id, 'analysis.json'), an);
-    if (aiAvailable(cfg.anthropicKey)) await set({ stage: 'Sugerindo cortes com IA', progress: 99 });
+    if (!!AI) await set({ stage: 'Sugerindo cortes com IA', progress: 99 });
     const clips = await autoClips(id, tr, an);
     await withLock('clips:' + id, async () => { const old = await readJson(U(id, 'clips.json'), []); await writeJson(U(id, 'clips.json'), [...clips, ...old.filter((c) => c.manual)]); });
     await fsp.rm(U(id, 'whisper.json'), { force: true }); await fsp.rm(wav, { force: true });
@@ -662,7 +670,7 @@ async function api(req, res, url, q) {
   if (a === 'logout' && method === 'POST') return send(res, 200, { ok: true }, { 'set-cookie': 'invb_sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' });
   if (method !== 'GET' && req.headers['x-invb'] !== '1') return send(res, 403, { error: 'Requisição inválida' });
 
-  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, ai: aiAvailable(cfg.anthropicKey), driveCuts: !!(cfg.googleClientId && cfg.driveCutsFolder), provider_name: isCloud() ? cloud().name : 'Local', llm: cfg.llmEnabled, llmModel: cfg.llmEnabled ? cfg.openaiModel : null, queue: queue.length + (busy ? 1 : 0) });
+  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, ai: !!AI, driveCuts: !!(cfg.googleClientId && cfg.driveCutsFolder), provider_name: isCloud() ? cloud().name : 'Local', aiName: AI ? AI.label : null, llm: !!AI, llmModel: AI ? AI.label : null, queue: queue.length + (busy ? 1 : 0) });
 
   if (a === 'uploads') {
     if (!b) {
@@ -780,14 +788,14 @@ async function api(req, res, url, q) {
       if (typeof j.text === 'string') s.text = j.text.slice(0, 5000); if (typeof j.speaker === 'string') s.speaker = j.speaker.slice(0, 60); await writeJson(U(b, 'transcript.json'), tr); return send(res, 200, { ok: true });
     }
     if (c === 'clips' && d && parts[4] === 'ai' && parts[5] === 'post' && method === 'POST') { // título, descrição e hashtags do corte, pelo Claude
-      if (!aiAvailable(cfg.anthropicKey)) return send(res, 501, { error: 'Os recursos de IA não estão ativos neste computador.' });
+      if (!AI) return send(res, 501, { error: 'Os recursos de IA não estão ativos neste computador.' });
       const cl = (await readJson(U(b, 'clips.json'), [])).find((x) => x.id === d); if (!cl) return send(res, 404, { error: 'Corte não encontrado' });
       const tr = await readJson(U(b, 'transcript.json'), null); if (!tr) return send(res, 409, { error: 'Sem transcrição.' });
       if (aiBusy.has(b + ':' + d)) return send(res, 409, { error: 'O texto deste corte já está sendo gerado.' });
       const text = splitLines(tr.segments).filter((l) => l.end > cl.start && l.start < cl.end).map((l) => l.text).join(' ');
       aiBusy.add(b + ':' + d);
       try {
-        const post = cleanPost(await describeCut({ apiKey: cfg.anthropicKey, name: m.name.replace(/\.[^.]+$/, ''), text, seconds: cl.end - cl.start }));
+        const post = cleanPost(await describeCut({ ask: AI.ask, name: m.name.replace(/\.[^.]+$/, ''), text, seconds: cl.end - cl.start }));
         await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); const t = l.find((x) => x.id === d); if (t) { t.post = post; await writeJson(U(b, 'clips.json'), l); } });
         return send(res, 200, { post });
       } catch (e) { log('erro na IA', b, d, e.message); return send(res, e.status === 401 ? 502 : e.status || 502, { error: e.message }); }
@@ -854,12 +862,12 @@ async function api(req, res, url, q) {
       return;
     }
     if (c === 'ai' && d === 'cuts' && method === 'POST') { // sugestões de corte pelo Claude, só para quem tem a chave
-      if (!aiAvailable(cfg.anthropicKey)) return send(res, 501, { error: 'Os recursos de IA não estão ativos neste computador.' });
+      if (!AI) return send(res, 501, { error: 'Os recursos de IA não estão ativos neste computador.' });
       if (aiBusy.has(b)) return send(res, 409, { error: 'Já há uma análise com IA em andamento para esta pregação.' });
       const tr = await readJson(U(b, 'transcript.json'), null); if (!tr) return send(res, 409, { error: 'Sem transcrição.' });
       const j = await body(req); aiBusy.add(b);
       try {
-        const cuts = await suggestCuts({ apiKey: cfg.anthropicKey, name: m.name, lines: splitLines(tr.segments), duration: m.duration || 0, count: j.count });
+        const cuts = await suggestCuts({ ask: AI.ask, name: m.name, lines: splitLines(tr.segments), duration: m.duration || 0, count: j.count });
         const created = toAutoClips(cuts, 'i'); // vão para a aba Automáticos; a aba Manuais é só do que a pessoa cria
         if (created.length) await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); await writeJson(U(b, 'clips.json'), [...l, ...created]); });
         log('IA sugeriu cortes', b, created.length);
@@ -964,6 +972,6 @@ server.requestTimeout = 0; server.headersTimeout = 60000;
   setInterval(() => sweepOriginals().catch((e) => log('falha na limpeza de originais', e.message)), 6 * 3600000).unref();
   server.listen(cfg.port, cfg.host, () => {
     console.log(`INVB Studio em http://${cfg.host === '0.0.0.0' ? 'localhost' : cfg.host}:${cfg.port}`);
-    console.log(`  ffmpeg: ${tools.ffmpeg || 'NÃO ENCONTRADO'} | transcrição: ${isCloud() ? cloud().name + ' ' + cloud().model + (cloud().key ? '' : ' (SEM CHAVE)') : cfg.provider}${cfg.provider === 'local' ? ` (faster-whisper ${tools.whisper ? 'ok' : 'AUSENTE'}, modelo ${cfg.whisperModel})` : ''} | análise: ${cfg.llmEnabled ? 'LLM ' + cfg.openaiModel : 'heurística local (LLM desativado)'} | yt-dlp: ${tools.ytdlp ? 'ok' : 'ausente'}`);
+    console.log(`  ffmpeg: ${tools.ffmpeg || 'NÃO ENCONTRADO'} | transcrição: ${isCloud() ? cloud().name + ' ' + cloud().model + (cloud().key ? '' : ' (SEM CHAVE)') : cfg.provider}${cfg.provider === 'local' ? ` (faster-whisper ${tools.whisper ? 'ok' : 'AUSENTE'}, modelo ${cfg.whisperModel})` : ''} | IA: ${AI ? AI.label : 'desligada (sem chave do Claude ou da OpenAI)'} | yt-dlp: ${tools.ytdlp ? 'ok' : 'ausente'}`);
   });
 })();

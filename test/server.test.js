@@ -352,3 +352,47 @@ test('enquanto um vídeo baixa do YouTube, outras tarefas (análise, exportaçã
   assert.ok(Date.now() - t0 < 2500, `demorou ${Date.now() - t0} ms`);
   assert.equal((await s.api('/uploads/' + imp.body.id)).body.status, 'processing');
 });
+
+// --- as duas IAs: vale a que tiver chave ---
+const fakeOpenAI = (t) => new Promise((ok) => {
+  const seen = [];
+  const srv = http.createServer((req, res) => { let b = ''; req.on('data', (x) => { b += x; }); req.on('end', () => {
+    const body = JSON.parse(b || '{}'), req1 = body.response_format.json_schema.schema.required; seen.push({ url: req.url, auth: req.headers.authorization, model: body.model, kind: req1[0] });
+    const out = req1.includes('cuts') ? { cuts: [{ start_seconds: 60, end_seconds: 120, title: 'Pela OpenAI', reason: 'Trecho forte.', score: 88 }] }
+      : req1.includes('chapters') ? { chapters: [{ start: 0, title: 'Capítulo da IA', summary: 'Resumo.', tags: ['fé'] }], emotions: [{ i: 0, emotion: 'Esperança' }] }
+        : { title: 'Título da OpenAI', description: 'Descrição.', hashtags: ['#fé'] };
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify(out) } }] }));
+  }); });
+  srv.listen(0, '127.0.0.1', () => { t.after(() => srv.close()); ok({ base: 'http://127.0.0.1:' + srv.address().port + '/v1', seen }); });
+});
+
+test('só com a chave da OpenAI, cortes, capítulos, emoções e texto do corte vêm dela', async (t) => {
+  const o = await fakeOpenAI(t);
+  const d = tmp(t); seed(d, 'bbbbbbbbbbc1', {}, { clips: [clip({ title: 'Meu corte manual', start: 0, end: 2 })] });
+  const s = await boot(t, d, { env: { ANTHROPIC_API_KEY: '', OPENAI_API_KEY: 'sk-openai-teste', OPENAI_BASE_URL: o.base, OPENAI_MODEL: 'gpt-4o-mini', TRANSCRIBE_PROVIDER: 'groq' } });
+  const st = (await s.api('/status')).body;
+  assert.equal(st.ai, true); assert.match(st.aiName, /OpenAI gpt-4o-mini/);
+  await s.api('/uploads/bbbbbbbbbbc1/reanalyze', { json: {} });
+  const m = await untilAnalyzed(s, 'bbbbbbbbbbc1');
+  assert.deepEqual(m.clips.filter((c) => !c.manual).map((c) => [c.title, c.score, c.type]), [['Pela OpenAI', 88, 'IA']]);
+  assert.equal(m.analysis.mode, 'llm'); assert.equal(m.analysis.chapters[0].title, 'Capítulo da IA'); assert.deepEqual(m.analysis.emotions, [{ i: 0, emotion: 'Esperança' }]);
+  const p = await s.api('/uploads/bbbbbbbbbbc1/clips/m111111111111/ai/post', { json: {} });
+  assert.equal(p.status, 200); assert.equal(p.body.post.title, 'Título da OpenAI');
+  assert.ok(o.seen.length >= 3 && o.seen.every((r) => r.url === '/v1/chat/completions' && r.auth === 'Bearer sk-openai-teste' && r.model === 'gpt-4o-mini'));
+});
+
+test('com as duas chaves vale o Claude; AI_PROVIDER=openai troca; AI_PROVIDER=off desliga', async (t) => {
+  for (const [prov, expected] of [['', /Claude/], ['openai', /OpenAI/], ['off', null]]) {
+    const d = tmp(t); const s = await boot(t, d, { env: { ANTHROPIC_API_KEY: 'sk-ant-x', OPENAI_API_KEY: 'sk-x', TRANSCRIBE_PROVIDER: 'groq', AI_PROVIDER: prov } });
+    const st = (await s.api('/status')).body;
+    if (expected) { assert.equal(st.ai, true, prov); assert.match(st.aiName, expected); } else { assert.equal(st.ai, false); assert.equal(st.aiName, null); }
+  }
+});
+
+test('quem usa a chave da OpenAI só para transcrever não ganha IA (e gasto) sem pedir', async (t) => {
+  const d = tmp(t); const s = await boot(t, d, { env: { ANTHROPIC_API_KEY: '', OPENAI_API_KEY: 'sk-x', TRANSCRIBE_PROVIDER: 'openai', AI_PROVIDER: '' } });
+  assert.equal((await s.api('/status')).body.ai, false);
+  const d2 = tmp(t); const s2 = await boot(t, d2, { env: { ANTHROPIC_API_KEY: '', OPENAI_API_KEY: 'sk-x', TRANSCRIBE_PROVIDER: 'openai', AI_PROVIDER: 'openai' } });
+  assert.equal((await s2.api('/status')).body.ai, true);
+});

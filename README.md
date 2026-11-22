@@ -96,10 +96,11 @@ e não fica salvo em disco.
 
 ## Recursos de IA (opcional, por computador)
 
-Quem tiver uma chave da API do Claude pode ativar os recursos de IA só no próprio computador:
+Quem tiver uma chave da API do Claude ou da OpenAI pode ativar os recursos de IA só no próprio computador.
+O app usa a que tiver chave; com as duas, vale o Claude, e `AI_PROVIDER=openai` troca.
 
 1. Copie `install/pessoal.env.example` para `install/pessoal.env`.
-2. Preencha `ANTHROPIC_API_KEY` com a sua chave.
+2. Preencha `ANTHROPIC_API_KEY` (Claude) ou `OPENAI_API_KEY` (OpenAI) com a sua chave.
 3. Feche e abra o app.
 
 Com a chave, os cortes da aba **Automáticos** passam a ser escolhidos pelo Claude logo depois da

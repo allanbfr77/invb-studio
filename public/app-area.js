@@ -161,7 +161,7 @@
     return `<div class="ap">
       <div class="ap-top"><a href="/app"><b>INVB Studio</b></a><button id="ap-burger" aria-label="Abrir menu">☰</button></div>
       <aside class="ap-side" id="ap-side"><div class="ap-ws" style="cursor:default"><i>IS</i><span>INVB Studio</span></div>${nav}<div class="ap-grow"></div>
-        ${st ? `<p class="ap-plan" style="line-height:1.4">Transcrição: ${esc(st.provider_name || 'API')} (${esc(st.model)})<br>Análise: ${st.llm ? 'IA (' + esc(st.llmModel) + ')' : 'heurística local'}</p>` : ''}
+        ${st ? `<p class="ap-plan" style="line-height:1.4">Transcrição: ${esc(st.provider_name || 'API')} (${esc(st.model)})<br>IA: ${st.llm ? esc(st.llmModel) : 'desligada'}</p>` : ''}
         <div class="ap-foot"><button class="ap-btn" id="ap-out" style="flex:1;justify-content:center">${ic.out} Sair</button></div></aside>
       <div class="ap-main"><div class="ap-card" id="ap-card">${inner}</div>${uid && S.cur && isDone(S.cur) ? player() : ''}</div></div>`;
   }
