@@ -13,6 +13,7 @@ const { parseCutList, buildPrompt } = require('./lib/cutlist');
 const { staleOriginals, canRefetch } = require('./lib/cleanup');
 const { suggestCuts, toAutoClips, describeCut, aiAvailable } = require('./lib/claude');
 const { ytProgress } = require('./lib/ytprogress');
+const { needsPreview } = require('./lib/preview');
 const { Readable } = require('stream');
 
 /* ---------- Configuração (.env opcional) ----------
@@ -193,10 +194,14 @@ function touchUsed(id, force) { const now = Date.now(); if (!force && now - (las
 // Primeiro H.264 + AAC: é o que todo navegador toca (o Safari não toca VP9/AV1 nem Opus dentro de mp4).
 // Depois um mp4 já pronto e, por último, o melhor que houver, para vídeos que não têm H.264.
 const YT_FORMAT = 'bv*[vcodec^=avc1][height<=1080]+ba[ext=m4a]/b[ext=mp4][height<=1080]/bv*[height<=1080]+ba/b';
+// Às vezes o YouTube lista o H.264 mas entrega um arquivo vazio. Aí tentamos de novo com o melhor formato que houver
+// (em geral AV1 + Opus, que baixa bem) e, por fim, com o arquivo único mais simples. O que o navegador não tocar
+// ganha uma cópia compatível (ver makePreview).
+const YT_ATTEMPTS = [YT_FORMAT, 'bv*[height<=1080]+ba/b', 'b'];
 const MEDIA_FILE = /^original\.(mp4|mov|mkv|webm|avi|m4v|mp3|wav|m4a|aac|opus|flac|ogg|oga)$/i;
 /** Remove o original e qualquer sobra de download (pedaços .part, faixas separadas). */
 async function clearOriginals(id) { for (const f of await fsp.readdir(U(id)).catch(() => [])) if (f.startsWith('original.')) await fsp.rm(U(id, f), { force: true }); }
-async function dropOriginal(m) { await clearOriginals(m.id); await update(m.id, { originalGone: true }); log('original liberado', m.id, m.name); }
+async function dropOriginal(m) { await clearOriginals(m.id); for (const f of ['preview.mp4', 'preview.tmp.mp4']) await fsp.rm(U(m.id, f), { force: true }); await update(m.id, { originalGone: true, preview: null }); log('original liberado', m.id, m.name); }
 /** O vídeo de um envio concluído não está no disco (apagado pela limpeza, ou sumiu por outro motivo). */
 const isGone = (m) => m.status === 'done' && !m.refetching && !!(m.originalGone || !m.file || !fs.existsSync(U(m.id, m.file)));
 /** Este computador consegue baixar de novo? Link do YouTube precisa de yt-dlp e ffmpeg instalados. */
@@ -219,14 +224,37 @@ async function fetchYoutube(id, url, onProgress) {
   // vídeo e áudio. Com o ffmpeg no PATH ele se acha sozinho, então a opção só vai quando temos um caminho de verdade.
   const ffLoc = path.isAbsolute(tools.ffmpeg || '') ? ['--ffmpeg-location', tools.ffmpeg] : [];
   // --newline faz o yt-dlp escrever o andamento linha a linha, que é o que mostramos na tela (no máximo uma vez por segundo).
-  const st = {}; let last = 0;
-  const dl = await run(cmd, [...pre, '--no-playlist', '--newline', '-f', YT_FORMAT, '--merge-output-format', 'mp4', ...ffLoc, '-o', U(id, 'original.%(ext)s'), url], { onStdout: (d) => { const p = ytProgress(d, st); if (p && onProgress && (Date.now() - last > 1000 || p.pct >= 99)) { last = Date.now(); onProgress(p); } } });
-  if (dl.code !== 0) log('yt-dlp falhou', id, (dl.err || '').split('\n').filter(Boolean).slice(-3).join(' | ').slice(0, 600));
-  const all = (await fsp.readdir(U(id))).filter((x) => MEDIA_FILE.test(x));
-  const f = dl.code === 0 ? (all.includes('original.mp4') ? 'original.mp4' : all[0]) : null;
-  if (!f) { await clearOriginals(id); return null; }
-  return f;
+  for (let k = 0; k < YT_ATTEMPTS.length; k++) {
+    const st = {}; let last = 0;
+    const dl = await run(cmd, [...pre, '--no-playlist', '--newline', '-f', YT_ATTEMPTS[k], '--merge-output-format', 'mp4', ...ffLoc, '-o', U(id, 'original.%(ext)s'), url], { onStdout: (d) => { const p = ytProgress(d, st); if (p && onProgress && (Date.now() - last > 1000 || p.pct >= 99)) { last = Date.now(); onProgress(p); } } });
+    const all = (await fsp.readdir(U(id))).filter((x) => MEDIA_FILE.test(x));
+    const f = dl.code === 0 ? (all.includes('original.mp4') ? 'original.mp4' : all[0]) : null;
+    if (f && (await fsp.stat(U(id, f))).size > 0) { if (k) log('yt-dlp: baixou na tentativa', k + 1, id); return f; }
+    log('yt-dlp falhou', id, `tentativa ${k + 1} de ${YT_ATTEMPTS.length}`, (dl.err || '').split('\n').filter(Boolean).slice(-3).join(' | ').slice(0, 600));
+    await clearOriginals(id);
+  }
+  return null;
 }
+/**
+ * Se o navegador não toca o vídeo baixado (AV1/VP9 ou áudio Opus dentro de mp4), gera em segundo plano uma cópia
+ * H.264 + AAC de até 720p só para assistir na tela. Os cortes continuam sendo exportados do original.
+ */
+async function makePreview(id) {
+  try {
+    const m = await getMeta(id); if (!m || !m.file || !tools.ffmpeg) return;
+    const orig = U(id, m.file), probe = await run(tools.ffmpeg, ['-hide_banner', '-i', orig]);
+    if (!needsPreview(probe.err)) { if (m.preview) await update(id, { preview: null }); return; }
+    await update(id, { preview: 'making', previewError: null }); log('preparando cópia para o navegador', id);
+    if (tools.vtb === undefined) tools.vtb = /h264_videotoolbox/.test((await run(tools.ffmpeg, ['-hide_banner', '-encoders'])).out); // no Mac, usa o chip de vídeo: bem mais rápido
+    const enc = tools.vtb ? ['-c:v', 'h264_videotoolbox', '-b:v', '2500k'] : ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26'];
+    const tmp = U(id, 'preview.tmp.mp4'), out = U(id, 'preview.mp4');
+    const r = await run(tools.ffmpeg, ['-y', '-hide_banner', '-i', orig, '-vf', "scale=-2:'min(720,ih)'", ...enc, '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', tmp]);
+    if (r.code !== 0) { await fsp.rm(tmp, { force: true }); await update(id, { preview: null, previewError: 'Não consegui preparar a cópia do vídeo para este navegador.' }); return log('cópia para o navegador falhou', id, (r.err || '').split('\n').filter(Boolean).slice(-2).join(' | ').slice(0, 400)); }
+    await fsp.rename(tmp, out); await update(id, { preview: 'preview.mp4' }); log('cópia para o navegador pronta', id);
+  } catch (e) { log('cópia para o navegador falhou', id, e.message); await update(id, { preview: null }).catch(() => {}); }
+}
+/** Arquivo que o navegador deve tocar: a cópia compatível, quando existe; senão o original. */
+const playable = (m) => (m.preview && m.preview !== 'making' && fs.existsSync(U(m.id, m.preview)) ? m.preview : m.file);
 /** Grava em disco o download aberto por openDrive. Devolve o total de bytes. */
 async function saveDriveStream(id, file, dlr, onProgress) {
   let n = 0, last = 0; const ws = fs.createWriteStream(U(id, file));
@@ -658,6 +686,7 @@ async function api(req, res, url, q) {
         if (!f) return void (await update(id, { status: 'error', stage: 'Erro', error: 'Falha ao baixar o vídeo do YouTube.' }));
         const st = await fsp.stat(U(id, f));
         await update(id, { file: f, size: st.size, name: (t.out.trim() || 'video_do_youtube') + path.extname(f) });
+        makePreview(id);
         await pipeline(id);
       });
       return send(res, 201, m);
@@ -701,7 +730,7 @@ async function api(req, res, url, q) {
       if (m.refetching || refetchBusy.has(b)) return send(res, 202, m);
       if (!isGone(m)) return send(res, 200, m);
       if (!canRefetch(m)) return send(res, 400, { error: 'Não há link salvo para baixar este arquivo de novo.' });
-      const ok = (file, size) => update(b, { file, size, originalGone: false, refetching: false, refetchError: null, lastUsedAt: Date.now() });
+      const ok = async (file, size) => { await update(b, { file, size, originalGone: false, refetching: false, refetchError: null, lastUsedAt: Date.now() }); makePreview(b); };
       const fail = (msg) => update(b, { refetching: false, refetchError: msg });
       if (m.source === 'youtube') {
         if (!tools.ytdlp || !tools.ffmpeg) return send(res, 501, { error: 'yt-dlp ou ffmpeg não está instalado neste computador.' });
@@ -718,7 +747,7 @@ async function api(req, res, url, q) {
       (async () => { try { await ok(file, await saveDriveStream(b, file, dlr)); } catch (e) { await fsp.rm(U(b, file), { force: true }); await fail('Falha ao baixar do Google Drive: ' + e.message); } })();
       return;
     }
-    if (c === 'media' && method === 'GET') return serveFile(req, res, U(b, m.file), mime[path.extname(m.file)] || 'application/octet-stream');
+    if (c === 'media' && method === 'GET') { const f = q.get('orig') ? m.file : playable(m); return serveFile(req, res, U(b, f), mime[path.extname(f)] || 'application/octet-stream', q.get('orig') ? m.name : undefined); }
     if (c === 'retry' && method === 'POST') { if (m.status === 'processing' || m.status === 'queued') return send(res, 409, { error: 'Já em processamento.' }); await update(b, { status: 'queued', stage: 'Na fila', progress: 0, error: null }); enqueue(() => pipeline(b)); return send(res, 200, { ok: true }); }
     if (c === 'speakers' && method === 'PATCH') {
       const j = await body(req); const tr = await readJson(U(b, 'transcript.json'), null); if (!tr) return send(res, 409, { error: 'Sem transcrição.' });
@@ -907,6 +936,7 @@ server.requestTimeout = 0; server.headersTimeout = 60000;
   // trabalhos interrompidos por reinício
   for (const m of await listMeta()) if (['processing', 'queued'].includes(m.status) && m.file) { await update(m.id, { status: 'error', stage: 'Erro', error: 'Interrompido por reinício do servidor. Use “Tentar de novo”: a transcrição retoma de onde parou.' }); }
   // Um novo download interrompido por reinício não deixa o envio preso em "baixando".
+  for (const m of await listMeta()) if (m.preview === 'making') { await update(m.id, { preview: null }); makePreview(m.id); }
   for (const m of await listMeta()) if (m.refetching) await update(m.id, { refetching: false, refetchError: 'O download foi interrompido. Clique em "Baixar de novo".' });
   for (const m of await listMeta()) if (m.status === 'done' && !m.lastUsedAt) await update(m.id, { lastUsedAt: Date.now() });
   await sweepOriginals().catch((e) => log('falha na limpeza de originais', e.message));

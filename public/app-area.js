@@ -75,7 +75,16 @@
   }
   // Aviso quando a pregação saiu do computador (fica salvo só o link) e botão para baixar de novo.
   function goneBanner() {
-    const c = S.cur, card = $('#ap-card'); if (!c || !card || !(c.originalGone || c.refetching)) return;
+    const c = S.cur, card = $('#ap-card'); if (!c || !card) return;
+    // O vídeo veio num formato que este navegador não toca: o app prepara uma cópia e avisa quando ficar pronta.
+    if (c.preview === 'making' && !c.originalGone && !c.refetching) {
+      const n = document.createElement('div'); n.className = 'ap-demo gone'; n.setAttribute('role', 'status');
+      n.textContent = 'Preparando o vídeo para tocar neste navegador… A transcrição e os cortes já podem ser usados; o vídeo aparece sozinho quando ficar pronto.';
+      card.prepend(n); clearInterval(S.poll);
+      S.poll = setInterval(async () => { try { const m = await api('/uploads/' + c.id); if (m.preview !== 'making') { clearInterval(S.poll); if (S.media) { S.media.remove(); S.media = null; S.mediaId = null; } go(location.pathname); } } catch { /* tenta de novo */ } }, 4000);
+      return;
+    }
+    if (!(c.originalGone || c.refetching)) return;
     const d = document.createElement('div'); d.className = 'ap-demo gone'; d.setAttribute('role', 'status');
     const wait = () => { clearInterval(S.poll); S.poll = setInterval(async () => { try { const m = await api('/uploads/' + c.id); if (!m.refetching) { clearInterval(S.poll); if (S.media) { S.media.remove(); S.media = null; S.mediaId = null; } go(location.pathname); } } catch { /* tenta de novo */ } }, 2500); };
     let starting = false;
@@ -311,7 +320,7 @@
     const base = c.name.replace(/\.[^.]+$/, '');
     const vtt = (t) => t.replace(/(\d\d:\d\d:\d\d),(\d{3})/g, '$1.$2');
     const srt = () => S.segs.map((s, i) => `${i + 1}\n${srtT(s.t)} --> ${srtT(s.end)}\n${s.text}\n`).join('\n');
-    const exp = (f) => { if (f === 'TXT') dl(base + '.txt', linesTxt(S.lines)); else if (f === 'SRT') dl(base + '.srt', srt()); else if (f === 'VTT') dl(base + '.vtt', 'WEBVTT\n\n' + vtt(srt())); else if (f === 'orig') { if (S.cur.originalGone) return toast(S.cur.canRefetch ? 'A pregação saiu deste computador. Use “Baixar de novo” no aviso do topo da página.' : 'O arquivo original não está mais neste computador.'); const a = document.createElement('a'); a.href = `/api/uploads/${c.id}/media`; a.download = c.name; a.click(); } };
+    const exp = (f) => { if (f === 'TXT') dl(base + '.txt', linesTxt(S.lines)); else if (f === 'SRT') dl(base + '.srt', srt()); else if (f === 'VTT') dl(base + '.vtt', 'WEBVTT\n\n' + vtt(srt())); else if (f === 'orig') { if (S.cur.originalGone) return toast(S.cur.canRefetch ? 'A pregação saiu deste computador. Use “Baixar de novo” no aviso do topo da página.' : 'O arquivo original não está mais neste computador.'); const a = document.createElement('a'); a.href = `/api/uploads/${c.id}/media?orig=1`; a.download = c.name; a.click(); } };
     $('#tdl').onclick = (e) => popover(e.currentTarget, ['TXT', 'SRT', 'VTT'].map((f) => `<button>${f}</button>`).join(''), (m) => $$('button', m).forEach((b) => b.onclick = () => { m.remove(); exp(b.textContent); }));
     $$('[data-d]').forEach((b) => b.onclick = () => exp(b.dataset.d));
     draw();

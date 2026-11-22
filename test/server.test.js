@@ -37,7 +37,7 @@ async function boot(t, dataDir, { env = {}, tools = true } = {}) {
   const login = await fetch(url + '/api/login', { method: 'POST', headers: { 'x-invb': '1', 'content-type': 'application/json' }, body: JSON.stringify({ password: PW }) });
   const cookie = (login.headers.get('set-cookie') || '').split(';')[0];
   const api = async (p2, o = {}) => { const r = await fetch(url + '/api' + p2, { method: o.method || (o.json !== undefined ? 'POST' : 'GET'), headers: { 'x-invb': '1', cookie, ...(o.json !== undefined ? { 'content-type': 'application/json' } : {}) }, body: o.json !== undefined ? JSON.stringify(o.json) : undefined }); let j = null; try { j = await r.json(); } catch { /* sem corpo */ } return { status: r.status, body: j }; };
-  return { api, log: () => out };
+  return { api, url, cookie, log: () => out };
 }
 const tmp = (t) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'invb-test-')); t.after(() => fs.rmSync(d, { recursive: true, force: true })); return d; };
 const has = (dir, f) => fs.existsSync(path.join(dir, f));
@@ -240,4 +240,34 @@ test('mudar o tempo do corte descarta o texto de publicação, que era de outro 
   const s = await boot(t, d);
   await s.api('/uploads/rrrrrrrrrrrr/clips/m111111111111', { method: 'PATCH', json: { start: 12, end: 44 } });
   assert.equal((await s.api('/uploads/rrrrrrrrrrrr/clips')).body[0].post, undefined);
+});
+
+// --- achado no uso real: o YouTube entregou arquivo vazio para o formato H.264 ---
+test('se o primeiro formato falhar, o download tenta de novo com formatos mais simples', { skip: !HAS_FFMPEG || process.platform === 'win32' }, async (t) => {
+  const d = tmp(t); seed(d, 'ssssssssssss', { originalGone: true }, { original: false });
+  const y = fakeYtdlp(d, { acceptsFlag: true });
+  const s = await boot(t, d, { env: { YTDLP_PATH: y.f } });
+  await s.api('/uploads/ssssssssssss/refetch', { json: {} }); await untilNotRefetching(s, 'ssssssssssss');
+  const formats = fs.readFileSync(y.log, 'utf8').trim().split('\n').map((l) => (l.match(/-f (\S+)/) || [])[1]);
+  assert.equal(formats.length, 3);
+  assert.match(formats[0], /vcodec\^=avc1/);
+  assert.equal(formats[1], 'bv*[height<=1080]+ba/b');
+  assert.equal(formats[2], 'b');
+});
+
+test('o navegador recebe a cópia compatível quando ela existe, e o original quando pede o original', { skip: !HAS_FFMPEG }, async (t) => {
+  const d = tmp(t); const dir = seed(d, 'tttttttttttt', { preview: 'preview.mp4' });
+  fs.writeFileSync(path.join(dir, 'preview.mp4'), 'copia-leve');
+  const s = await boot(t, d);
+  const get = async (p2) => (await fetch(s.url + '/api/uploads/tttttttttttt/' + p2, { headers: { 'x-invb': '1', cookie: s.cookie } })).text();
+  assert.equal(await get('media'), 'copia-leve');
+  assert.equal(await get('media?orig=1'), 'fake');
+});
+
+test('"liberar espaço" apaga também a cópia do navegador', { skip: !HAS_FFMPEG }, async (t) => {
+  const d = tmp(t); const dir = seed(d, 'uuuuuuuuuuuu', { preview: 'preview.mp4' });
+  fs.writeFileSync(path.join(dir, 'preview.mp4'), 'copia-leve');
+  const s = await boot(t, d);
+  assert.equal((await s.api('/uploads/uuuuuuuuuuuu/free', { json: {} })).status, 200);
+  assert.ok(!has(dir, 'preview.mp4') && !has(dir, 'original.mp4') && has(dir, 'transcript.json'));
 });
