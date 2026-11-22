@@ -525,3 +525,5 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:v
 .ap-up .th{overflow:hidden}
 .ap-up .th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .ap-up .th em{z-index:1}
+
+.dlx-row small.dlx-spd{color:var(--fg);font-weight:600;margin-top:6px}
