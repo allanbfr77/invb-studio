@@ -225,3 +225,17 @@ input:focus,textarea:focus,select:focus{border-color:var(--ring)!important;outli
 .ap-outb{width:40px;height:40px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--muted);display:grid;place-items:center;cursor:pointer;flex:none;transition:color .15s,border-color .15s}
 .ap-outb:hover{color:var(--err);border-color:var(--err-border)}
 .ap-outb svg{width:16px;height:16px}
+
+/* ---------- Encontro da barra lateral com o conteúdo ----------
+   Antes havia três linhas coladas (a borda da barra, o vão e a borda do cartão) e os blocos da barra
+   encostavam nessa linha. Agora a barra não tem linha própria e respira dos dois lados; só o cartão tem borda. */
+.ap{grid-template-columns:264px 1fr}
+.ap-side{border-right:0;padding:18px 18px 16px 18px;gap:3px}
+.ap-main{padding:14px 14px 14px 0}
+.ap-brand{padding:4px 4px 18px;margin-bottom:10px}
+.ap-brand::after{left:4px}
+.ap-new{margin:4px 0 14px}
+.ap-sec{padding-left:6px;padding-right:6px}
+.ap-box{margin:12px 0 10px;padding:4px 14px}
+.ap-card{border-radius:18px}
+@media (max-width:900px){.ap{grid-template-columns:1fr}.ap-main{padding:10px}}
