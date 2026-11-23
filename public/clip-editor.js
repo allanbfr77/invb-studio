@@ -43,7 +43,7 @@
       cap: { on: false, style: 'Clássicos/Clássica', size: 16, pos: 'bottom', upper: null, pop: null, font: null, ow: null, shadow: null },
       start: clip.start, end: clip.end, title: clip.title || '', removed: [], edits: {}, lang: null, overlays: [], sel: null,
       panel: null, tab: 'estilos', cat: 'Todos', q: '', styleChosen: false, tplCat: 'Todos', tq: '', lib: null, templates: null,
-      tools: { snap: true, xray: false, axes: false, ruler: false }, busy: false, hist: [], fut: [], anim: true, trMode: 'cut', trLarge: false, tick: 0, cutA: null,
+      tools: { snap: true, xray: false, axes: false, ruler: false }, busy: false, hist: [], fut: [], anim: true, trMode: 'cut', trLarge: false, tick: 0, cutA: null, open: { fmt: true },
     };
     // Edição salva antes neste corte: o editor reabre do jeito que ficou.
     const SAVED = ['format', 'bw', 'hq', 'voice', 'speed', 'sync', 'cap', 'start', 'end', 'removed', 'edits', 'lang', 'overlays', 'title'];
@@ -79,9 +79,9 @@
     const redo = () => { if (!st.fut.length) return; const j = st.fut.pop(); st.hist.push(j); restore(j); };
 
     /* ----- estrutura ----- */
-    const root = document.createElement('div'); root.className = 'dlx'; root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', 'Baixar corte');
+    const root = document.createElement('div'); root.className = 'dlx'; root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', 'Editar corte');
     root.innerHTML = `
-      <header class="dlx-top"><div class="dlx-t"><h2>Baixar corte</h2><p class="dlx-q" id="dx-q"></p></div>
+      <header class="dlx-top"><div class="dlx-t"><h2>Editar corte</h2><p class="dlx-q" id="dx-q"></p></div>
         <button class="dlx-chip" id="dx-chip"></button><button class="dlx-chip" id="dx-media"></button>
         <button class="dlx-chip" id="dx-save" title="Guarda esta edição no corte, para continuar depois">Salvar edição</button>
         <button class="ap-btn" id="dx-cancel" hidden>Cancelar</button>
@@ -248,24 +248,34 @@
     const sw = (id, on) => `<button class="dlx-sw" role="switch" aria-checked="${on}" id="${id}"></button>`;
     function drawLeft() {
       const L = $('#dx-left', root);
-      L.innerHTML = `${isAud ? '' : `<h4>Formato de saída</h4><div class="dlx-fmts">${FORMATS.map((f) => `<button class="dlx-fmt" data-f="${f[0]}" aria-pressed="${st.format === f[0]}"><i style="width:${FORMAT_ICON[f[0]][0]}px;height:${FORMAT_ICON[f[0]][1]}px"></i>${f[1]}</button>`).join('')}</div>
-        <p class="dlx-sub"><b>${fmtObj()[1]}</b> · ${st.format === 'orig' ? 'Mantém o formato do vídeo' : 'Recorte central do vídeo'} · Saída ${outSize()}</p><hr>
-        <h4>Aparência</h4>
-        <div class="dlx-row"><div><b>Preto e branco</b><small>Deixa o vídeo em tons de cinza</small></div>${sw('dx-bw', st.bw)}</div>
-        <div class="dlx-row"><div><b>Preservar qualidade</b><small>Arquivo maior e render mais lento. Ideal pra levar pro editor.</small></div>${sw('dx-hq', st.hq)}</div><hr>`}
-        <h4>Áudio</h4><div class="dlx-row"${ctx.voiceAI ? '' : ' style="margin-bottom:8px"'}><div><b>Remover música</b><small>Usa IA para tirar a música e deixar só a voz. A exportação demora mais. Não aparece na prévia.</small></div><button class="dlx-sw" role="switch" aria-checked="${st.voice === 'ia'}" id="dx-mu"${ctx.voiceAI ? '' : ' disabled title="Precisa instalar a remoção de música neste computador"'}></button></div>
-        ${ctx.voiceAI ? '' : '<p class="dlx-hint">Para liberar, rode uma vez o arquivo <code>install/instalar-voz-ia</code> e abra o app de novo.</p>'}
-        <div class="dlx-row" style="margin-bottom:8px"><div><b><label for="dx-sp">Velocidade</label></b><small>Acelera ou desacelera o corte sem mudar o tom da voz. A prévia acompanha.</small><small id="dx-spd" class="dlx-spd">${durTxt()}</small></div><output id="dx-spv" for="dx-sp" class="dlx-spv">${spLabel(st.speed)}</output></div>
-        <input type="range" id="dx-sp" class="dlx-sp" min="0.25" max="2" step="0.05" value="${st.speed}">
-        <div class="dlx-spb">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((x) => `<button data-sp="${x}" aria-pressed="${st.speed === x}">${spLabel(x)}</button>`).join('')}</div>
-        ${isAud ? '' : `<div class="dlx-row" style="margin-bottom:8px"><div><b><label for="dx-sy">Sincronia do áudio</label></b><small>Se o som chega depois da boca, puxe para a esquerda (adianta o áudio). Se chega antes, puxe para a direita (atrasa). A prévia ao lado não muda: use o botão Testar para ver como fica.</small></div><output id="dx-syv" for="dx-sy" class="dlx-spv">${syLabel(st.sync)}</output></div>
-        <input type="range" id="dx-sy" class="dlx-sp" min="-2" max="2" step="0.01" value="${st.sync}">
-        <div class="dlx-spb">${[[-0.1, '−100'], [-0.01, '−10'], [0, 'Zerar'], [0.01, '+10'], [0.1, '+100']].map((x) => `<button style="min-width:36px" title="${x[0] ? x[1] + ' milissegundos' : 'Voltar ao áudio original'}" data-sy="${x[0]}">${x[1]}</button>`).join('')}</div><button class="dlx-sytgo" id="dx-syt">▶ Testar o ajuste (8 s)</button>`}
-        <hr><h4>Remover trecho</h4><p class="dlx-hint" style="margin-bottom:10px">Pare o vídeo onde o trecho começa e marque o início. Depois pare onde ele termina e marque o fim. O trecho sai do corte e a prévia passa a pulá-lo.</p>
-        <div class="dlx-spb" style="margin-bottom:10px"><button id="dx-ca" aria-pressed="${st.cutA !== null}">${st.cutA === null ? 'Marcar início' : 'Início: ' + tmx(st.cutA - st.start)}</button><button id="dx-cb" ${st.cutA === null ? 'disabled' : ''}>Marcar fim e remover</button></div>
-        <p class="dlx-hint" style="margin-bottom:8px">Ou digite o momento exato, contado do começo do corte (ex.: <code>0:12,5</code>):</p>
-        <div class="dlx-cutx"><label>Início<input id="dx-cxa" inputmode="decimal" autocomplete="off" placeholder="0:00,0" value="${st.cutA === null ? '' : tmx(st.cutA - st.start)}"></label><label>Fim<input id="dx-cxb" inputmode="decimal" autocomplete="off" placeholder="0:00,0"></label><button id="dx-cxg">Remover</button></div>
-        ${cutList().length ? `<ul class="dlx-cuts">${cutList().map((r) => `<li><span>${tmx(r[0] - st.start)} → ${tmx(r[1] - st.start)} <small>(${(r[1] - r[0]).toFixed(1).replace('.', ',')} s)</small></span><button data-cx="${r[0]}" aria-label="Desfazer a remoção deste trecho" title="Devolver este trecho ao corte">✕</button></li>`).join('')}</ul>` : ''}`;
+      // Painel em seções que abrem e fecham. Fechada, cada seção mostra o valor atual à direita do título.
+      const sec = (key, title, value, body, valueId) => `<details class="dlx-sec" data-sec="${key}"${st.open[key] ? ' open' : ''}><summary><span class="dlx-sect">${title}</span><${valueId ? 'output' : 'span'} class="dlx-secv"${valueId ? ` id="${valueId}"` : ''}>${value}</${valueId ? 'output' : 'span'}></summary><div class="dlx-secb">${body}</div></details>`;
+      const nCuts = cutList().length;
+      L.innerHTML = [
+        isAud ? '' : sec('fmt', 'Formato', esc(fmtObj()[1]), `<div class="dlx-fmts">${FORMATS.map((f) => `<button class="dlx-fmt" data-f="${f[0]}" aria-pressed="${st.format === f[0]}"><i style="width:${FORMAT_ICON[f[0]][0]}px;height:${FORMAT_ICON[f[0]][1]}px"></i>${f[1]}</button>`).join('')}</div>
+          <p class="dlx-sub">${st.format === 'orig' ? 'Mantém o formato do vídeo' : 'Recorte central do vídeo'} · Saída ${outSize()}</p>`),
+        isAud ? '' : sec('img', 'Imagem', [st.bw ? 'Preto e branco' : 'Colorido', st.hq ? 'alta qualidade' : ''].filter(Boolean).join(' · '), `
+          <div class="dlx-row"><div><b>Preto e branco</b><small>Deixa o vídeo em tons de cinza.</small></div>${sw('dx-bw', st.bw)}</div>
+          <div class="dlx-row"><div><b>Preservar qualidade</b><small>Arquivo maior e exportação mais lenta. Bom para levar ao CapCut.</small></div>${sw('dx-hq', st.hq)}</div>`),
+        sec('sp', 'Velocidade', spLabel(st.speed), `<small id="dx-spd" class="dlx-spd">${durTxt()}</small>
+          <input type="range" id="dx-sp" class="dlx-sp" min="0.25" max="2" step="0.05" value="${st.speed}" aria-label="Velocidade">
+          <div class="dlx-spb">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((x) => `<button data-sp="${x}" aria-pressed="${st.speed === x}">${spLabel(x)}</button>`).join('')}</div>
+          <p class="dlx-hint">O tom da voz não muda. A prévia acompanha.</p>`, 'dx-spv'),
+        isAud ? '' : sec('sy', 'Sincronia do áudio', syLabel(st.sync), `<input type="range" id="dx-sy" class="dlx-sp" min="-2" max="2" step="0.01" value="${st.sync}" aria-label="Sincronia do áudio">
+          <div class="dlx-spb">${[[-0.1, '−100'], [-0.01, '−10'], [0, 'Zerar'], [0.01, '+10'], [0.1, '+100']].map((x) => `<button style="min-width:36px" title="${x[0] ? x[1] + ' milissegundos' : 'Voltar ao áudio original'}" data-sy="${x[0]}">${x[1]}</button>`).join('')}</div>
+          <button class="dlx-sytgo" id="dx-syt">▶ Testar o ajuste (8 s)</button>
+          <p class="dlx-hint">Som depois da boca: vá para a esquerda. Som antes: para a direita. A prévia ao lado não muda; use Testar.</p>`, 'dx-syv'),
+        sec('cut', 'Remover trecho', nCuts ? nCuts + (nCuts === 1 ? ' removido' : ' removidos') : 'Nenhum', `
+          <p class="dlx-hint">Pare o vídeo no começo do trecho e marque. Depois pare no fim e marque de novo.</p>
+          <div class="dlx-spb" style="margin-bottom:12px"><button id="dx-ca" aria-pressed="${st.cutA !== null}">${st.cutA === null ? 'Marcar início' : 'Início: ' + tmx(st.cutA - st.start)}</button><button id="dx-cb" ${st.cutA === null ? 'disabled' : ''}>Marcar fim</button></div>
+          <p class="dlx-hint">Ou digite o momento exato, contado do começo do corte (ex.: <code>0:12,5</code>).</p>
+          <div class="dlx-cutx"><label>Início<input id="dx-cxa" inputmode="decimal" autocomplete="off" placeholder="0:00,0" value="${st.cutA === null ? '' : tmx(st.cutA - st.start)}"></label><label>Fim<input id="dx-cxb" inputmode="decimal" autocomplete="off" placeholder="0:00,0"></label><button id="dx-cxg">Remover</button></div>
+          ${nCuts ? `<ul class="dlx-cuts">${cutList().map((r) => `<li><span>${tmx(r[0] - st.start)} → ${tmx(r[1] - st.start)} <small>(${(r[1] - r[0]).toFixed(1).replace('.', ',')} s)</small></span><button data-cx="${r[0]}" aria-label="Desfazer a remoção deste trecho" title="Devolver este trecho ao corte">✕</button></li>`).join('')}</ul>` : ''}`),
+        sec('mu', 'Remover música', !ctx.voiceAI ? 'Não instalado' : st.voice === 'ia' ? 'Ligado' : 'Desligado', `
+          <div class="dlx-row"><div><b>Deixar só a voz</b><small>Tira a música de fundo com IA, no seu computador. A exportação demora mais e o efeito não aparece na prévia.</small></div><button class="dlx-sw" role="switch" aria-checked="${st.voice === 'ia'}" id="dx-mu"${ctx.voiceAI ? '' : ' disabled title="Precisa instalar a remoção de música neste computador"'}></button></div>
+          ${ctx.voiceAI ? '' : '<p class="dlx-hint">Para liberar, rode uma vez o arquivo <code>install/instalar-voz-ia</code> e abra o app de novo.</p>'}`),
+      ].join('');
+      $$('details[data-sec]', L).forEach((d) => d.addEventListener('toggle', () => { st.open[d.dataset.sec] = d.open; }));
       $$('[data-f]', L).forEach((b) => b.onclick = () => { st.format = b.dataset.f; commit(); layoutStage(); drawLeft(); });
       const tg = (id, key) => { const e = $('#' + id, L); if (e) e.onclick = () => { st[key] = !st[key]; commit(); layoutStage(); drawLeft(); }; };
       tg('dx-bw', 'bw'); tg('dx-hq', 'hq');
