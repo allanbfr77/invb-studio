@@ -269,16 +269,8 @@
   const procView = (c) => `<div class="empty" id="proc"><div class="ci">${c.status === 'error' ? '⚠️' : '⏳'}</div><h3>${c.status === 'error' ? 'Não foi possível processar' : 'Processando…'}</h3><p id="procmsg">${c.status === 'error' ? esc(c.error || 'Erro desconhecido.') : esc(statusLabel(c))}</p>${c.status === 'error' ? `<button class="ap-btn pri" id="retry">Tentar de novo</button> ` : `<div class="bigbar" style="max-width:320px;margin:10px auto"><i id="procbar" style="width:${c.progress || 3}%"></i></div>`}<a class="ap-btn" href="/app/uploads">Todas as pregações</a></div>`;
 
   const pages = {
-    home: () => {
-      const us = S.uploads, last = us[0], sum = (k) => us.reduce((n, u) => n + ((u.cuts && u.cuts[k]) || 0), 0);
-      const next = last ? (last.status !== 'done' ? 'overview' : last.cuts && last.cuts.total ? 'clips' : 'transcription') : '';
-      const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
-      return `<div class="hm-hd"><div><span class="eyebrow hm-eye">Mídia · Nova Vida Botafogo</span><h1>${greeting()}</h1><p class="sub2">Cole o link da pregação. O app baixa, transcreve e deixa pronta para os cortes.</p></div><span class="hm-date">${esc(today)}</span></div>
-      <div class="hm-up">${uploadBox()}</div>
-      ${last ? `<div class="hm-row"><a class="hm-go" href="/app/uploads/${last.id}/${next}"><span class="th">${last.kind === 'vid' && last.status === 'done' ? `<img src="/api/uploads/${last.id}/thumb" alt="" onerror="this.remove()">` : ''}</span><span class="tx"><small>Continuar de onde parou</small><b>${esc(String(last.name || '').replace(/\.[^.]+$/, ''))}</b><em>${esc(upWhere(last))}</em></span><span class="arr" aria-hidden="true">→</span></a>
-        <div class="hm-st"><b>${us.length}</b><span>${us.length === 1 ? 'pregação' : 'pregações'}</span></div><div class="hm-st"><b>${sum('total')}</b><span>cortes criados</span></div><div class="hm-st"><b>${sum('drive')}</b><span>no Drive</span></div></div>` : ''}
-      <div class="ap-h2"><h2>Últimas pregações</h2><a href="/app/uploads">Ver todas ›</a></div>${us.length ? `<div class="ap-cards">${us.slice(0, 8).map(upCard).join('')}</div>` : '<p class="sub2">Nenhuma pregação ainda. Cole um link acima para começar.</p>'}`;
-    },
+    home: () => `<span class="eyebrow" style="font-size:11px;font-weight:800;text-transform:uppercase;display:block;margin-bottom:6px">Mídia · Nova Vida Botafogo</span><h1>${greeting()}</h1><p class="sub2">Cole o link da pregação. Depois da transcrição, é só fazer os cortes.</p><div style="height:20px"></div>${uploadBox()}
+      <div class="ap-h2"><h2>Últimas pregações</h2><a href="/app/uploads">Ver mais ›</a></div>${S.uploads.length ? `<div class="ap-cards">${S.uploads.slice(0, 4).map(upCard).join('')}</div>` : '<p class="sub2">Nenhuma pregação ainda. Cole um link acima para começar.</p>'}`,
     uploads: () => `<div class="ap-head"><div><h1>Pregações</h1><p class="sub2">Todas as pregações deste computador e em que ponto cada uma está.</p></div><a class="ap-btn pri" href="/app/uploads/new">+ Nova pregação</a></div>
       <div class="ap-tools"><label class="ap-search">${ic.search}<input id="fq" placeholder="Buscar pregação pelo nome..."></label><span class="ap-sp"></span><button class="ap-btn" id="fsort">⇅ Data: Mais recentes ⌄</button><button class="ap-btn" id="ffil">Filtros</button></div>
       <p class="sub2" id="fcnt" style="margin-bottom:10px"></p><div id="flist"></div>`,
