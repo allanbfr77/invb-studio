@@ -112,7 +112,11 @@
     if (slot && S.cur.kind === 'vid') { slot.innerHTML = ''; el.hidden = false; el.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000;border-radius:inherit'; slot.appendChild(el); } else { el.hidden = true; document.body.appendChild(el); }
   }
   const seek = (t) => { const el = ensureMedia(); el.currentTime = t; paintPlayer(); };
-  const waveBins = (c) => { const n = 90, bins = new Array(n).fill(0), d = c.duration || 1; segsOf(c).forEach((s) => { const w = s.text.split(/\s+/).length, a = Math.floor((s.t / d) * n), b = Math.max(a, Math.min(n - 1, Math.floor((s.end / d) * n))); for (let i = a; i <= b; i++) bins[i] += w / (b - a + 1); }); const mx = Math.max(...bins, 1); return bins.map((v) => 12 + 88 * (v / mx)); };
+  const waveBins = (c) => { const n = 240, bins = new Array(n).fill(0), d = c.duration || 1; segsOf(c).forEach((s) => { const w = s.text.split(/\s+/).length, a = Math.floor((s.t / d) * n), b = Math.max(a, Math.min(n - 1, Math.floor((s.end / d) * n))); for (let i = a; i <= b; i++) bins[i] += w / (b - a + 1); }); const mx = Math.max(...bins, 1); return bins.map((v) => 12 + 88 * (v / mx)); };
+  // Forma de onda de verdade (o volume do som), a mesma do editor. Chega um instante depois; até lá ficam as barras estimadas pela fala.
+  const peaksCache = {};
+  const paintPeaks = (id) => { const w = $('#wave'), pk = peaksCache[id]; if (!w || !pk || !S.cur || S.cur.id !== id) return; [...w.children].forEach((e, i) => { e.style.height = Math.max(6, pk[Math.min(pk.length - 1, Math.floor((i / w.children.length) * pk.length))] * 100) + '%'; }); w.classList.add('real'); };
+  const loadPeaks = async (id) => { if (peaksCache[id]) return paintPeaks(id); try { const r = await api('/uploads/' + id + '/peaks?full=1'); if (r && Array.isArray(r.peaks)) { peaksCache[id] = r.peaks; paintPeaks(id); } } catch { /* sem a onda real, ficam as barras estimadas */ } };
   function player() {
     return `<div class="pbar"><div class="wave2" id="wave">${waveBins(S.cur).map((h) => `<i style="height:${h}%"></i>`).join('')}</div>
       <div class="pctl">${S.cur.kind === 'vid' ? `<div class="tg2"><button data-media="audio" class="${S.mode === 'audio' ? 'on' : ''}">Áudio</button><button data-media="video" class="${S.mode === 'video' ? 'on' : ''}">Vídeo</button></div>` : '<span></span>'}
@@ -158,7 +162,7 @@
   };
   document.addEventListener('keydown', markKey);
   function bindPlayer() {
-    if (!$('#wave')) return; const el = ensureMedia();
+    if (!$('#wave')) return; const el = ensureMedia(); loadPeaks(S.cur.id);
     $('#pp').onclick = () => (el.paused ? el.play().catch(() => toast('Não foi possível reproduzir este arquivo no navegador.')) : el.pause());
     $('#pb').onclick = () => seek(Math.max(0, el.currentTime - 10)); $('#pf').onclick = () => seek(el.currentTime + 10);
     $('#psp').onclick = (e) => { S.speed = S.speed === 1 ? 1.5 : S.speed === 1.5 ? 2 : 1; el.playbackRate = S.speed; e.target.textContent = S.speed + 'x'; };
@@ -203,6 +207,11 @@
     $$('.menu').forEach((x) => x.remove()); const r = anchor.getBoundingClientRect();
     const m = document.createElement('div'); m.className = 'menu'; m.innerHTML = html; m.style.top = r.bottom + 6 + 'px'; m.style.left = Math.max(8, Math.min(innerWidth - 240, r.right - 220)) + 'px'; m.style.position = 'fixed';
     document.body.appendChild(m); if (bind) bind(m);
+    // O menu precisa caber inteiro na tela: se não couber embaixo do botão (o player de baixo cobre essa faixa), abre para cima.
+    const pb = document.querySelector('.pbar'), floor = (pb ? pb.getBoundingClientRect().top : innerHeight) - 10, h = m.offsetHeight, w = m.offsetWidth;
+    let top = r.bottom + 6; if (top + h > floor) top = r.top - h - 6 >= 8 ? r.top - h - 6 : Math.max(8, floor - h);
+    m.style.top = top + 'px'; m.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w)) + 'px';
+    m.style.maxHeight = Math.max(140, floor - 16) + 'px'; m.style.overflowY = 'auto';
     setTimeout(() => document.addEventListener('click', function h(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', h); } }), 0); return m;
   };
 

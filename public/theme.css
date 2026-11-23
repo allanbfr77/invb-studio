@@ -261,3 +261,14 @@ input:focus,textarea:focus,select:focus{border-color:var(--ring)!important;outli
 .up-back:hover{color:var(--fg)}
 #ut-file .ap-drop{margin:0}
 .up1[hidden],#ut-file[hidden]{display:none}
+
+/* ---------- Player: forma de onda fina, igual à do editor ---------- */
+.wave2{gap:2px;height:44px;align-items:center}
+.wave2 i{flex:1 1 0;min-width:1px;max-width:3px;margin:0 auto;border-radius:1px;min-height:2px;background:var(--border-strong);transition:height .35s var(--ease)}
+.wave2 i.p{background:var(--primary)}
+
+/* menus sempre por cima do player de baixo */
+.menu{z-index:60}
+/* player alinhado com o cartão do conteúdo */
+.pbar{left:278px;right:28px}
+@media (max-width:900px){.pbar{left:14px;right:14px}}

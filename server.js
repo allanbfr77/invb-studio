@@ -211,6 +211,7 @@ async function pump() { if (busy) return; busy = true; while (queue.length) { tr
 /* ---------- Original sob demanda (só o link fica salvo) ---------- */
 const lastTouch = new Map();
 const aiBusy = new Set();
+const peaksBusy = new Map(); // forma de onda sendo calculada, por pregação
 /** Texto de publicação de um corte, já limitado: é o que fica salvo em clips.json. */
 const cleanPost = (p) => ({ title: String(p.title || '').trim().slice(0, 120), description: String(p.description || '').trim().slice(0, 2000), hashtags: (Array.isArray(p.hashtags) ? p.hashtags : String(p.hashtags || '').split(/\s+/)).map((h) => String(h).trim()).filter(Boolean).slice(0, 20).map((h) => (h.startsWith('#') ? h : '#' + h).slice(0, 60)), at: Date.now() });
 const driveBusy = new Set(), refetchBusy = new Set(); // envios e novos downloads em andamento, por id do envio
@@ -827,6 +828,25 @@ async function api(req, res, url, q) {
       return;
     }
     // Forma de onda de um trecho (o volume do som ao longo do tempo), para a linha do tempo do editor.
+    // Forma de onda da pregação inteira, para o player de baixo. Calculada uma vez e guardada junto da pregação.
+    if (c === 'peaks' && method === 'GET' && q.get('full')) {
+      const N = 240, cache = U(b, 'peaks.json'), have = await readJson(cache, null);
+      if (have && have.n === N && have.v === 2 && Array.isArray(have.peaks)) return send(res, 200, have);
+      if (!tools.ffmpeg) return send(res, 501, { error: 'O ffmpeg não está instalado.' });
+      if (!peaksBusy.has(b)) peaksBusy.set(b, (async () => {
+        const chunks = []; const pr = spawn(tools.ffmpeg, ['-v', 'error', '-i', U(b, m.file), '-vn', '-ac', '1', '-ar', '800', '-f', 's16le', 'pipe:1'], { windowsHide: true });
+        pr.stdout.on('data', (dt) => chunks.push(dt)); pr.stderr.on('data', () => {});
+        const code = await new Promise((r) => { pr.on('close', r); pr.on('error', () => r(1)); });
+        const buf = Buffer.concat(chunks), total = Math.floor(buf.length / 2); if (code !== 0 || !total) return null;
+        const peaks = new Array(N).fill(0);
+        for (let i = 0; i < total; i++) { const x = Math.abs(buf.readInt16LE(i * 2)), k = Math.min(N - 1, Math.floor((i / total) * N)); if (x > peaks[k]) peaks[k] = x; }
+        // A altura é medida contra um volume alto típico (95% das barras ficam abaixo dele), não contra o maior estalo: um pico isolado não achata o resto.
+        const ref = Math.max(1, [...peaks].sort((x, y) => x - y)[Math.floor(N * 0.95)]), out = { n: N, v: 2, peaks: peaks.map((p) => +Math.min(1, p / ref).toFixed(3)) };
+        await writeJson(cache, out).catch(() => {}); return out;
+      })().finally(() => peaksBusy.delete(b)));
+      const out = await peaksBusy.get(b);
+      return out ? send(res, 200, out) : send(res, 502, { error: 'Não consegui ler o som desta pregação.' });
+    }
     if (c === 'peaks' && method === 'GET') {
       const a = Math.max(0, +q.get('start') || 0), e = +q.get('end'), n = clamp(Math.round(+q.get('n') || 300), 50, 1200);
       if (!(e > a) || e - a > 1800) return send(res, 400, { error: 'Trecho inválido.' });
