@@ -882,7 +882,7 @@ async function api(req, res, url, q) {
       } catch (e) { log('erro ao enviar ao Drive', b, d, e.message, e.reason || '', e.detail || '');
         // O motivo fica guardado no corte: aparece no cartão e dá para conferir depois, sem depender do aviso na tela.
         const driveError = { msg: String(e.message || '').slice(0, 400), google: [e.status, e.reason, e.detail].filter(Boolean).join(' | ').slice(0, 400), at: Date.now() };
-        await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); const t = l.find((x) => x.id === d); if (t) { t.driveError = driveError; await writeJson(U(b, 'clips.json'), l); } }).catch(() => {}); return send(res, e.status === 401 ? 403 : e.status || 502, { error: e.message, needsLogin: !!e.needsLogin }); }
+        await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); const t = l.find((x) => x.id === d); if (t) { t.driveError = driveError; await writeJson(U(b, 'clips.json'), l); } }).catch(() => {}); return send(res, e.status === 401 ? 403 : e.status || 502, { error: e.message, needsLogin: !!e.needsLogin, wrongAccount: !!e.wrongAccount }); }
       finally { driveBusy.delete(b); }
     }
     if (c === 'clips') {

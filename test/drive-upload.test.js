@@ -73,7 +73,7 @@ test('401 pede para entrar com o Google de novo', async () => {
 
 test('404 na pasta diz que a pasta não foi encontrada', async () => {
   const d = fakeDrive([{ status: 404, body: {} }]);
-  await assert.rejects(() => ensureFolder('tok', 'raiz', 'x', d.impl), (e) => e.status === 404 && /não encontr/i.test(e.message));
+  await assert.rejects(() => ensureFolder('tok', 'raiz', 'x', d.impl), (e) => e.status === 404 && /não encontr/i.test(e.message) && e.wrongAccount === true);
 });
 
 test('API do Drive desativada no projeto: a mensagem manda ativar a API', async () => {

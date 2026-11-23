@@ -186,9 +186,9 @@
      Importar um arquivo usa só leitura. Enviar cortes precisa do acesso completo ao Drive: o escopo restrito
      "drive.file" não deixa gravar numa pasta que outra pessoa criou e compartilhou. */
   const G_READ = 'https://www.googleapis.com/auth/drive.readonly', G_WRITE = 'https://www.googleapis.com/auth/drive';
-  function googleToken(clientId, scope = G_READ) {
+  function googleToken(clientId, scope = G_READ, pick = false) {
     const load = () => new Promise((ok, bad) => { if (window.google && google.accounts && google.accounts.oauth2) return ok(); const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true; sc.onload = ok; sc.onerror = () => bad(new Error('Não foi possível carregar o login do Google.')); document.head.appendChild(sc); });
-    return load().then(() => new Promise((ok, bad) => { google.accounts.oauth2.initTokenClient({ client_id: clientId, scope, callback: (t) => (t.access_token ? ok(t.access_token) : bad(new Error('Não foi possível entrar com o Google.'))), error_callback: () => bad(new Error('Login cancelado ou bloqueado pelo navegador. Se o erro for origin_mismatch, adicione este endereço às origens autorizadas do cliente OAuth.')) }).requestAccessToken({ prompt: '' }); }));
+    return load().then(() => new Promise((ok, bad) => { google.accounts.oauth2.initTokenClient({ client_id: clientId, scope, callback: (t) => (t.access_token ? ok(t.access_token) : bad(new Error('Não foi possível entrar com o Google.'))), error_callback: () => bad(new Error('Login cancelado ou bloqueado pelo navegador. Se o erro for origin_mismatch, adicione este endereço às origens autorizadas do cliente OAuth.')) }).requestAccessToken({ prompt: pick ? 'select_account' : '' }); }));
   }
 
   /* ---------- Envio (real) ---------- */
@@ -381,14 +381,15 @@
     const driveBtn = (k) => !driveOn || !(k.render && k.render.status === 'done') ? '' : k.drive && /^https:\/\//.test(k.drive.link || '') ? `<a class="ap-btn" href="${esc(k.drive.link)}" target="_blank" rel="noopener">✓ No Drive</a>` : '<button class="ap-btn" data-a="drive">Enviar para o Drive</button>';
     const sendDrive = async (k) => {
       const post = (t) => api(`/uploads/${c.id}/clips/${k.id}/drive`, { json: { token: t } });
-      const fresh = async () => { const t = await googleToken(S.status.driveClientId, G_WRITE); S.gtok = { t, exp: Date.now() + 45 * 60000 }; return t; };
+      const fresh = async () => { const t = await googleToken(S.status.driveClientId, G_WRITE, !!S.gPick); S.gPick = false; S.gtok = { t, exp: Date.now() + 45 * 60000 }; return t; };
       let r;
       try { r = await post(S.gtok && S.gtok.exp > Date.now() ? S.gtok.t : await fresh()); }
-      catch (e) { if (!(e.data && e.data.needsLogin)) throw e; S.gtok = null; r = await post(await fresh()); } // token vencido: pede o login de novo, uma vez
+      catch (e) { if (e.data && e.data.wrongAccount) { S.gtok = null; S.gPick = true; } // conta sem acesso à pasta: o próximo envio pergunta qual conta usar
+        if (!(e.data && e.data.needsLogin)) throw e; S.gtok = null; r = await post(await fresh()); } // token vencido: pede o login de novo, uma vez
       k.drive = r.drive; toast('Corte enviado para a pasta da equipe.');
     };
     // Login do Google feito no próprio clique (o navegador bloqueia a janela se ela abrir depois de uma espera longa).
-    const driveToken = async () => { if (!(S.gtok && S.gtok.exp > Date.now())) S.gtok = { t: await googleToken(S.status.driveClientId, G_WRITE), exp: Date.now() + 45 * 60000 }; return S.gtok.t; };
+    const driveToken = async () => { if (!(S.gtok && S.gtok.exp > Date.now())) { S.gtok = { t: await googleToken(S.status.driveClientId, G_WRITE, !!S.gPick), exp: Date.now() + 45 * 60000 }; S.gPick = false; } return S.gtok.t; };
     // Texto de publicação do corte (título, descrição e hashtags): dá para ajustar, copiar, usar o título no corte ou pedir outro.
     const postModal = (k) => {
       const m = modal('Texto para publicar', `<label for="po-t">Título</label><input id="po-t" value="${esc(k.post.title)}"><label for="po-d">Descrição</label><textarea id="po-d" rows="5">${esc(k.post.description)}</textarea><label for="po-h">Hashtags</label><textarea id="po-h" rows="2">${esc((k.post.hashtags || []).join(' '))}</textarea><div class="po-x"><button class="ap-btn" id="po-use">Usar como título do corte</button><button class="ap-btn" id="po-new">Gerar de novo</button></div>`, guard(async (mm) => {
