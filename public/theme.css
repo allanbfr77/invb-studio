@@ -272,3 +272,9 @@ input:focus,textarea:focus,select:focus{border-color:var(--ring)!important;outli
 /* player alinhado com o cartão do conteúdo */
 .pbar{left:278px;right:28px}
 @media (max-width:900px){.pbar{left:14px;right:14px}}
+/* Onde transcrever (Local / nuvem), na caixa de situação da barra lateral */
+.ap-kv-tr{padding-bottom:4px}
+.ap-tr{margin:0 0 9px}
+.ap-tr button{height:30px}
+.ap-tr button[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
+.ap-tr + .ap-kv{border-top:1px solid var(--border)}

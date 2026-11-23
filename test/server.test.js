@@ -508,3 +508,23 @@ test('exportar com um trecho removido tira esse pedaço do vídeo e do áudio', 
   // sobram 0–1 e 3–5 = 3 s; em 2x, 1,5 s
   assert.ok(Math.abs(ffDuration(path.join(dir, 'clips', r2.file)) - 1.5) < 0.4, 'duração com dois trechos e 2x: ' + ffDuration(path.join(dir, 'clips', r2.file)));
 });
+
+// --- escolher entre transcrição local e na nuvem pela tela ---
+test('a tela troca entre Local e Groq, e a escolha fica salva para o próximo início', async (t) => {
+  const d = tmp(t);
+  const s = await boot(t, d, { env: { GROQ_API_KEY: 'gsk-teste', TRANSCRIBE_PROVIDER: 'groq' } });
+  let st = (await s.api('/status')).body;
+  assert.equal(st.provider, 'groq');
+  assert.deepEqual(st.transcribers.map((x) => [x.id, x.name, x.ok]), [['local', 'Local', false], ['groq', 'Groq', true]]);
+  assert.ok(!JSON.stringify(st).includes('gsk-teste'));
+  // sem faster-whisper (PYTHON inexistente) o modo local é recusado com o motivo
+  const no = await s.api('/transcriber', { json: { provider: 'local' } });
+  assert.equal(no.status, 400); assert.match(no.body.error, /faster-whisper/);
+  assert.equal((await s.api('/transcriber', { json: { provider: 'xyz' } })).status, 400);
+  fs.writeFileSync(path.join(d, 'settings.json'), JSON.stringify({ transcriber: 'local' }));
+  const s2 = await boot(t, d, { env: { GROQ_API_KEY: 'gsk-teste', TRANSCRIBE_PROVIDER: 'groq' } });
+  assert.equal((await s2.api('/status')).body.provider, 'local'); // a escolha salva vale sobre o .env
+  const ok = await s2.api('/transcriber', { json: { provider: 'groq' } });
+  assert.equal(ok.status, 200); assert.equal(ok.body.provider, 'groq');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(d, 'settings.json'), 'utf8')).transcriber, 'groq');
+});

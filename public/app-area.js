@@ -175,6 +175,23 @@
   const link = (href, ico, label, path) => `<a class="ap-link ${path === href || (href !== '/app' && path.startsWith(href + '/') && !/uploads\/[^/]+/.test(href)) ? 'on' : ''}" href="${href}">${ico}${label}</a>`;
   // Versão do app: a data da última atualização e o código dela (ex.: 23/11/2026 · 38abb15).
   const verLabel = (v) => { const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.date || ''); return [d ? `${d[3]}/${d[2]}/${d[1]}` : v.name, v.commit].filter(Boolean).join(' · '); };
+  // Onde transcrever: Local (Whisper neste computador) ou na nuvem (Groq). Vale para as próximas pregações.
+  const trIc = { local: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx=".5"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>', cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H7a5 5 0 1 1 1.6-9.7A6 6 0 0 1 20 11.5 3.8 3.8 0 0 1 17.5 19z"/></svg>' };
+  const trTitle = (t) => !t.ok ? t.why : t.id === 'local' ? `Neste computador (Whisper ${t.model}). Não envia o áudio para fora; é mais lento.` : `Na nuvem (${t.name}, ${t.model}). Mais rápido; envia o áudio para a ${t.name}.`;
+  const trBox = (st) => !(st.transcribers && st.transcribers.length > 1)
+    ? `<div class="ap-kv"><span>Transcrição</span><b><i class="dot on"></i>${esc(st.provider_name || 'API')}</b></div>`
+    : `<div class="ap-kv ap-kv-tr"><span>Transcrição</span></div><div class="ap-mode ap-tr" role="group" aria-label="Onde transcrever">${st.transcribers.map((t) => `<button type="button" data-tr="${esc(t.id)}" aria-pressed="${st.provider === t.id}"${t.ok ? '' : ' aria-disabled="true"'} title="${esc(trTitle(t))}">${t.id === 'local' ? trIc.local : trIc.cloud}${esc(t.name)}</button>`).join('')}</div>`;
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest && e.target.closest('[data-tr]'); if (!b || !S.status) return;
+    const t = (S.status.transcribers || []).find((x) => x.id === b.dataset.tr); if (!t || S.status.provider === t.id) return;
+    if (!t.ok) return toast(t.why);
+    try {
+      await api('/transcriber', { json: { provider: t.id } });
+      S.status.provider = t.id; S.status.provider_name = t.name;
+      document.querySelectorAll('[data-tr]').forEach((x) => x.setAttribute('aria-pressed', x.dataset.tr === t.id));
+      toast(`Próximas transcrições: ${t.id === 'local' ? 'neste computador' : 'na ' + t.name}.`);
+    } catch (er) { toast(er.message); }
+  });
   // Interruptor de modo claro/noturno (aparece na barra lateral e na tela de entrada).
   document.addEventListener('click', (e) => { const g = e.target.closest && e.target.closest('[data-theme-set]'); if (g && window.InvbTheme) { InvbTheme.set(g.dataset.themeSet); document.querySelectorAll('[data-theme-set]').forEach((x) => x.setAttribute('aria-pressed', x.dataset.themeSet === InvbTheme.get())); return; } const b = e.target.closest && e.target.closest('[data-theme-sw]'); if (!b || !window.InvbTheme) return; const t = InvbTheme.toggle(); document.querySelectorAll('[data-theme-sw]').forEach((x) => x.setAttribute('aria-checked', t === 'dark')); });
   // Em que ponto a pregação está, em poucas palavras.
@@ -190,7 +207,7 @@
     return `<div class="ap">
       <div class="ap-top"><a href="/app"><b>INVB Studio</b></a><button id="ap-burger" aria-label="Abrir menu">☰</button></div>
       <aside class="ap-side" id="ap-side"><a class="ap-brand" href="/app" aria-label="INVB Studio, início"><img class="lg-c" src="/img/nv-logo-claro.png" alt="Nova Vida Botafogo"><img class="lg-n" src="/img/nv-logo-noturno.png" alt="Nova Vida Botafogo"><span class="ap-brand-sub">INVB<br>Studio</span></a>${nav}<div class="ap-grow"></div>
-        ${st ? `<div class="ap-box" aria-label="Situação do app"><div class="ap-kv"><span>Transcrição</span><b><i class="dot on"></i>${esc(st.provider_name || 'API')}</b></div><div class="ap-kv"><span>IA</span><b><i class="dot ${st.llm ? 'on' : ''}"></i>${st.llm ? esc(st.llmModel) : 'Desligada'}</b></div>${st.version ? `<div class="ap-kv" title="Versão do app neste computador: data da última atualização e código dela"><span>Versão</span><b>${esc(verLabel(st.version))}</b></div>` : '<div class="ap-kv" title="As telas foram atualizadas, mas o app que está aberto ainda é o antigo. Feche a janela do Terminal do app e abra de novo pelo iniciar."><span>Versão</span><b class="warn">Feche e abra o app</b></div>'}</div>` : ''}
+        ${st ? `<div class="ap-box" aria-label="Situação do app">${trBox(st)}<div class="ap-kv"><span>IA</span><b><i class="dot ${st.llm ? 'on' : ''}"></i>${st.llm ? esc(st.llmModel) : 'Desligada'}</b></div>${st.version ? `<div class="ap-kv" title="Versão do app neste computador: data da última atualização e código dela"><span>Versão</span><b>${esc(verLabel(st.version))}</b></div>` : '<div class="ap-kv" title="As telas foram atualizadas, mas o app que está aberto ainda é o antigo. Feche a janela do Terminal do app e abra de novo pelo iniciar."><span>Versão</span><b class="warn">Feche e abra o app</b></div>'}</div>` : ''}
         <div class="ap-foot2"><div class="ap-mode" role="group" aria-label="Modo de cores"><button data-theme-set="light" aria-pressed="${!(window.InvbTheme && InvbTheme.get() === 'dark')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Claro</button><button data-theme-set="dark" aria-pressed="${!!(window.InvbTheme && InvbTheme.get() === 'dark')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>Noturno</button></div><button class="ap-outb" id="ap-out" title="Sair do app" aria-label="Sair do app">${ic.out}</button></div></aside>
       <div class="ap-main"><div class="ap-card" id="ap-card">${inner}</div>${uid && S.cur && isDone(S.cur) ? player() : ''}</div></div>`;
   }

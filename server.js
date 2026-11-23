@@ -60,10 +60,18 @@ const cfg = {
   maxUploadBytes: (+E.MAX_UPLOAD_GB || 4) * 1024 ** 3,
 };
 // Transcrição na nuvem: Groq (Whisper, camada gratuita) ou OpenAI. Ambas usam a mesma API.
-const cloud = () => cfg.provider === 'groq'
+const cloud = (p = cfg.provider) => p === 'groq'
   ? { name: 'Groq', base: 'https://api.groq.com/openai/v1', key: E.GROQ_API_KEY || '', model: E.GROQ_WHISPER_MODEL || 'whisper-large-v3-turbo' }
   : { name: 'OpenAI', base: cfg.openaiBase, key: cfg.openaiKey, model: cfg.openaiTranscribeModel };
-const isCloud = () => cfg.provider === 'groq' || cfg.provider === 'openai';
+const isCloud = (p = cfg.provider) => p === 'groq' || p === 'openai';
+/* A tela alterna entre Local (faster-whisper neste computador) e a nuvem (Groq, ou OpenAI se for a configurada).
+   A escolha fica em data/settings.json e vale sobre o TRANSCRIBE_PROVIDER do .env. */
+const cloudId = isCloud() ? cfg.provider : (E.GROQ_API_KEY || !cfg.openaiKey ? 'groq' : 'openai');
+const settingsFile = () => path.join(cfg.dataDir, 'settings.json');
+const transcribers = () => [
+  { id: 'local', name: 'Local', ok: !!tools.whisper, model: cfg.whisperModel, why: tools.whisper ? null : 'faster-whisper não instalado neste computador.' },
+  { id: cloudId, name: cloud(cloudId).name, ok: !!cloud(cloudId).key, model: cloud(cloudId).model, why: cloud(cloudId).key ? null : (cloudId === 'groq' ? 'GROQ_API_KEY' : 'OPENAI_API_KEY') + ' não configurada.' },
+];
 /* IA dos recursos inteligentes (cortes, texto do corte, capítulos e emoções): Claude ou OpenAI, a que tiver chave.
    Cuidado com quem usa a chave da OpenAI só para transcrever: ali a IA não liga sozinha (seria um gasto novo sem
    ninguém pedir). Para ligar nesse caso, defina AI_PROVIDER=openai. */
@@ -348,9 +356,9 @@ async function waitCountdown(id, sec, label) {
 
 // Transcrição em blocos de 20 min (Groq/OpenAI). Respeita o limite de áudio por hora esperando o tempo
 // indicado pela API e RETOMA do bloco em que parou (partial.json), inclusive após reinício ou erro.
-async function transcribeOpenAI(id, audio, dur, setProgress) {
+async function transcribeOpenAI(id, audio, dur, setProgress, P = cfg.provider) {
   const dir = U(id, 'chunks'); await fsp.mkdir(dir, { recursive: true });
-  const seg = 1200, partialFile = U(id, 'partial.json'), C0 = cloud();
+  const seg = 1200, partialFile = U(id, 'partial.json'), C0 = cloud(P);
   let files = (await fsp.readdir(dir)).filter((f) => f.endsWith('.mp3')).sort();
   if (!files.length) {
     const r = await run(tools.ffmpeg, ['-y', '-i', audio, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'libmp3lame', '-b:a', '48k', '-f', 'segment', '-segment_time', String(seg), path.join(dir, 'c%03d.mp3')]);
@@ -362,7 +370,7 @@ async function transcribeOpenAI(id, audio, dur, setProgress) {
   if (part && part.total === files.length && part.model === C0.model) { segments = part.segments; language = part.language; k0 = part.next; log('retomando', id, 'no bloco', k0 + 1, 'de', files.length); }
   const MAX_WAIT = 4 * 3600; let waited = 0;
   for (let k = k0; k < files.length; k++) {
-    const C = cloud(), buf = await fsp.readFile(path.join(dir, files[k])), pct = Math.round((k / files.length) * 99);
+    const C = cloud(P), buf = await fsp.readFile(path.join(dir, files[k])), pct = Math.round((k / files.length) * 99);
     let res, tries5xx = 0;
     for (let attempt = 0; ; attempt++) {
       const fd = new FormData();
@@ -392,7 +400,7 @@ async function transcribeOpenAI(id, audio, dur, setProgress) {
     setProgress(Math.round(((k + 1) / files.length) * 99), `Transcrevendo (bloco ${k + 1}/${files.length})`);
   }
   await fsp.rm(dir, { recursive: true, force: true }); await fsp.rm(partialFile, { force: true });
-  return { language, duration: dur, model: cloud().model, segments };
+  return { language, duration: dur, model: C0.model, segments };
 }
 
 /**
@@ -423,8 +431,9 @@ async function pipeline(id) {
     if (!tools.ffmpeg) throw new Error('ffmpeg não encontrado (defina FFMPEG_PATH ou instale imageio-ffmpeg).');
     const dur = await mediaDuration(orig);
     if (!dur) { const pr = await run(tools.ffmpeg, ['-hide_banner', '-i', orig]); log('ffmpeg não leu', id, m.file, (pr.err || '').split('\n').filter(Boolean).slice(-4).join(' | ').slice(0, 600)); throw new Error('Não foi possível ler o áudio deste arquivo.' + (m.source === 'youtube' ? ' O download do YouTube pode ter vindo incompleto; tente de novo.' : '')); }
-    const wav = U(id, 'audio.wav');
-    if (!isCloud()) {
+    const wav = U(id, 'audio.wav'), P = cfg.provider; // a escolha do momento vale para o envio inteiro
+    await set({ transcriber: isCloud(P) ? cloud(P).name : 'Local' });
+    if (!isCloud(P)) {
       const x = await run(tools.ffmpeg, ['-y', '-i', orig, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', wav]);
       if (x.code !== 0) throw new Error('Não foi possível ler o áudio deste arquivo.');
     }
@@ -432,8 +441,8 @@ async function pipeline(id) {
     let last = 0;
     const setProgress = (pct, stage) => { const now = Date.now(); if (stage) set({ stage: stage === 'loading_model' ? 'Carregando modelo (1ª vez baixa o modelo)' : stage, progress: pct }); else { set({ stage: 'Transcrevendo', progress: pct }); } last = now; };
     let tr;
-    if (isCloud()) { if (!cloud().key) throw new Error(cfg.provider === 'groq' ? 'GROQ_API_KEY não configurada.' : 'OPENAI_API_KEY não configurada.'); tr = await transcribeOpenAI(id, orig, dur, setProgress); }
-    else { if (!tools.whisper) throw new Error('faster-whisper não instalado (pip install faster-whisper) ou use TRANSCRIBE_PROVIDER=openai.'); tr = await transcribeLocal(id, wav, setProgress); }
+    if (isCloud(P)) { if (!cloud(P).key) throw new Error(P === 'groq' ? 'GROQ_API_KEY não configurada.' : 'OPENAI_API_KEY não configurada.'); tr = await transcribeOpenAI(id, orig, dur, setProgress, P); }
+    else { if (!tools.whisper) throw new Error('faster-whisper não instalado (pip install faster-whisper). Troque para a nuvem na barra lateral.'); tr = await transcribeLocal(id, wav, setProgress); }
     if (!tr || !tr.segments) throw new Error('Transcrição vazia.');
     tr.segments = tr.segments.filter((s) => s.text).map((s, i) => ({ id: i, speaker: 'Pessoa 1', ...s }));
     await writeJson(U(id, 'transcript.json'), tr);
@@ -721,7 +730,16 @@ async function api(req, res, url, q) {
   if (a === 'logout' && method === 'POST') return send(res, 200, { ok: true }, { 'set-cookie': 'invb_sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' });
   if (method !== 'GET' && req.headers['x-invb'] !== '1') return send(res, 403, { error: 'Requisição inválida' });
 
-  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, voiceAI: !!tools.demucs, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, ai: !!AI, driveCuts: !!(cfg.googleClientId && cfg.driveCutsFolder), provider_name: isCloud() ? cloud().name : 'Local', aiName: AI ? AI.label : null, llm: !!AI, llmModel: AI ? AI.label : null, queue: queue.length + (busy ? 1 : 0), version: VERSION });
+  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, voiceAI: !!tools.demucs, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, ai: !!AI, driveCuts: !!(cfg.googleClientId && cfg.driveCutsFolder), provider_name: isCloud() ? cloud().name : 'Local', transcribers: transcribers(), aiName: AI ? AI.label : null, llm: !!AI, llmModel: AI ? AI.label : null, queue: queue.length + (busy ? 1 : 0), version: VERSION });
+
+  if (a === 'transcriber' && method === 'POST') {
+    const j = await body(req), t = transcribers().find((x) => x.id === j.provider);
+    if (!t) return send(res, 400, { error: 'Opção de transcrição desconhecida.' });
+    if (!t.ok) return send(res, 400, { error: t.why });
+    cfg.provider = t.id; await writeJson(settingsFile(), { ...(await readJson(settingsFile(), {})), transcriber: t.id });
+    log('transcrição agora:', t.name);
+    return send(res, 200, { ok: true, provider: t.id });
+  }
 
   if (a === 'uploads') {
     if (!b) {
@@ -1084,6 +1102,7 @@ server.requestTimeout = 0; server.headersTimeout = 60000;
   if (!loopback && !E.INVB_PASSWORD && !fs.existsSync(authFile())) { console.error('ERRO: o servidor está exposto na rede (HOST=' + cfg.host + '). Defina INVB_PASSWORD (senha forte) antes de iniciar.'); process.exit(1); }
   if (!loopback && E.INVB_PASSWORD && E.INVB_PASSWORD.length < 10) { console.error('ERRO: INVB_PASSWORD precisa ter ao menos 10 caracteres.'); process.exit(1); }
   await initAuth(); await detectTools();
+  { const saved = (await readJson(settingsFile(), {})).transcriber; if (['local', cloudId].includes(saved)) cfg.provider = saved; }
   // trabalhos interrompidos por reinício
   for (const m of await listMeta()) if (['processing', 'queued'].includes(m.status) && m.file) { await update(m.id, { status: 'error', stage: 'Erro', error: 'Interrompido por reinício do servidor. Use “Tentar de novo”: a transcrição retoma de onde parou.' }); }
   // Um novo download interrompido por reinício não deixa o envio preso em "baixando".
