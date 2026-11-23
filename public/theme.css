@@ -161,3 +161,35 @@ input:focus,textarea:focus,select:focus{border-color:var(--ring)!important;outli
 /* entrada suave do conteúdo ao trocar de tela */
 @media (prefers-reduced-motion:no-preference){.ap-card>*{animation:apin .22s var(--ease) both}}
 @keyframes apin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ---------- Ajustes finos de desenho ---------- */
+/* cartões de corte: brancos no claro (o bege pesava), um tom acima do fundo no noturno */
+.cut{background:var(--raised)}
+:root[data-theme="dark"] .cut{background:var(--surface-2)}
+.cut h4{font-size:15.5px;line-height:1.3;letter-spacing:-.01em}
+.cut .sc{row-gap:6px}
+/* transcrição: com um falante só, o nome repetido some; as linhas ganham um pouco de ar */
+.one-spk .seg .sp{display:none}
+.seg.ln{border-radius:10px}
+.seg.ln:hover{background:var(--hover)}
+.seg.ln.act{background:var(--soft)}
+.tcp{border-radius:99px}
+/* início: campo do link mais largo, botão na mesma altura */
+.ap-yt{padding:30px 28px}
+.ap-yt input{max-width:640px;height:48px;border-radius:12px;padding:0 16px}
+.ap-yt .ap-btn.lg{height:46px;border-radius:12px}
+.ap-tabs.full button{font-weight:600}
+/* cabeçalhos das telas */
+.ap-head{margin-bottom:20px}
+.ap-head .sub2,.ap-card>h1+.sub2{max-width:70ch}
+.ap-card h1{letter-spacing:-.025em}
+/* números do resumo e cartões "o que está pronto" */
+.stats{border-radius:16px;overflow:hidden}
+.rdy a .ib{border-radius:10px}
+/* links de texto */
+.ap-h2 a{color:var(--link);font-weight:600}
+.ap-h2 a:hover{text-decoration:underline}
+/* barra lateral: rótulos de seção mais leves e item ativo com transição */
+.ap-sec{padding-top:20px;opacity:.85}
+.ap-link{transition:background .15s,color .15s,box-shadow .15s}
+.ap-card>h1+.sub2{white-space:normal;overflow:visible;text-overflow:clip}
