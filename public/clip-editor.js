@@ -99,59 +99,27 @@
     const v = $('#dx-v', root), stage = $('#dx-stage', root), capEl = $('#dx-cap', root), ovsEl = $('#dx-ovs', root), guides = $('#dx-guides', root);
     if (isAud) { v.style.display = 'none'; stage.classList.add('aud'); stage.insertAdjacentHTML('afterbegin', '<div class="dlx-audio">🎧<small>Áudio</small></div>'); }
     v.src = `/api/uploads/${upload.id}/media`;
-    /* Sincronia do áudio na prévia: com ajuste, o vídeo fica mudo e o som do trecho toca pelo motor de áudio do navegador,
-       agendado no ponto exato (adiantado ou atrasado). Sem ajuste, nada disso entra em ação. */
-    const syncOn = () => !isAud && Math.abs(st.sync) >= 0.005;
-    const PAD = 2.5; // sobra de som antes e depois do corte, para caber o ajuste
-    const sa = { ctx: null, buf: null, key: '', loading: '', failed: '', src: null, vT: 0, cT: 0, rate: 1 };
-    const saKey = () => Math.max(0, st.start - PAD).toFixed(2) + '-' + (st.end + PAD).toFixed(2);
-    const saHint = (t) => { const h = $('#dx-syh', root); if (h) { h.textContent = t; h.hidden = !t; } };
-    const saStop = () => { if (sa.src) { try { sa.src.onended = null; sa.src.stop(); } catch { /* já parou */ } try { sa.src.disconnect(); } catch { /* ok */ } sa.src = null; } };
-    const saReady = () => !!sa.ctx && sa.ctx.state === 'running' && !!sa.buf && sa.key === saKey();
-    const saLoad = async () => {
-      const key = saKey(); if (sa.key === key && sa.buf) return; if (sa.loading === key || sa.failed === key) return;
-      if (st.end - st.start + 2 * PAD > 660) { sa.failed = key; return saHint('Corte longo demais para ouvir o ajuste na prévia. O ajuste vale no arquivo exportado.'); }
-      sa.loading = key; saHint('Carregando o som do corte para a prévia…');
+    /* Sincronia do áudio: a conferência é feita num trecho curto renderizado pelo servidor, do mesmo jeito que o arquivo final.
+       (Tocar o som deslocado ao vivo no navegador não é confiável: cada navegador e cada saída de som atrasam de um jeito.) */
+    let syTest = null; // janela do teste aberta
+    const closeSyTest = () => { if (!syTest) return; const vd = $('video', syTest); if (vd) { vd.pause(); if (vd.src) URL.revokeObjectURL(vd.src); } syTest.remove(); syTest = null; };
+    const runSyTest = async (btn) => {
+      const LEN = 8, at = Math.max(st.start, Math.min(Math.max(st.start, st.end - LEN), v.currentTime || st.start)), len = Math.min(LEN, st.end - at);
+      v.pause(); closeSyTest();
+      const old = btn.textContent; btn.disabled = true; btn.textContent = 'Preparando o teste…';
       try {
-        const bs = Math.max(0, st.start - PAD), r = await fetch(`/api/uploads/${upload.id}/audio?start=${bs}&end=${st.end + PAD}`, { headers: { 'x-invb': '1' } });
-        if (!r.ok) throw new Error('falha');
-        const raw = await r.arrayBuffer(), buf = await new Promise((ok, bad) => { const p = sa.ctx.decodeAudioData(raw, ok, bad); if (p && p.catch) p.catch(bad); });
-        if (key !== saKey()) return; // o corte mudou enquanto carregava
-        sa.buf = buf; sa.key = key; saHint(''); syncAudio(true);
-      } catch { sa.failed = key; saHint('Não consegui carregar o som para a prévia. O ajuste continua valendo no arquivo exportado.'); }
-      finally { if (sa.loading === key) sa.loading = ''; }
+        const r = await fetch(`/api/uploads/${upload.id}/synctest?at=${at.toFixed(2)}&len=${len.toFixed(2)}&shift=${st.sync}`, { headers: { 'x-invb': '1' } });
+        if (!r.ok) { let m = 'Não consegui preparar o teste.'; try { m = (await r.json()).error || m; } catch { /* sem detalhe */ } throw new Error(m); }
+        const url = URL.createObjectURL(await r.blob());
+        syTest = document.createElement('div'); syTest.className = 'dlx-syt';
+        syTest.innerHTML = `<div class="dlx-sytb" role="dialog" aria-label="Teste da sincronia"><h3>Teste da sincronia · ${syLabel(st.sync)}</h3><p>Trecho de ${Math.round(len)} s a partir de ${tm(at - st.start)}, igual ao que sai no arquivo. Olhe a boca e o som.</p><video controls autoplay loop playsinline></video><div class="dlx-syta"><button data-k="-0.05">Som 50 ms antes</button><button data-k="0.05">Som 50 ms depois</button><button data-k="x" class="pri">Fechar</button></div></div>`;
+        $('video', syTest).src = url; root.appendChild(syTest);
+        syTest.onclick = (e) => { if (e.target === syTest) closeSyTest(); };
+        $$('[data-k]', syTest).forEach((bt) => bt.onclick = () => { if (bt.dataset.k === 'x') return closeSyTest(); const sy = $('#dx-sy', root); st.sync = Math.max(-2, Math.min(2, Math.round((st.sync + +bt.dataset.k) * 100) / 100)); if (sy) sy.value = st.sync; const o = $('#dx-syv', root); if (o) o.textContent = syLabel(st.sync); commit(); const t = $('#dx-syt', root); if (t) runSyTest(t); });
+        $('video', syTest).play().catch(() => {});
+      } catch (e) { toast(e.message); }
+      btn.disabled = false; btn.textContent = old;
     };
-    // Chamado dentro de cliques e teclas: o navegador só liga o motor de áudio a partir de um gesto.
-    const unlockAudio = () => {
-      if (!syncOn()) return;
-      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return saHint('Este navegador não toca a prévia com ajuste. O ajuste vale no arquivo exportado.');
-      if (!sa.ctx) sa.ctx = new AC();
-      if (sa.ctx.state !== 'running') sa.ctx.resume().then(() => syncAudio(true)).catch(() => {});
-      saLoad();
-    };
-    const saStart = () => {
-      saStop(); if (!saReady() || v.paused || v.seeking) return;
-      const rate = v.playbackRate || 1, bs = Math.max(0, st.start - PAD), off = v.currentTime - st.sync - bs, src = sa.ctx.createBufferSource();
-      src.buffer = sa.buf; src.playbackRate.value = rate; src.connect(sa.ctx.destination);
-      const now = sa.ctx.currentTime;
-      if (off >= sa.buf.duration) return;
-      if (off >= 0) src.start(now, off); else src.start(now + -off / rate, 0);
-      sa.src = src; sa.vT = v.currentTime; sa.cT = now; sa.rate = rate;
-    };
-    const syncAudio = (force) => {
-      if (isAud) return;
-      if (!syncOn()) { saStop(); v.muted = false; return; }
-      if (sa.ctx && sa.key !== saKey()) { sa.buf = null; saStop(); saLoad(); }
-      v.muted = saReady(); // enquanto o som do ajuste não estiver pronto, o vídeo continua com o som normal em vez de ficar mudo
-      if (!saReady()) return;
-      if (v.paused || v.seeking) return saStop();
-      // A imagem saiu do lugar esperado (pulo, travada, mudança de velocidade)? Reagenda o som no ponto certo.
-      const expected = sa.vT + (sa.ctx.currentTime - sa.cT) * sa.rate;
-      if (force || !sa.src || sa.rate !== (v.playbackRate || 1) || Math.abs(v.currentTime - expected) > 0.09) saStart();
-    };
-    ['play', 'playing', 'pause', 'seeked', 'ratechange', 'waiting'].forEach((ev) => v.addEventListener(ev, () => syncAudio(ev !== 'waiting')));
-    ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend'].forEach((ev) => root.addEventListener(ev, unlockAudio, true));
-    v.addEventListener('timeupdate', () => syncAudio(false));
     const syLabel = (x) => { const ms = Math.round(x * 1000); return ms === 0 ? 'Sem ajuste' : (ms > 0 ? '+' : '−') + Math.abs(ms) + ' ms'; };
 
     /* ----- palavras ----- */
@@ -290,9 +258,9 @@
         <div class="dlx-row" style="margin-bottom:8px"><div><b><label for="dx-sp">Velocidade</label></b><small>Acelera ou desacelera o corte sem mudar o tom da voz. A prévia acompanha.</small><small id="dx-spd" class="dlx-spd">${durTxt()}</small></div><output id="dx-spv" for="dx-sp" class="dlx-spv">${spLabel(st.speed)}</output></div>
         <input type="range" id="dx-sp" class="dlx-sp" min="0.25" max="2" step="0.05" value="${st.speed}">
         <div class="dlx-spb">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((x) => `<button data-sp="${x}" aria-pressed="${st.speed === x}">${spLabel(x)}</button>`).join('')}</div>
-        ${isAud ? '' : `<div class="dlx-row" style="margin-bottom:8px"><div><b><label for="dx-sy">Sincronia do áudio</label></b><small>Se o som chega depois da boca, puxe para a esquerda (adianta o áudio). Se chega antes, puxe para a direita (atrasa). A prévia acompanha.</small><small id="dx-syh" class="dlx-spd" hidden></small></div><output id="dx-syv" for="dx-sy" class="dlx-spv">${syLabel(st.sync)}</output></div>
+        ${isAud ? '' : `<div class="dlx-row" style="margin-bottom:8px"><div><b><label for="dx-sy">Sincronia do áudio</label></b><small>Se o som chega depois da boca, puxe para a esquerda (adianta o áudio). Se chega antes, puxe para a direita (atrasa). A prévia ao lado não muda: use o botão Testar para ver como fica.</small></div><output id="dx-syv" for="dx-sy" class="dlx-spv">${syLabel(st.sync)}</output></div>
         <input type="range" id="dx-sy" class="dlx-sp" min="-2" max="2" step="0.01" value="${st.sync}">
-        <div class="dlx-spb">${[[-0.1, '−100'], [-0.01, '−10'], [0, 'Zerar'], [0.01, '+10'], [0.1, '+100']].map((x) => `<button style="min-width:36px" title="${x[0] ? x[1] + ' milissegundos' : 'Voltar ao áudio original'}" data-sy="${x[0]}">${x[1]}</button>`).join('')}</div>`}
+        <div class="dlx-spb">${[[-0.1, '−100'], [-0.01, '−10'], [0, 'Zerar'], [0.01, '+10'], [0.1, '+100']].map((x) => `<button style="min-width:36px" title="${x[0] ? x[1] + ' milissegundos' : 'Voltar ao áudio original'}" data-sy="${x[0]}">${x[1]}</button>`).join('')}</div><button class="dlx-sytgo" id="dx-syt">▶ Testar o ajuste (8 s)</button>`}
         <hr><h4>Remover trecho</h4><p class="dlx-hint" style="margin-bottom:10px">Pare o vídeo onde o trecho começa e marque o início. Depois pare onde ele termina e marque o fim. O trecho sai do corte e a prévia passa a pulá-lo.</p>
         <div class="dlx-spb" style="margin-bottom:10px"><button id="dx-ca" aria-pressed="${st.cutA !== null}">${st.cutA === null ? 'Marcar início' : 'Início: ' + tmx(st.cutA - st.start)}</button><button id="dx-cb" ${st.cutA === null ? 'disabled' : ''}>Marcar fim e remover</button></div>
         <p class="dlx-hint" style="margin-bottom:8px">Ou digite o momento exato, contado do começo do corte (ex.: <code>0:12,5</code>):</p>
@@ -327,7 +295,8 @@
       $$('[data-cx]', L).forEach((bt) => bt.onclick = () => { const i = st.removed.findIndex((r) => r[2] && String(r[0]) === bt.dataset.cx); if (i >= 0) { st.removed.splice(i, 1); wordsDirty = true; commit(); paintCap(); drawLeft(); tickUI(); } });
       // Velocidade: de 0,25x a 2x, em passos de 0,05. A prévia toca na mesma velocidade (o navegador mantém o tom da voz).
       const sp = $('#dx-sp', L), setSp = (x, redraw) => { st.speed = Math.max(0.25, Math.min(2, Math.round(x * 100) / 100)); v.playbackRate = st.speed; $('#dx-spv', L).textContent = spLabel(st.speed); $('#dx-spd', L).textContent = durTxt(); tickUI(); refreshBar(); if (redraw) { commit(); drawLeft(); } };
-      const sy = $('#dx-sy', L), setSy = (x, save) => { st.sync = Math.max(-2, Math.min(2, Math.round(x * 100) / 100)); sy.value = st.sync; $('#dx-syv', L).textContent = syLabel(st.sync); if (!syncOn()) saHint(''); unlockAudio(); syncAudio(true); if (save) commit(); };
+      const sy = $('#dx-sy', L), setSy = (x, save) => { st.sync = Math.max(-2, Math.min(2, Math.round(x * 100) / 100)); sy.value = st.sync; $('#dx-syv', L).textContent = syLabel(st.sync); if (save) commit(); };
+      const syt = $('#dx-syt', L); if (syt) syt.onclick = () => runSyTest(syt);
       if (sy) { sy.oninput = () => setSy(+sy.value, false); sy.onchange = () => setSy(+sy.value, true); $$('[data-sy]', L).forEach((b) => b.onclick = () => setSy(+b.dataset.sy === 0 ? 0 : st.sync + +b.dataset.sy, true)); }
       if (sp) { sp.oninput = () => setSp(+sp.value, false); sp.onchange = () => setSp(+sp.value, true); $$('[data-sp]', L).forEach((b) => b.onclick = () => setSp(+b.dataset.sp, true)); v.playbackRate = st.speed; }
     }
@@ -563,7 +532,7 @@
       $$('button', m).forEach((b) => b.onclick = () => { m.remove(); const a = b.dataset.a; if (a === 'v') render(false); else if (a === 'd') ctx.drive.token().then(() => render(false, { drive: true })).catch((e) => toast(e.message)); else if (a === 'a') render(true); else if (a === 's') dl(base + '.srt', srt()); else dl(base + '.txt', excerpt()); });
       setTimeout(() => document.addEventListener('click', function h(ev) { if (!m.contains(ev.target)) { m.remove(); document.removeEventListener('click', h); } }), 0);
     };
-    const close = () => { v.pause(); saStop(); if (sa.ctx) { try { sa.ctx.close(); } catch { /* ok */ } } clearInterval(st.animT); root.remove(); document.body.style.overflow = ''; window.removeEventListener('resize', layoutStage); document.removeEventListener('keydown', onKey); $$('.menu').forEach((m) => m.remove()); };
+    const close = () => { v.pause(); closeSyTest(); clearInterval(st.animT); root.remove(); document.body.style.overflow = ''; window.removeEventListener('resize', layoutStage); document.removeEventListener('keydown', onKey); $$('.menu').forEach((m) => m.remove()); };
     const tryClose = () => { if (dirty() && !window.confirm('Há mudanças que não foram salvas neste corte. Fechar mesmo assim?')) return; close(); };
     const onKey = (e) => {
       if (e.target.closest && e.target.closest('input,textarea,select')) return;

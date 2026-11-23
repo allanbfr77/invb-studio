@@ -793,7 +793,7 @@ async function api(req, res, url, q) {
       if (method === 'DELETE') { await fsp.rm(U(b), { recursive: true, force: true }); return send(res, 200, { ok: true }); }
     }
     if (c === 'thumb' && method === 'GET') { const f = await ensureThumb(m); return f ? serveFile(req, res, f, 'image/jpeg') : send(res, 404, { error: 'Sem capa' }); }
-    if ((c === 'media' || c === 'audio') && method === 'GET' && (m.refetching || isGone(m))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
+    if ((c === 'media' || c === 'synctest') && method === 'GET' && (m.refetching || isGone(m))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
     if (c === 'media' && method === 'GET') touchUsed(b);
     if (c === 'free' && method === 'POST') { // apaga o original agora; o link continua salvo
       if (!canRefetch(m)) return send(res, 400, { error: 'Este arquivo foi enviado do computador. Como não há link para baixar de novo, ele não é apagado.' });
@@ -824,18 +824,19 @@ async function api(req, res, url, q) {
       (async () => { try { await ok(file, await saveDriveStream(b, file, dlr)); } catch (e) { await fsp.rm(U(b, file), { force: true }); await fail('Falha ao baixar do Google Drive: ' + e.message); } })();
       return;
     }
-    // Som de um trecho, em WAV: a prévia do editor usa para tocar o áudio adiantado ou atrasado em relação à imagem.
-    if (c === 'audio' && method === 'GET') {
-      const a = Math.max(0, +q.get('start') || 0), e = +q.get('end');
-      if (!(e > a) || e - a > 660) return send(res, 400, { error: 'Trecho inválido ou longo demais para a prévia do som.' });
+    // Teste da sincronia: um trecho curto renderizado como o arquivo final (mesma leitura do vídeo e do som), em baixa resolução.
+    if (c === 'synctest' && method === 'GET') {
+      const at = Math.max(0, +q.get('at') || 0), len = clamp(+q.get('len') || 8, 1, 15), shift = cleanShift(q.get('shift'));
       if (!tools.ffmpeg) return send(res, 501, { error: 'O ffmpeg não está instalado.' });
+      if (m.kind === 'aud') return send(res, 400, { error: 'Este arquivo é só áudio.' });
       touchUsed(b); await fsp.mkdir(U(b, 'clips'), { recursive: true });
-      const tmpName = `.som-${crypto.randomBytes(6).toString('hex')}.wav`, tmpFile = U(b, 'clips', tmpName);
+      const orig = U(b, m.file), tmpFile = U(b, 'clips', `.teste-${crypto.randomBytes(6).toString('hex')}.mp4`), aStart = Math.max(0, at - shift);
       try {
-        const r = await run(tools.ffmpeg, ['-y', '-v', 'error', '-ss', String(a), '-t', String(e - a), '-i', U(b, m.file), '-vn', '-ac', '1', '-ar', '32000', '-c:a', 'pcm_s16le', tmpFile]);
-        if (r.code !== 0) return send(res, 502, { error: 'Não consegui ler o som deste trecho.' });
+        const ins = ['-y', '-v', 'error', '-ss', String(at), '-t', String(len), '-i', orig, ...(aStart !== at ? ['-ss', String(aStart), '-t', String(len), '-i', orig] : [])];
+        const r = await run(tools.ffmpeg, [...ins, '-filter_complex', "[0:v]scale=-2:'min(480,ih)'[v]", '-map', '[v]', '-map', aStart !== at ? '1:a' : '0:a?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '26', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', tmpFile]);
+        if (r.code !== 0) return send(res, 502, { error: 'Não consegui preparar o teste da sincronia.' });
         const buf = await fsp.readFile(tmpFile);
-        res.writeHead(200, { 'content-type': 'audio/wav', 'content-length': buf.length, 'cache-control': 'no-store' }); return res.end(buf);
+        res.writeHead(200, { 'content-type': 'video/mp4', 'content-length': buf.length, 'cache-control': 'no-store' }); return res.end(buf);
       } finally { await fsp.rm(tmpFile, { force: true }).catch(() => {}); }
     }
     if (c === 'media' && method === 'GET') { const f = q.get('orig') ? m.file : playable(m); return serveFile(req, res, U(b, f), mime[path.extname(f)] || 'application/octet-stream', q.get('orig') ? m.name : undefined); }
