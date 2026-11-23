@@ -42,7 +42,7 @@ const cfg = {
   ytdlp: E.YTDLP_PATH || '',
   whisperModel: E.WHISPER_MODEL || 'small',
   whisperDevice: E.WHISPER_DEVICE || 'cpu',
-  language: E.TRANSCRIBE_LANGUAGE || 'auto',
+  language: E.TRANSCRIBE_LANGUAGE || 'pt', // português por padrão; TRANSCRIBE_LANGUAGE=auto deixa o serviço adivinhar o idioma
   provider: (E.TRANSCRIBE_PROVIDER || (E.GROQ_API_KEY ? 'groq' : 'openai')).toLowerCase(),
   openaiKey: E.OPENAI_API_KEY || '',
   // Qual IA usar quando houver as duas chaves: 'claude' (padrão) ou 'openai'. 'off' desliga a IA neste computador.
