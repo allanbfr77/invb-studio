@@ -174,3 +174,30 @@ test('as instruções pedem pregação forte sobre a Palavra e proíbem oração
   assert.match(s, /louvor|música/i);
   assert.match(s, /avisos|anúncios/i);
 });
+
+/* ---------- ajustes de um corte ---------- */
+const { altTitles, shortenCut } = require('../lib/claude');
+
+test('outros títulos: três no máximo, sem repetir o atual nem duplicar', async () => {
+  const r = await altTitles({ ask: async () => ({ titles: ['O amor de Deus', '"Deus amou o mundo"', 'deus amou o mundo', 'Você já recebeu esse amor?', 'Quarto título'] }), name: 'x', text: 'Porque Deus amou o mundo', current: 'O amor de Deus' });
+  assert.deepEqual(r, ['Deus amou o mundo', 'Você já recebeu esse amor?', 'Quarto título']);
+});
+
+test('outros títulos: sem texto no trecho, nem chama a IA', async () => {
+  let called = false;
+  await assert.rejects(() => altTitles({ ask: async () => { called = true; return {}; }, name: 'x', text: '  ', current: 'a' }), (e) => e.status === 409);
+  assert.equal(called, false);
+});
+
+test('mais curto: o novo trecho fica dentro do corte e manda só as linhas dele', async () => {
+  let sent = '';
+  const r = await shortenCut({ ask: async ({ user }) => { sent = user; return { start_seconds: 50, end_seconds: 90, reason: 'Fica a ideia central.' }; }, name: 'x', lines, start: 60, end: 120 });
+  assert.deepEqual(r, { start: 60, end: 90, reason: 'Fica a ideia central.' }); // o início pedido (50) é puxado para dentro do corte
+  assert.match(sent, /\[01:00\] Porque Deus amou/);
+  assert.doesNotMatch(sent, /Bom dia, igreja|Amém/);
+});
+
+test('mais curto: resposta que não encurta de verdade vira erro e o corte fica como estava', async () => {
+  await assert.rejects(() => shortenCut({ ask: async () => ({ start_seconds: 60, end_seconds: 119, reason: '' }), name: 'x', lines, start: 60, end: 120 }), (e) => e.status === 502 && /mais curta/.test(e.message));
+  await assert.rejects(() => shortenCut({ ask: async () => ({}), name: 'x', lines: [{ start: 60, end: 64, text: 'a' }], start: 60, end: 70 }), (e) => e.status === 409);
+});

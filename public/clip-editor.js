@@ -92,6 +92,8 @@
           <div class="dlx-tools" id="dx-tools"></div>
           <div class="dlx-stage" id="dx-stage"><video id="dx-v" playsinline preload="metadata"></video><div class="dlx-cap" id="dx-cap"></div><div class="dlx-ovs" id="dx-ovs"></div><div class="dlx-guides" id="dx-guides"></div><button class="dlx-play" id="dx-play" aria-label="Reproduzir"><svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M7 4l13 8-13 8z"/></svg></button></div>
           <div class="dlx-prog"><span id="dx-t0">0:00</span><input type="range" id="dx-seek" min="0" max="1" step="0.05" value="0" aria-label="Posição"><span id="dx-t1"></span></div>
+          <div class="dlx-trim" id="dx-trim" aria-label="Começo e fim do corte"><canvas id="dx-wave"></canvas><div class="dlx-trsel" id="dx-trsel"><i class="h l" data-h="s" role="slider" tabindex="0" aria-label="Começo do corte"></i><i class="h r" data-h="e" role="slider" tabindex="0" aria-label="Fim do corte"></i></div><div class="dlx-trph" id="dx-trph"></div></div>
+          <div class="dlx-triml"><span id="dx-trl"></span><span class="mid">Arraste as pontas para ajustar o começo e o fim. As setas do teclado movem 0,1 s.</span><span id="dx-trr"></span></div>
           <p class="dlx-note" id="dx-note"></p></main>
         <section class="dlx-drawer" id="dx-drawer" hidden></section>
         <nav class="dlx-rail" aria-label="Ferramentas">${RAIL.map((r) => `<button data-p="${r[0]}" ${r[2] ? '' : 'disabled title="Indisponível, como no original"'}>${ICON(r[3])}<span>${r[1]}</span></button>`).join('')}</nav></div>`;
@@ -142,7 +144,7 @@
     /* ----- prévia ----- */
     const ratio = () => { const f = fmtObj(); return f[2] ? f[2] / f[3] : (v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 16 / 9); };
     const layoutStage = () => {
-      if (isAud) return; const r = ratio(), drawerW = st.panel ? 372 : 0, H = Math.min(window.innerHeight - 270, 560), W = Math.min(H * r, window.innerWidth - 283 - 83 - drawerW - 60);
+      if (isAud) return; const r = ratio(), drawerW = st.panel ? 372 : 0, H = Math.min(window.innerHeight - 350, 560), W = Math.min(H * r, window.innerWidth - 283 - 83 - drawerW - 60);
       stage.style.width = Math.max(160, W) + 'px'; stage.style.height = Math.max(100, W / r) + 'px'; v.style.filter = st.bw ? 'grayscale(1)' : ''; paintCap(); renderOverlays();
     };
     const relT = () => Math.max(0, (v.currentTime || 0) - st.start);
@@ -166,7 +168,48 @@
     }
     const goStart = () => { v.currentTime = st.start; };
     v.addEventListener('loadedmetadata', () => { goStart(); layoutStage(); });
-    const tickUI = () => { const t = relT(); $('#dx-seek', root).max = D().toFixed(2); $('#dx-seek', root).value = t; $('#dx-t0', root).textContent = tm(Math.max(0, t - removedIn(st.start, st.start + t)) / (st.speed || 1)); $('#dx-t1', root).textContent = tm(outD()); };
+
+    /* ----- linha do tempo: forma de onda do trecho, com sobra dos dois lados, e pontas para ajustar o começo e o fim ----- */
+    const TPAD = 15; // segundos de sobra antes e depois do corte
+    const trim = { a: 0, b: 1, peaks: null, key: '', drag: null };
+    const trimX = (t) => clamp(((t - trim.a) / Math.max(0.01, trim.b - trim.a)) * 100, 0, 100);
+    function trimHead() { const ph = $('#dx-trph', root); if (ph) ph.style.left = trimX(v.currentTime || st.start) + '%'; }
+    function drawTrim() {
+      const sel = $('#dx-trsel', root), cv = $('#dx-wave', root); if (!sel || !cv) return;
+      sel.style.left = trimX(st.start) + '%'; sel.style.width = Math.max(0, trimX(st.end) - trimX(st.start)) + '%';
+      $('#dx-trl', root).textContent = 'Começo ' + tmAbs(st.start); $('#dx-trr', root).textContent = 'Fim ' + tmAbs(st.end);
+      const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight; if (!W || !H) return;
+      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, W, H);
+      const css = getComputedStyle(root), inC = css.getPropertyValue('--primary').trim() || '#3d63ff', outC = css.getPropertyValue('--border-strong').trim() || '#666';
+      const pk = trim.peaks; if (!pk) return; const bw = W / pk.length, x0 = (trimX(st.start) / 100) * W, x1 = (trimX(st.end) / 100) * W;
+      for (let i = 0; i < pk.length; i++) { const x = i * bw, h = Math.max(2, pk[i] * (H - 6)); g.fillStyle = x + bw / 2 >= x0 && x + bw / 2 <= x1 ? inC : outC; g.fillRect(x, (H - h) / 2, Math.max(1, bw - 1), h); }
+      trimHead();
+    }
+    // horas:minutos:segundos com décimo, no tempo da pregação inteira (é o que a equipe anota na minutagem)
+    const tmAbs = (s) => { s = Math.max(0, Math.round(s * 10) / 10); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s - h * 3600 - m * 60; return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + (x < 10 ? '0' : '') + x.toFixed(1).replace('.', ','); };
+    async function loadTrim() {
+      if (trim.drag) return drawTrim();
+      trim.a = Math.max(0, st.start - TPAD); trim.b = Math.min(dur, st.end + TPAD);
+      const key = trim.a.toFixed(1) + '-' + trim.b.toFixed(1); if (key === trim.key) return drawTrim();
+      trim.key = key; trim.peaks = null; drawTrim();
+      try { const r = await api(`/uploads/${upload.id}/peaks?start=${trim.a.toFixed(2)}&end=${trim.b.toFixed(2)}&n=300`); if (trim.key === key) { trim.peaks = r.peaks; drawTrim(); } } catch { /* sem a onda, as pontas continuam funcionando */ }
+    }
+    const trimSet = (h, t) => { if (h === 's') st.start = +clamp(t, 0, st.end - 1).toFixed(2); else st.end = +clamp(t, st.start + 1, dur).toFixed(2); v.currentTime = h === 's' ? st.start : st.end; drawTrim(); const t0 = $('#dx-t1', root); if (t0) t0.textContent = tm(outD()); };
+    const trimDone = (h) => { trim.drag = null; wordsDirty = true; commit(); reloadAll(); if (h === 'e') v.currentTime = Math.max(st.start, st.end - 2); }; // depois de mexer no fim, volta 2 s para ouvir como termina
+    {
+      const box = $('#dx-trim', root), at = (e) => { const r = box.getBoundingClientRect(); return trim.a + clamp((e.clientX - r.left) / Math.max(1, r.width), 0, 1) * (trim.b - trim.a); };
+      $$('.h', box).forEach((hd) => {
+        const h = hd.dataset.h;
+        hd.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); v.pause(); trim.drag = h; hd.setPointerCapture(e.pointerId); });
+        hd.addEventListener('pointermove', (e) => { if (trim.drag === h) trimSet(h, at(e)); });
+        const end = () => { if (trim.drag === h) trimDone(h); };
+        hd.addEventListener('pointerup', end); hd.addEventListener('pointercancel', end);
+        hd.addEventListener('keydown', (e) => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; e.preventDefault(); e.stopPropagation(); v.pause(); trimSet(h, (h === 's' ? st.start : st.end) + (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 1 : 0.1)); clearTimeout(trim.kt); trim.kt = setTimeout(() => trimDone(h), 600); });
+      });
+      box.addEventListener('pointerdown', (e) => { if (e.target.closest('.h')) return; const t = at(e); if (t >= st.start && t <= st.end) v.currentTime = t; });
+      window.addEventListener('resize', drawTrim);
+    }
+    const tickUI = () => { trimHead(); const t = relT(); $('#dx-seek', root).max = D().toFixed(2); $('#dx-seek', root).value = t; $('#dx-t0', root).textContent = tm(Math.max(0, t - removedIn(st.start, st.start + t)) / (st.speed || 1)); $('#dx-t1', root).textContent = tm(outD()); };
     v.addEventListener('timeupdate', () => {
       if (v.currentTime >= st.end - 0.05 && !v.paused) { v.pause(); goStart(); }
       if (v.currentTime < st.start - 0.3) goStart();
@@ -507,7 +550,7 @@
     $$('.dlx-rail button', root).forEach((b) => b.onclick = () => { if (b.disabled) return; clearInterval(st.animT); st.panel = st.panel === b.dataset.p ? null : b.dataset.p; drawDrawer(); layoutStage(); });
     $('#dx-media', root).onclick = () => { st.panel = 'midia'; drawDrawer(); layoutStage(); };
     $('#dx-chip', root).onclick = () => { if (isAud) return; st.cap.on = !st.cap.on; commit(); refreshBar(); paintCap(); if (st.panel === 'legendas') drawDrawer(); };
-    function reloadAll() { drawLeft(); drawDrawer(); renderOverlays(); goStart(); layoutStage(); tickUI(); refreshBar(); }
+    function reloadAll() { drawLeft(); drawDrawer(); renderOverlays(); goStart(); layoutStage(); tickUI(); refreshBar(); loadTrim(); }
 
     /* ----- baixar ----- */
     const base = (st.title || clip.title || 'corte').replace(/[^\p{L}\p{N} _-]/gu, '').slice(0, 60) || 'corte';
@@ -542,7 +585,7 @@
       $$('button', m).forEach((b) => b.onclick = () => { m.remove(); const a = b.dataset.a; if (a === 'v') render(false); else if (a === 'd') ctx.drive.token().then(() => render(false, { drive: true })).catch((e) => toast(e.message)); else if (a === 'a') render(true); else if (a === 's') dl(base + '.srt', srt()); else dl(base + '.txt', excerpt()); });
       setTimeout(() => document.addEventListener('click', function h(ev) { if (!m.contains(ev.target)) { m.remove(); document.removeEventListener('click', h); } }), 0);
     };
-    const close = () => { v.pause(); closeSyTest(); clearInterval(st.animT); root.remove(); document.body.style.overflow = ''; window.removeEventListener('resize', layoutStage); document.removeEventListener('keydown', onKey); $$('.menu').forEach((m) => m.remove()); };
+    const close = () => { v.pause(); closeSyTest(); clearInterval(st.animT); root.remove(); document.body.style.overflow = ''; window.removeEventListener('resize', layoutStage); document.removeEventListener('keydown', onKey); window.removeEventListener('resize', drawTrim); $$('.menu').forEach((m) => m.remove()); };
     const tryClose = () => { if (dirty() && !window.confirm('Há mudanças que não foram salvas neste corte. Fechar mesmo assim?')) return; close(); };
     const onKey = (e) => {
       if (e.target.closest && e.target.closest('input,textarea,select')) return;
@@ -555,6 +598,7 @@
       else if (o && e.key === 'Delete') delOverlay(o.id);
       else if (o && e.key.startsWith('Arrow')) { e.preventDefault(); if (e.key === 'ArrowLeft') o.x = clamp(o.x - step, 0, 1); if (e.key === 'ArrowRight') o.x = clamp(o.x + step, 0, 1); if (e.key === 'ArrowUp') o.y = clamp(o.y - step, 0, 1); if (e.key === 'ArrowDown') o.y = clamp(o.y + step, 0, 1); renderOverlays(); clearTimeout(st.nudge); st.nudge = setTimeout(commit, 400); }
     };
+    loadTrim();
     document.addEventListener('keydown', onKey); $('#dx-close', root).onclick = tryClose; $('#dx-save', root).onclick = () => saveEdit(false);
     $('#dx-note', root).textContent = isAud ? 'O arquivo final é gerado com ffmpeg no servidor.' : 'Prévia aproximada (recorte central, fontes do navegador). O arquivo final é gerado com ffmpeg no servidor.';
     drawLeft(); drawDrawer(); refreshBar(); layoutStage(); tickUI();

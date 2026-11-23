@@ -11,7 +11,7 @@ const { parseDriveLink, openDrive, ensureFolder, uploadFile } = require('./lib/d
 const { splitLines } = require('./lib/lines');
 const { parseCutList, buildPrompt } = require('./lib/cutlist');
 const { staleOriginals, canRefetch } = require('./lib/cleanup');
-const { suggestCuts, toAutoClips, describeCut } = require('./lib/claude');
+const { suggestCuts, toAutoClips, describeCut, altTitles, shortenCut } = require('./lib/claude');
 const { pickProvider } = require('./lib/ai');
 const { ytProgress, ytInfo, ytId } = require('./lib/ytprogress');
 const { needsPreview } = require('./lib/preview');
@@ -793,7 +793,7 @@ async function api(req, res, url, q) {
       if (method === 'DELETE') { await fsp.rm(U(b), { recursive: true, force: true }); return send(res, 200, { ok: true }); }
     }
     if (c === 'thumb' && method === 'GET') { const f = await ensureThumb(m); return f ? serveFile(req, res, f, 'image/jpeg') : send(res, 404, { error: 'Sem capa' }); }
-    if ((c === 'media' || c === 'synctest') && method === 'GET' && (m.refetching || isGone(m))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
+    if ((c === 'media' || c === 'synctest' || c === 'peaks') && method === 'GET' && (m.refetching || isGone(m))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
     if (c === 'media' && method === 'GET') touchUsed(b);
     if (c === 'free' && method === 'POST') { // apaga o original agora; o link continua salvo
       if (!canRefetch(m)) return send(res, 400, { error: 'Este arquivo foi enviado do computador. Como não há link para baixar de novo, ele não é apagado.' });
@@ -824,6 +824,21 @@ async function api(req, res, url, q) {
       (async () => { try { await ok(file, await saveDriveStream(b, file, dlr)); } catch (e) { await fsp.rm(U(b, file), { force: true }); await fail('Falha ao baixar do Google Drive: ' + e.message); } })();
       return;
     }
+    // Forma de onda de um trecho (o volume do som ao longo do tempo), para a linha do tempo do editor.
+    if (c === 'peaks' && method === 'GET') {
+      const a = Math.max(0, +q.get('start') || 0), e = +q.get('end'), n = clamp(Math.round(+q.get('n') || 300), 50, 1200);
+      if (!(e > a) || e - a > 1800) return send(res, 400, { error: 'Trecho inválido.' });
+      if (!tools.ffmpeg) return send(res, 501, { error: 'O ffmpeg não está instalado.' });
+      const chunks = []; const pr = spawn(tools.ffmpeg, ['-v', 'error', '-ss', String(a), '-t', String(e - a), '-i', U(b, m.file), '-vn', '-ac', '1', '-ar', '4000', '-f', 's16le', 'pipe:1'], { windowsHide: true });
+      pr.stdout.on('data', (dt) => chunks.push(dt)); pr.stderr.on('data', () => {});
+      const code = await new Promise((r) => { pr.on('close', r); pr.on('error', () => r(1)); });
+      const buf = Buffer.concat(chunks), total = Math.floor(buf.length / 2);
+      if (code !== 0 || !total) return send(res, 502, { error: 'Não consegui ler o som deste trecho.' });
+      const peaks = new Array(n).fill(0);
+      for (let i = 0; i < total; i++) { const v = Math.abs(buf.readInt16LE(i * 2)), k = Math.min(n - 1, Math.floor((i / total) * n)); if (v > peaks[k]) peaks[k] = v; }
+      const mx = Math.max(1, ...peaks);
+      return send(res, 200, { start: a, end: e, peaks: peaks.map((p) => +(p / mx).toFixed(3)) });
+    }
     // Teste da sincronia: um trecho curto renderizado como o arquivo final (mesma leitura do vídeo e do som), em baixa resolução.
     if (c === 'synctest' && method === 'GET') {
       const at = Math.max(0, +q.get('at') || 0), len = clamp(+q.get('len') || 8, 1, 15), shift = cleanShift(q.get('shift'));
@@ -849,6 +864,20 @@ async function api(req, res, url, q) {
     if (c === 'segments' && d && method === 'PATCH') { // editar texto de uma fala
       const j = await body(req); const tr = await readJson(U(b, 'transcript.json'), null); const s = tr && tr.segments[+d]; if (!s) return send(res, 404, { error: 'Fala não encontrada' });
       if (typeof j.text === 'string') s.text = j.text.slice(0, 5000); if (typeof j.speaker === 'string') s.speaker = j.speaker.slice(0, 60); await writeJson(U(b, 'transcript.json'), tr); return send(res, 200, { ok: true });
+    }
+    if (c === 'clips' && d && parts[4] === 'ai' && parts[5] === 'refine' && method === 'POST') { // outros títulos ou uma versão mais curta do corte, pela IA
+      if (!AI) return send(res, 501, { error: 'Os recursos de IA não estão ativos neste computador.' });
+      const j = await body(req), cl = (await readJson(U(b, 'clips.json'), [])).find((x) => x.id === d); if (!cl) return send(res, 404, { error: 'Corte não encontrado' });
+      const tr = await readJson(U(b, 'transcript.json'), null); if (!tr) return send(res, 409, { error: 'Sem transcrição.' });
+      if (aiBusy.has(b + ':' + d)) return send(res, 409, { error: 'A IA já está trabalhando neste corte.' });
+      const lines = splitLines(tr.segments), name = m.name.replace(/\.[^.]+$/, '');
+      aiBusy.add(b + ':' + d);
+      try {
+        if (j.mode === 'titles') return send(res, 200, { titles: await altTitles({ ask: AI.ask, name, text: lines.filter((l) => l.end > cl.start && l.start < cl.end).map((l) => l.text).join(' '), current: cl.title }) });
+        if (j.mode === 'shorter') return send(res, 200, await shortenCut({ ask: AI.ask, name, lines, start: cl.start, end: cl.end }));
+        return send(res, 400, { error: 'Pedido inválido.' });
+      } catch (e) { log('erro no ajuste do corte pela IA', b, d, e.message); return send(res, e.status === 401 ? 502 : e.status || 502, { error: e.message }); }
+      finally { aiBusy.delete(b + ':' + d); }
     }
     if (c === 'clips' && d && parts[4] === 'ai' && parts[5] === 'post' && method === 'POST') { // título, descrição e hashtags do corte, pelo Claude
       if (!AI) return send(res, 501, { error: 'Os recursos de IA não estão ativos neste computador.' });

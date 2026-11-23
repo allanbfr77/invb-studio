@@ -26,6 +26,9 @@ Cada culto tem um responsável, que faz sozinho da transcrição aos cortes.
    de uma vez. Linhas que não deram certo voltam com o motivo, para corrigir.
    - Também dá para criar um corte por vez em **+ Novo corte**, ou na Transcrição com
      **Selecionar** → marque as linhas → **Criar corte da seleção**.
+   - Ou marque ouvindo: com a pregação tocando, a tecla **I** marca o início e **O** marca o fim; o corte aparece em Manuais.
+   - **Ajustar**, em cada corte, aumenta ou tira uma frase do começo ou do fim. Com IA, também sugere uma versão mais curta e outros títulos.
+   - No editor (**Editar**), arraste as pontas da linha do tempo para acertar o começo e o fim. Cortes que repetem o mesmo trecho ganham um aviso.
 5. Em cada corte, clique em **Baixar corte**, confira o trecho e exporte. A legenda vem desligada,
    porque a edição é feita no CapCut; dá para ligar no editor.
 6. Com o corte exportado, clique em **Enviar ao Drive**. Ele vai para uma subpasta com o nome
