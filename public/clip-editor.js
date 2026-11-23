@@ -45,6 +45,9 @@
       panel: null, tab: 'estilos', cat: 'Todos', q: '', styleChosen: false, tplCat: 'Todos', tq: '', lib: null, templates: null,
       tools: { snap: true, xray: false, axes: false, ruler: false }, busy: false, hist: [], fut: [], anim: true, trMode: 'cut', trLarge: false, tick: 0, cutA: null,
     };
+    // Edição salva antes neste corte: o editor reabre do jeito que ficou.
+    const SAVED = ['format', 'bw', 'hq', 'voice', 'speed', 'sync', 'cap', 'start', 'end', 'removed', 'edits', 'lang', 'overlays', 'title'];
+    if (clip.editor && typeof clip.editor === 'object') { for (const k of SAVED) if (clip.editor[k] !== undefined && clip.editor[k] !== null) st[k] = JSON.parse(JSON.stringify(clip.editor[k])); st.cap = { ...{ on: false, style: 'Clássicos/Clássica', size: 16, pos: 'bottom', upper: null, pop: null, font: null, ow: null, shadow: null }, ...st.cap }; if (!(st.end > st.start)) { st.start = clip.start; st.end = clip.end; } if (clip.editor.cap && clip.editor.cap.style) st.styleChosen = true; st.title = clip.title || st.title; }
     const segs = ctx.segs || [];
     let words = [];
     const style = () => CSx.byName(st.cap.style);
@@ -64,6 +67,14 @@
     const restore = (j) => { Object.assign(st, JSON.parse(j)); wordsDirty = true; reloadAll(); };
     const commit = () => { st.hist.push(snap()); if (st.hist.length > 80) st.hist.shift(); st.fut = []; refreshBar(); };
     st.hist.push(snap()); // estado inicial (a interface ainda não existe, então sem refreshBar)
+    let savedSnap = snap(); // o que está guardado no corte; diferente disso = há mudanças por salvar
+    const dirty = () => snap() !== savedSnap;
+    const saveEdit = async (quiet) => {
+      const j = snap();
+      try { await api(`/uploads/${upload.id}/clips/${clip.id}`, { method: 'PATCH', json: { editor: JSON.parse(j) } }); clip.editor = JSON.parse(j); savedSnap = j; if (!quiet) toast('Edição salva. Ao abrir este corte de novo, ela volta como está.'); }
+      catch (e) { if (!quiet) toast('Não consegui salvar a edição: ' + e.message); }
+      refreshBar();
+    };
     const undo =() => { if (st.hist.length < 2) return; st.fut.push(st.hist.pop()); restore(st.hist[st.hist.length - 1]); };
     const redo = () => { if (!st.fut.length) return; const j = st.fut.pop(); st.hist.push(j); restore(j); };
 
@@ -72,6 +83,7 @@
     root.innerHTML = `
       <header class="dlx-top"><div class="dlx-t"><h2>Baixar corte</h2><p class="dlx-q" id="dx-q"></p></div>
         <button class="dlx-chip" id="dx-chip"></button><button class="dlx-chip" id="dx-media"></button>
+        <button class="dlx-chip" id="dx-save" title="Guarda esta edição no corte, para continuar depois">Salvar edição</button>
         <button class="ap-btn" id="dx-cancel" hidden>Cancelar</button>
         <div class="dlx-dlw"><button class="dlx-go" id="dx-go"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg><span id="dx-golab">Baixar</span><span style="opacity:.8">⌄</span></button></div>
         <button class="dlx-x" id="dx-close" aria-label="Fechar">✕</button></header>
@@ -87,35 +99,57 @@
     const v = $('#dx-v', root), stage = $('#dx-stage', root), capEl = $('#dx-cap', root), ovsEl = $('#dx-ovs', root), guides = $('#dx-guides', root);
     if (isAud) { v.style.display = 'none'; stage.classList.add('aud'); stage.insertAdjacentHTML('afterbegin', '<div class="dlx-audio">🎧<small>Áudio</small></div>'); }
     v.src = `/api/uploads/${upload.id}/media`;
-    /* Sincronia do áudio na prévia: com ajuste, o vídeo fica mudo e o som sai de um segundo player, adiantado ou atrasado. */
-    const au = isAud ? null : new Audio(); if (au) au.preload = 'auto';
-    const syncOn = () => !!au && Math.abs(st.sync) >= 0.005;
-    const auSrc = `/api/uploads/${upload.id}/media?som=1`;
-    let auOk = false, auTry = null; // auOk: o navegador já liberou o som do segundo player (o Safari só libera dentro de um clique)
-    // Chamado dentro de cliques e teclas: é o único momento em que o Safari aceita iniciar um player de áudio novo.
+    /* Sincronia do áudio na prévia: com ajuste, o vídeo fica mudo e o som do trecho toca pelo motor de áudio do navegador,
+       agendado no ponto exato (adiantado ou atrasado). Sem ajuste, nada disso entra em ação. */
+    const syncOn = () => !isAud && Math.abs(st.sync) >= 0.005;
+    const PAD = 2.5; // sobra de som antes e depois do corte, para caber o ajuste
+    const sa = { ctx: null, buf: null, key: '', loading: '', failed: '', src: null, vT: 0, cT: 0, rate: 1 };
+    const saKey = () => Math.max(0, st.start - PAD).toFixed(2) + '-' + (st.end + PAD).toFixed(2);
+    const saHint = (t) => { const h = $('#dx-syh', root); if (h) { h.textContent = t; h.hidden = !t; } };
+    const saStop = () => { if (sa.src) { try { sa.src.onended = null; sa.src.stop(); } catch { /* já parou */ } try { sa.src.disconnect(); } catch { /* ok */ } sa.src = null; } };
+    const saReady = () => !!sa.ctx && sa.ctx.state === 'running' && !!sa.buf && sa.key === saKey();
+    const saLoad = async () => {
+      const key = saKey(); if (sa.key === key && sa.buf) return; if (sa.loading === key || sa.failed === key) return;
+      if (st.end - st.start + 2 * PAD > 660) { sa.failed = key; return saHint('Corte longo demais para ouvir o ajuste na prévia. O ajuste vale no arquivo exportado.'); }
+      sa.loading = key; saHint('Carregando o som do corte para a prévia…');
+      try {
+        const bs = Math.max(0, st.start - PAD), r = await fetch(`/api/uploads/${upload.id}/audio?start=${bs}&end=${st.end + PAD}`, { headers: { 'x-invb': '1' } });
+        if (!r.ok) throw new Error('falha');
+        const raw = await r.arrayBuffer(), buf = await new Promise((ok, bad) => { const p = sa.ctx.decodeAudioData(raw, ok, bad); if (p && p.catch) p.catch(bad); });
+        if (key !== saKey()) return; // o corte mudou enquanto carregava
+        sa.buf = buf; sa.key = key; saHint(''); syncAudio(true);
+      } catch { sa.failed = key; saHint('Não consegui carregar o som para a prévia. O ajuste continua valendo no arquivo exportado.'); }
+      finally { if (sa.loading === key) sa.loading = ''; }
+    };
+    // Chamado dentro de cliques e teclas: o navegador só liga o motor de áudio a partir de um gesto.
     const unlockAudio = () => {
-      if (!au || auOk || auTry || !syncOn()) return;
-      if (!au.src) au.src = auSrc;
-      auTry = au.play().then(() => { auOk = true; if (v.paused) au.pause(); syncAudio(true); }).catch(() => {}).finally(() => { auTry = null; });
+      if (!syncOn()) return;
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return saHint('Este navegador não toca a prévia com ajuste. O ajuste vale no arquivo exportado.');
+      if (!sa.ctx) sa.ctx = new AC();
+      if (sa.ctx.state !== 'running') sa.ctx.resume().then(() => syncAudio(true)).catch(() => {});
+      saLoad();
+    };
+    const saStart = () => {
+      saStop(); if (!saReady() || v.paused || v.seeking) return;
+      const rate = v.playbackRate || 1, bs = Math.max(0, st.start - PAD), off = v.currentTime - st.sync - bs, src = sa.ctx.createBufferSource();
+      src.buffer = sa.buf; src.playbackRate.value = rate; src.connect(sa.ctx.destination);
+      const now = sa.ctx.currentTime;
+      if (off >= sa.buf.duration) return;
+      if (off >= 0) src.start(now, off); else src.start(now + -off / rate, 0);
+      sa.src = src; sa.vT = v.currentTime; sa.cT = now; sa.rate = rate;
     };
     const syncAudio = (force) => {
-      if (!au) return;
-      if (!syncOn()) { if (!au.paused) au.pause(); v.muted = false; return; }
-      if (!au.src) au.src = auSrc;
-      muteRule();
-      if (!auOk) return;
-      const want = Math.max(0, v.currentTime - st.sync), err = (au.currentTime || 0) - want;
-      // Erro grande: pula para o ponto certo. Erro pequeno: acelera ou segura um pouco o som até encaixar, sem cortes.
-      if ((force && Math.abs(err) > 0.05) || Math.abs(err) > 0.35) { if (!au.seeking) { try { au.currentTime = want; } catch { /* ainda carregando */ } } au.playbackRate = v.playbackRate; }
-      else au.playbackRate = v.playbackRate * (Math.abs(err) < 0.02 ? 1 : err > 0 ? 0.93 : 1.07);
-      if (v.paused || v.seeking) { if (!au.paused) au.pause(); } else if (au.paused) au.play().catch(() => { auOk = false; v.muted = false; });
-      muteRule();
+      if (isAud) return;
+      if (!syncOn()) { saStop(); v.muted = false; return; }
+      if (sa.ctx && sa.key !== saKey()) { sa.buf = null; saStop(); saLoad(); }
+      v.muted = saReady(); // enquanto o som do ajuste não estiver pronto, o vídeo continua com o som normal em vez de ficar mudo
+      if (!saReady()) return;
+      if (v.paused || v.seeking) return saStop();
+      // A imagem saiu do lugar esperado (pulo, travada, mudança de velocidade)? Reagenda o som no ponto certo.
+      const expected = sa.vT + (sa.ctx.currentTime - sa.cT) * sa.rate;
+      if (force || !sa.src || sa.rate !== (v.playbackRate || 1) || Math.abs(v.currentTime - expected) > 0.09) saStart();
     };
-    // O vídeo só fica mudo enquanto o segundo player está de fato tocando. Se ele travar, carregar ou for bloqueado, o som volta a sair do vídeo.
-    const auLive = () => auOk && !au.paused && !au.seeking && au.readyState >= 3 && !au.error;
-    const muteRule = () => { if (au) v.muted = syncOn() && (v.paused ? auOk : auLive()); };
-    if (au) ['playing', 'waiting', 'stalled', 'pause', 'seeking', 'seeked', 'canplay', 'error', 'emptied'].forEach((ev) => au.addEventListener(ev, muteRule));
-    ['play', 'pause', 'seeked', 'ratechange'].forEach((ev) => v.addEventListener(ev, () => syncAudio(ev !== 'ratechange')));
+    ['play', 'playing', 'pause', 'seeked', 'ratechange', 'waiting'].forEach((ev) => v.addEventListener(ev, () => syncAudio(ev !== 'waiting')));
     ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend'].forEach((ev) => root.addEventListener(ev, unlockAudio, true));
     v.addEventListener('timeupdate', () => syncAudio(false));
     const syLabel = (x) => { const ms = Math.round(x * 1000); return ms === 0 ? 'Sem ajuste' : (ms > 0 ? '+' : '−') + Math.abs(ms) + ' ms'; };
@@ -219,6 +253,7 @@
     const TB = [['undo', 'Desfazer', '<path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/>'], ['redo', 'Refazer', '<path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/>'], ['snap', 'Ímã: encaixar nas guias', '<path d="M6 3v8a6 6 0 0012 0V3M6 7h4M14 7h4"/>'], ['xray', 'Raio-X: ver o que está embaixo (X)', '<circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/>'], ['axes', 'Eixos centrais', '<path d="M12 3v18M3 12h18"/>'], ['ruler', 'Régua', '<path d="M3 17L17 3l4 4L7 21zM8 12l2 2M11 9l2 2M14 6l2 2"/>'], ['center', 'Centralizar no quadro', '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/>'], ['keys', 'Atalhos do teclado', '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>']];
     $('#dx-tools', root).innerHTML = TB.map((b) => `<button data-t="${b[0]}" aria-label="${b[1]}" title="${b[1]}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${b[2]}</svg></button>`).join('');
     function refreshBar() {
+      const sb = $('#dx-save', root); if (sb) { const d = dirty(); sb.textContent = d ? 'Salvar edição' : clip.editor ? '✓ Edição salva' : 'Salvar edição'; sb.disabled = !d; sb.style.opacity = d ? 1 : 0.6; }
       const b = (k) => $(`[data-t="${k}"]`, root); if (!b('undo')) return;
       b('undo').disabled = st.hist.length < 2; b('redo').disabled = !st.fut.length;
       ['snap', 'xray', 'axes', 'ruler'].forEach((k) => b(k).classList.toggle('on', st.tools[k]));
@@ -255,7 +290,7 @@
         <div class="dlx-row" style="margin-bottom:8px"><div><b><label for="dx-sp">Velocidade</label></b><small>Acelera ou desacelera o corte sem mudar o tom da voz. A prévia acompanha.</small><small id="dx-spd" class="dlx-spd">${durTxt()}</small></div><output id="dx-spv" for="dx-sp" class="dlx-spv">${spLabel(st.speed)}</output></div>
         <input type="range" id="dx-sp" class="dlx-sp" min="0.25" max="2" step="0.05" value="${st.speed}">
         <div class="dlx-spb">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((x) => `<button data-sp="${x}" aria-pressed="${st.speed === x}">${spLabel(x)}</button>`).join('')}</div>
-        ${isAud ? '' : `<div class="dlx-row" style="margin-bottom:8px"><div><b><label for="dx-sy">Sincronia do áudio</label></b><small>Se o som chega depois da boca, puxe para a esquerda (adianta o áudio). Se chega antes, puxe para a direita (atrasa). A prévia acompanha.</small></div><output id="dx-syv" for="dx-sy" class="dlx-spv">${syLabel(st.sync)}</output></div>
+        ${isAud ? '' : `<div class="dlx-row" style="margin-bottom:8px"><div><b><label for="dx-sy">Sincronia do áudio</label></b><small>Se o som chega depois da boca, puxe para a esquerda (adianta o áudio). Se chega antes, puxe para a direita (atrasa). A prévia acompanha.</small><small id="dx-syh" class="dlx-spd" hidden></small></div><output id="dx-syv" for="dx-sy" class="dlx-spv">${syLabel(st.sync)}</output></div>
         <input type="range" id="dx-sy" class="dlx-sp" min="-2" max="2" step="0.01" value="${st.sync}">
         <div class="dlx-spb">${[[-0.1, '−100'], [-0.01, '−10'], [0, 'Zerar'], [0.01, '+10'], [0.1, '+100']].map((x) => `<button style="min-width:36px" title="${x[0] ? x[1] + ' milissegundos' : 'Voltar ao áudio original'}" data-sy="${x[0]}">${x[1]}</button>`).join('')}</div>`}
         <hr><h4>Remover trecho</h4><p class="dlx-hint" style="margin-bottom:10px">Pare o vídeo onde o trecho começa e marque o início. Depois pare onde ele termina e marque o fim. O trecho sai do corte e a prévia passa a pulá-lo.</p>
@@ -292,7 +327,7 @@
       $$('[data-cx]', L).forEach((bt) => bt.onclick = () => { const i = st.removed.findIndex((r) => r[2] && String(r[0]) === bt.dataset.cx); if (i >= 0) { st.removed.splice(i, 1); wordsDirty = true; commit(); paintCap(); drawLeft(); tickUI(); } });
       // Velocidade: de 0,25x a 2x, em passos de 0,05. A prévia toca na mesma velocidade (o navegador mantém o tom da voz).
       const sp = $('#dx-sp', L), setSp = (x, redraw) => { st.speed = Math.max(0.25, Math.min(2, Math.round(x * 100) / 100)); v.playbackRate = st.speed; $('#dx-spv', L).textContent = spLabel(st.speed); $('#dx-spd', L).textContent = durTxt(); tickUI(); refreshBar(); if (redraw) { commit(); drawLeft(); } };
-      const sy = $('#dx-sy', L), setSy = (x, save) => { st.sync = Math.max(-2, Math.min(2, Math.round(x * 100) / 100)); sy.value = st.sync; $('#dx-syv', L).textContent = syLabel(st.sync); syncAudio(true); if (save) commit(); };
+      const sy = $('#dx-sy', L), setSy = (x, save) => { st.sync = Math.max(-2, Math.min(2, Math.round(x * 100) / 100)); sy.value = st.sync; $('#dx-syv', L).textContent = syLabel(st.sync); if (!syncOn()) saHint(''); unlockAudio(); syncAudio(true); if (save) commit(); };
       if (sy) { sy.oninput = () => setSy(+sy.value, false); sy.onchange = () => setSy(+sy.value, true); $$('[data-sy]', L).forEach((b) => b.onclick = () => setSy(+b.dataset.sy === 0 ? 0 : st.sync + +b.dataset.sy, true)); }
       if (sp) { sp.oninput = () => setSp(+sp.value, false); sp.onchange = () => setSp(+sp.value, true); $$('[data-sp]', L).forEach((b) => b.onclick = () => setSp(+b.dataset.sp, true)); v.playbackRate = st.speed; }
     }
@@ -505,6 +540,7 @@
       try {
         const opts = o2.raw ? { format: 'orig', captions: { on: false }, start: st.start, end: st.end } : { format: st.format, bw: st.bw, hq: st.hq, removePauses: st.removePauses, voice: st.voice, speed: st.speed, audioShift: st.sync, audio, start: st.start, end: st.end, removed: st.removed, edits: st.edits, captions: { ...st.cap }, overlays: st.overlays.filter((o) => !o.hidden).map(({ tpl, hidden, ...o }) => o) };
         if (st.title && st.title !== clip.title) api(`/uploads/${upload.id}/clips/${clip.id}`, { method: 'PATCH', json: { title: st.title } }).catch(() => {});
+        if (!o2.raw) await saveEdit(true); // exportou: a edição usada fica guardada no corte
         await api(`/uploads/${upload.id}/clips/${clip.id}/render`, { json: opts });
         for (let i = 0; i < 1200; i++) {
           await new Promise((r) => setTimeout(r, 1500));
@@ -527,11 +563,12 @@
       $$('button', m).forEach((b) => b.onclick = () => { m.remove(); const a = b.dataset.a; if (a === 'v') render(false); else if (a === 'd') ctx.drive.token().then(() => render(false, { drive: true })).catch((e) => toast(e.message)); else if (a === 'a') render(true); else if (a === 's') dl(base + '.srt', srt()); else dl(base + '.txt', excerpt()); });
       setTimeout(() => document.addEventListener('click', function h(ev) { if (!m.contains(ev.target)) { m.remove(); document.removeEventListener('click', h); } }), 0);
     };
-    const close = () => { v.pause(); if (au) { au.pause(); au.removeAttribute('src'); } clearInterval(st.animT); root.remove(); document.body.style.overflow = ''; window.removeEventListener('resize', layoutStage); document.removeEventListener('keydown', onKey); $$('.menu').forEach((m) => m.remove()); };
+    const close = () => { v.pause(); saStop(); if (sa.ctx) { try { sa.ctx.close(); } catch { /* ok */ } } clearInterval(st.animT); root.remove(); document.body.style.overflow = ''; window.removeEventListener('resize', layoutStage); document.removeEventListener('keydown', onKey); $$('.menu').forEach((m) => m.remove()); };
+    const tryClose = () => { if (dirty() && !window.confirm('Há mudanças que não foram salvas neste corte. Fechar mesmo assim?')) return; close(); };
     const onKey = (e) => {
       if (e.target.closest && e.target.closest('input,textarea,select')) return;
       const o = ovById(st.sel), step = e.shiftKey ? 0.02 : 0.005;
-      if (e.key === 'Escape') { if ($('.menu') || $('.modal-bg')) return; if (st.sel) { st.sel = null; renderOverlays(); drawDrawer(); } else close(); }
+      if (e.key === 'Escape') { if ($('.menu') || $('.modal-bg')) return; if (st.sel) { st.sel = null; renderOverlays(); drawDrawer(); } else tryClose(); }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
       else if (e.key.toLowerCase() === 'x' && !e.ctrlKey) { st.tools.xray = !st.tools.xray; renderOverlays(); }
@@ -539,7 +576,7 @@
       else if (o && e.key === 'Delete') delOverlay(o.id);
       else if (o && e.key.startsWith('Arrow')) { e.preventDefault(); if (e.key === 'ArrowLeft') o.x = clamp(o.x - step, 0, 1); if (e.key === 'ArrowRight') o.x = clamp(o.x + step, 0, 1); if (e.key === 'ArrowUp') o.y = clamp(o.y - step, 0, 1); if (e.key === 'ArrowDown') o.y = clamp(o.y + step, 0, 1); renderOverlays(); clearTimeout(st.nudge); st.nudge = setTimeout(commit, 400); }
     };
-    document.addEventListener('keydown', onKey); $('#dx-close', root).onclick = close;
+    document.addEventListener('keydown', onKey); $('#dx-close', root).onclick = tryClose; $('#dx-save', root).onclick = () => saveEdit(false);
     $('#dx-note', root).textContent = isAud ? 'O arquivo final é gerado com ffmpeg no servidor.' : 'Prévia aproximada (recorte central, fontes do navegador). O arquivo final é gerado com ffmpeg no servidor.';
     drawLeft(); drawDrawer(); refreshBar(); layoutStage(); tickUI();
   }

@@ -793,7 +793,7 @@ async function api(req, res, url, q) {
       if (method === 'DELETE') { await fsp.rm(U(b), { recursive: true, force: true }); return send(res, 200, { ok: true }); }
     }
     if (c === 'thumb' && method === 'GET') { const f = await ensureThumb(m); return f ? serveFile(req, res, f, 'image/jpeg') : send(res, 404, { error: 'Sem capa' }); }
-    if (c === 'media' && method === 'GET' && (m.refetching || isGone(m))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
+    if ((c === 'media' || c === 'audio') && method === 'GET' && (m.refetching || isGone(m))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
     if (c === 'media' && method === 'GET') touchUsed(b);
     if (c === 'free' && method === 'POST') { // apaga o original agora; o link continua salvo
       if (!canRefetch(m)) return send(res, 400, { error: 'Este arquivo foi enviado do computador. Como não há link para baixar de novo, ele não é apagado.' });
@@ -823,6 +823,20 @@ async function api(req, res, url, q) {
       refetchBusy.delete(b); send(res, 202, mm);
       (async () => { try { await ok(file, await saveDriveStream(b, file, dlr)); } catch (e) { await fsp.rm(U(b, file), { force: true }); await fail('Falha ao baixar do Google Drive: ' + e.message); } })();
       return;
+    }
+    // Som de um trecho, em WAV: a prévia do editor usa para tocar o áudio adiantado ou atrasado em relação à imagem.
+    if (c === 'audio' && method === 'GET') {
+      const a = Math.max(0, +q.get('start') || 0), e = +q.get('end');
+      if (!(e > a) || e - a > 660) return send(res, 400, { error: 'Trecho inválido ou longo demais para a prévia do som.' });
+      if (!tools.ffmpeg) return send(res, 501, { error: 'O ffmpeg não está instalado.' });
+      touchUsed(b); await fsp.mkdir(U(b, 'clips'), { recursive: true });
+      const tmpName = `.som-${crypto.randomBytes(6).toString('hex')}.wav`, tmpFile = U(b, 'clips', tmpName);
+      try {
+        const r = await run(tools.ffmpeg, ['-y', '-v', 'error', '-ss', String(a), '-t', String(e - a), '-i', U(b, m.file), '-vn', '-ac', '1', '-ar', '32000', '-c:a', 'pcm_s16le', tmpFile]);
+        if (r.code !== 0) return send(res, 502, { error: 'Não consegui ler o som deste trecho.' });
+        const buf = await fsp.readFile(tmpFile);
+        res.writeHead(200, { 'content-type': 'audio/wav', 'content-length': buf.length, 'cache-control': 'no-store' }); return res.end(buf);
+      } finally { await fsp.rm(tmpFile, { force: true }).catch(() => {}); }
     }
     if (c === 'media' && method === 'GET') { const f = q.get('orig') ? m.file : playable(m); return serveFile(req, res, U(b, f), mime[path.extname(f)] || 'application/octet-stream', q.get('orig') ? m.name : undefined); }
     if (c === 'retry' && method === 'POST') { if (m.status === 'processing' || m.status === 'queued') return send(res, 409, { error: 'Já em processamento.' }); await update(b, { status: 'queued', stage: 'Na fila', progress: 0, error: null }); enqueue(() => pipeline(b)); return send(res, 200, { ok: true }); }
@@ -888,7 +902,9 @@ async function api(req, res, url, q) {
         return send(res, 201, { created, rejected: r.rejected, adjusted: r.adjusted });
       }
       const cl = clips.find((x) => x.id === d); if (!cl) return send(res, 404, { error: 'Corte não encontrado' });
-      if (!parts[4] && method === 'PATCH') { const j = await body(req); for (const k of ['fav', 'hid']) if (typeof j[k] === 'boolean') cl[k] = j[k]; if (typeof j.title === 'string' && j.title.trim()) cl.title = j.title.trim().slice(0, 120); if (+j.start >= 0 && +j.end > +j.start) { cl.start = +j.start; cl.end = +j.end; cl.render = null; delete cl.drive; delete cl.post; }
+      if (!parts[4] && method === 'PATCH') { const j = await body(req); for (const k of ['fav', 'hid']) if (typeof j[k] === 'boolean') cl[k] = j[k]; if (typeof j.title === 'string' && j.title.trim()) cl.title = j.title.trim().slice(0, 120); if (+j.start >= 0 && +j.end > +j.start) { cl.start = +j.start; cl.end = +j.end; cl.render = null; delete cl.drive; delete cl.post; if (cl.editor) { delete cl.editor.start; delete cl.editor.end; cl.editor.removed = []; } }
+        // Edição salva do corte (formato, legenda, velocidade, trechos removidos...): o editor reabre do jeito que ficou.
+        if (j.editor === null) delete cl.editor; else if (j.editor && typeof j.editor === 'object' && !Array.isArray(j.editor) && JSON.stringify(j.editor).length <= 400000) cl.editor = { ...j.editor, at: Date.now() };
         if (j.post && typeof j.post === 'object') cl.post = cleanPost(j.post); await writeJson(U(b, 'clips.json'), clips); return send(res, 200, cl); }
       if (!parts[4] && method === 'DELETE') { await writeJson(U(b, 'clips.json'), clips.filter((x) => x.id !== d)); return send(res, 200, { ok: true }); }
       if (parts[4] === 'render' && parts[5] === 'cancel' && method === 'POST') {
