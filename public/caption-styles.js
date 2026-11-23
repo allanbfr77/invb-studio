@@ -52,11 +52,13 @@
   const byName = (n) => STYLES.find((s) => s.id === n) || STYLES.find((s) => s.name === n) || STYLES.find((s) => s.id === 'Clássicos/Clássica') || STYLES[0];
 
   function chunkWords(words, style) {
-    const max = style.mode === 'words1' ? 1 : style.mode === 'words2' ? 2 : style.chunk || 4;
+    // Com o número de palavras escolhido pela pessoa (withWords), vale esse número e a linha pode ser mais comprida.
+    const max = style.wordsSet ? style.chunk : style.mode === 'words1' ? 1 : style.mode === 'words2' ? 2 : style.chunk || 4;
+    const maxChars = style.wordsSet ? Math.max(26, style.chunk * 11) : 26;
     const out = []; let cur = [];
     words.forEach((w, i) => {
       const prev = words[i - 1];
-      const brk = cur.length && (cur.length >= max || (prev && (w.s - prev.e > 0.9 || w.seg !== prev.seg)) || cur.reduce((a, x) => a + x.t.length + 1, 0) + w.t.length > 26);
+      const brk = cur.length && (cur.length >= max || (prev && (w.s - prev.e > 0.9 || w.seg !== prev.seg)) || cur.reduce((a, x) => a + x.t.length + 1, 0) + w.t.length > maxChars);
       if (brk) { out.push(cur); cur = []; }
       cur.push(w);
     });
@@ -64,6 +66,15 @@
     return out;
   }
 
-  const api = { STYLES, CATEGORIES, byName, chunkWords, FONTS: ['Arial', 'DejaVu Sans', 'DejaVu Serif', 'Liberation Serif', 'Liberation Mono'], PAL };
+  /** Estilo com o número de palavras por legenda escolhido (1 a 10). Sem número, devolve o estilo como é.
+   *  Estilos de frase inteira passam a mostrar grupos; os de uma ou duas palavras passam a destacar a palavra falada. */
+  function withWords(style, n) {
+    n = Math.round(+n); if (!(n >= 1)) return style;
+    n = Math.min(10, n);
+    const mode = style.mode === 'block' ? 'plain' : (style.mode === 'words1' || style.mode === 'words2') && n > 1 ? 'highlight' : style.mode;
+    return Object.assign({}, style, { mode, chunk: n, wordsSet: true });
+  }
+
+  const api = { STYLES, CATEGORIES, byName, chunkWords, withWords, FONTS: ['Arial', 'DejaVu Sans', 'DejaVu Serif', 'Liberation Serif', 'Liberation Mono'], PAL };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CaptionStyles = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -27,7 +27,7 @@
   function capHTML(style, eff, scale, ws, active, progress) {
     const span = (w, i) => {
       if (style.mode === 'karaoke') return `<span style="background:linear-gradient(90deg,${style.hi} ${progress}%,${style.color} ${progress}%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:0">${w.t}</span>`;
-      if (i !== active || style.mode === 'words1' || style.mode === 'block') return w.t;
+      if (i !== active || style.mode === 'words1' || style.mode === 'block' || style.mode === 'plain') return w.t;
       if (style.mode === 'boxhl') return `<span style="background:${style.hi};border-radius:.2em;padding:0 .18em;-webkit-text-stroke:0">${w.t}</span>`;
       return `<span style="color:${style.hi}">${w.t}</span>`;
     };
@@ -40,7 +40,7 @@
     const dur = upload.duration || clip.end + 60;
     const st = {
       format: 'orig', bw: false, hq: false, removePauses: false, voice: 'off', speed: 1, sync: 0,
-      cap: { on: false, style: 'Clássicos/Clássica', size: 16, pos: 'bottom', upper: null, pop: null, font: null, ow: null, shadow: null },
+      cap: { on: false, style: 'Clássicos/Clássica', size: 16, pos: 'bottom', upper: null, pop: null, font: null, ow: null, shadow: null, words: null },
       start: clip.start, end: clip.end, title: clip.title || '', removed: [], edits: {}, lang: null, overlays: [], sel: null,
       panel: null, tab: 'estilos', cat: 'Todos', q: '', styleChosen: false, tplCat: 'Todos', tq: '', lib: null, templates: null,
       tools: { snap: true, xray: false, axes: false, ruler: false }, busy: false, hist: [], fut: [], anim: true, trMode: 'cut', trLarge: false, tick: 0, cutA: null, open: { fmt: true },
@@ -150,7 +150,7 @@
     const relT = () => Math.max(0, (v.currentTime || 0) - st.start);
     function paintCap() {
       if (isAud || !st.cap.on) { capEl.style.display = 'none'; return; }
-      const t = relT(), S = style(), E = eff(), H = stage.clientHeight || 1, scale = H / 1080, ws = relWords(); let html = '';
+      const t = relT(), S = CSx.withWords(style(), st.cap.words), E = eff(), H = stage.clientHeight || 1, scale = H / 1080, ws = relWords(); let html = '';
       if (S.mode === 'block') {
         const by = new Map(); ws.forEach((w) => { if (!by.has(w.seg)) by.set(w.seg, []); by.get(w.seg).push(w); });
         const rng = [...by.values()].map((a) => [a[0].s, a[a.length - 1].e + 0.05, a]);
@@ -432,7 +432,7 @@
           body = `<div class="dlx-row" style="margin-bottom:8px"><div><b>Sempre animar os estilos</b></div>${sw('sty-anim', st.anim)}</div><input class="dlx-search" id="sty-q" placeholder="Buscar estilo, fonte ou efeito" value="${esc(st.q)}">${catChips(CSx.CATEGORIES, st.cat, CSx.STYLES.length, 'data-cat')}
             <div class="dlx-grid" id="sty-grid"><button class="dlx-card nosub" data-style="" aria-pressed="${!st.cap.on}"><div class="pv none">Sem legenda</div><span>Sem legenda</span></button>${list.map((s) => `<div class="dlx-card" role="button" tabindex="0" data-style="${esc(s.id)}" aria-pressed="${st.cap.on && st.cap.style === s.id}"><button class="fav" data-fav="${esc(s.id)}" aria-label="${fav.has(s.id) ? 'Remover dos favoritos' : 'Marcar como favorito'}">${fav.has(s.id) ? '★' : '☆'}</button><div class="pv">${sampleCard(s, 0)}</div><span>${esc(s.name)}</span></div>`).join('')}</div>`;
         } else if (st.tab === 'fonte') body = `<p class="dlx-sub" style="margin-top:0">Fontes instaladas no servidor. “Padrão do estilo” usa a fonte do estilo escolhido.</p><div class="dlx-fonts"><button data-font="" aria-pressed="${st.cap.font === null}">Padrão do estilo</button>${CSx.FONTS.map((f) => `<button data-font="${esc(f)}" style="font-family:'${esc(f)}',sans-serif" aria-pressed="${st.cap.font === f}">${esc(f)}<small>Você não precisa de mais tempo</small></button>`).join('')}</div>`;
-        else if (st.tab === 'efeitos') body = `<div class="dlx-fx"><label>Contorno <b id="v-ow">${e.ow}</b></label><input type="range" id="fx-ow" min="0" max="10" value="${e.ow}"><label>Sombra <b id="v-sh">${e.shadow}</b></label><input type="range" id="fx-sh" min="0" max="8" value="${e.shadow}"><label>Tamanho <b id="v-sz">${st.cap.size}</b></label><input type="range" id="fx-sz" min="10" max="32" value="${st.cap.size}">
+        else if (st.tab === 'efeitos') body = `<div class="dlx-fx"><label>Palavras por legenda <b id="v-wd">${st.cap.words ? st.cap.words : 'Padrão do estilo'}</b></label><input type="range" id="fx-wd" min="0" max="10" step="1" value="${st.cap.words || 0}" aria-label="Palavras por legenda"><p class="dlx-sub" style="margin:2px 0 14px">Quantas palavras aparecem de cada vez. No zero, vale o que o estilo escolhido define.</p><label>Contorno <b id="v-ow">${e.ow}</b></label><input type="range" id="fx-ow" min="0" max="10" value="${e.ow}"><label>Sombra <b id="v-sh">${e.shadow}</b></label><input type="range" id="fx-sh" min="0" max="8" value="${e.shadow}"><label>Tamanho <b id="v-sz">${st.cap.size}</b></label><input type="range" id="fx-sz" min="10" max="32" value="${st.cap.size}">
           <div class="dlx-row" style="margin-top:14px"><div><b>Animação ao entrar</b><small>A palavra “pula” ao aparecer</small></div>${sw('fx-pop', e.pop)}</div><div class="dlx-row"><div><b>Maiúsculas</b></div>${sw('fx-up', e.upper)}</div>
           <h4>Posição</h4><div class="dlx-chips">${[['top', 'Topo'], ['middle', 'Meio'], ['bottom', 'Base']].map((p) => `<button data-pos="${p[0]}" aria-pressed="${st.cap.pos === p[0]}">${p[1]}</button>`).join('')}</div><button class="dlx-link" id="fx-reset" style="margin-top:12px">Restaurar o padrão do estilo</button></div>`;
         else body = `<p class="dlx-sub" style="margin-top:0">Traduz o texto da legenda deste corte. Usa um modelo de linguagem (precisa de GROQ_API_KEY no servidor) e a tradução vale para o arquivo final.</p><label class="dlx-lab">Traduzir para<select id="tr-lang"><option value="">Original</option>${EP.LANGS.map((l) => `<option ${st.lang === l ? 'selected' : ''}>${l}</option>`).join('')}</select></label><button class="ap-btn pri" id="tr-go" style="width:100%;justify-content:center;margin-top:12px">Traduzir legenda</button><p class="dlx-sub" id="tr-msg">${st.lang ? `Legenda traduzida para ${esc(st.lang)}.` : ''}</p>`;
@@ -510,8 +510,9 @@
         onAll('[data-pos]', 'click', (b) => { st.cap.pos = b.dataset.pos; commit(); paintCap(); drawDrawer(); });
         const rng = (id, key, out) => { const r = $('#' + id, dr); if (r) { r.oninput = () => { st.cap[key] = +r.value; $('#' + out, dr).textContent = r.value; paintCap(); }; r.onchange = commit; } };
         rng('fx-ow', 'ow', 'v-ow'); rng('fx-sh', 'shadow', 'v-sh'); rng('fx-sz', 'size', 'v-sz');
+        const wd = $('#fx-wd', dr); if (wd) { wd.oninput = () => { st.cap.words = +wd.value >= 1 ? +wd.value : null; $('#v-wd', dr).textContent = st.cap.words ? st.cap.words : 'Padrão do estilo'; paintCap(); }; wd.onchange = commit; }
         on('fx-pop', 'click', () => { st.cap.pop = !eff().pop; commit(); paintCap(); drawDrawer(); }); on('fx-up', 'click', () => { st.cap.upper = !eff().upper; commit(); paintCap(); drawDrawer(); });
-        on('fx-reset', 'click', () => { Object.assign(st.cap, { upper: null, pop: null, font: null, ow: null, shadow: null, size: 16 }); commit(); paintCap(); drawDrawer(); });
+        on('fx-reset', 'click', () => { Object.assign(st.cap, { upper: null, pop: null, font: null, ow: null, shadow: null, size: 16, words: null }); commit(); paintCap(); drawDrawer(); });
         on('tr-lang', 'change', (e) => { if (!e.target.value) { st.lang = null; st.edits = {}; wordsDirty = true; commit(); paintCap(); drawDrawer(); } });
         on('tr-go', 'click', async () => {
           const lang = $('#tr-lang', dr).value; if (!lang) return toast('Escolha o idioma.'); const msg = $('#tr-msg', dr), btn = $('#tr-go', dr); btn.disabled = true; msg.textContent = 'Traduzindo…';

@@ -485,7 +485,7 @@ function cleanOpts(j) {
     start: num(j.start), end: num(j.end),
     removed: (Array.isArray(j.removed) ? j.removed : []).slice(0, 800).map((r) => [num(r && r[0]), num(r && r[1])]).filter((r) => r[0] !== null && r[1] !== null && r[1] > r[0]),
     edits, overlays: ovs,
-    cap: { on: cj.on !== false, style: CS.byName(cj.style).id, size: clamp(+cj.size || 16, 10, 32), pos: ['bottom', 'middle', 'top'].includes(cj.pos) ? cj.pos : 'bottom', upper: typeof cj.upper === 'boolean' ? cj.upper : null, pop: typeof cj.pop === 'boolean' ? cj.pop : null, font: CS.FONTS.includes(cj.font) ? cj.font : null, ow: num(cj.ow) === null ? null : clamp(+cj.ow, 0, 10), shadow: num(cj.shadow) === null ? null : clamp(+cj.shadow, 0, 8) },
+    cap: { on: cj.on !== false, style: CS.byName(cj.style).id, size: clamp(+cj.size || 16, 10, 32), pos: ['bottom', 'middle', 'top'].includes(cj.pos) ? cj.pos : 'bottom', upper: typeof cj.upper === 'boolean' ? cj.upper : null, pop: typeof cj.pop === 'boolean' ? cj.pop : null, font: CS.FONTS.includes(cj.font) ? cj.font : null, ow: num(cj.ow) === null ? null : clamp(+cj.ow, 0, 10), shadow: num(cj.shadow) === null ? null : clamp(+cj.shadow, 0, 8), words: num(cj.words) === null || !(+cj.words >= 1) ? null : clamp(Math.round(+cj.words), 1, 10) },
   };
 }
 
@@ -506,7 +506,7 @@ function clipWords(tr, c, opt = {}) {
 }
 
 function buildAss(tr, c, opt, W, H, rel, useIv) {
-  const st = CS.byName(opt.cap.style), cp = opt.cap;
+  const st = CS.withWords(CS.byName(opt.cap.style), opt.cap.words), cp = opt.cap;
   const upper = cp.upper === null ? st.upper : cp.upper, pop = cp.pop === null ? st.pop : cp.pop;
   const ow = (cp.ow === null ? st.ow : cp.ow) * (H / 1080), shadow = (cp.shadow === null ? st.shadow : cp.shadow) * (H / 1080);
   const font = cp.font || st.font, fs = Math.round(H * (cp.size / 288) * st.size);
@@ -524,6 +524,7 @@ function buildAss(tr, c, opt, W, H, rel, useIv) {
       for (const ws of bySeg.values()) push(ws[0].s, ws[ws.length - 1].e + 0.05, assEsc(T(ws.map((w) => w.t).join(' '))));
     } else {
       for (const ws of CS.chunkWords(words, st)) {
+        if (st.mode === 'plain') { push(ws[0].s, ws[ws.length - 1].e + 0.12, assEsc(T(ws.map((w) => w.t).join(' ')))); continue; } // grupo de palavras sem destaque
         if (st.mode === 'karaoke') {
           const last = ws[ws.length - 1];
           push(ws[0].s, last.e + 0.12, ws.map((w, i) => { const nxt = ws[i + 1], d = Math.max(1, Math.round(((nxt ? nxt.s : w.e) - w.s) * 100)); return `{\\kf${d}}${assEsc(T(w.t))}`; }).join(' '));
