@@ -53,6 +53,8 @@ if not defined INVB_ATUALIZADO if exist ".git" (
   where git >nul 2>nul
   if not errorlevel 1 (
     echo Procurando atualizacao do app...
+    rem O npm as vezes reescreve o package-lock.json sozinho, e isso barrava a atualizacao. Volta ao original antes de atualizar.
+    git checkout -- package-lock.json >nul 2>nul
     git pull --ff-only --quiet >nul 2>nul
     if errorlevel 1 echo Nao deu para atualizar agora. Abrindo a versao atual.
     set INVB_ATUALIZADO=1
@@ -80,7 +82,7 @@ if not exist ".env" (
 rem Biblioteca do Claude: so e usada por quem tem a chave na configuracao pessoal.
 if not exist "node_modules\@anthropic-ai\sdk" (
   echo Instalando bibliotecas do app...
-  call npm install --omit=dev --no-audit --no-fund >nul 2>nul
+  call npm install --omit=dev --no-audit --no-fund --no-package-lock >nul 2>nul
   if errorlevel 1 echo Aviso: nao consegui instalar as bibliotecas. O app abre normalmente, so sem os recursos de IA.
 )
 

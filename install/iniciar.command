@@ -13,6 +13,8 @@ echo "== INVB Studio =="
 if [ -z "$INVB_ATUALIZADO" ] && [ -d .git ] && command -v git >/dev/null 2>&1; then {
   echo "Procurando atualização do app..."
   antes=$(git rev-parse HEAD 2>/dev/null)
+  # O npm às vezes reescreve o package-lock.json sozinho, e essa alteração barrava a atualização. Ninguém edita esse arquivo à mão: volta ao original.
+  git checkout -- package-lock.json >/dev/null 2>&1
   if git pull --ff-only --quiet >/dev/null 2>&1; then
     if [ "$antes" != "$(git rev-parse HEAD 2>/dev/null)" ]; then echo "App atualizado."; INVB_ATUALIZADO=1 exec /bin/bash "$0"; fi
   else
@@ -66,7 +68,7 @@ fi
 # Biblioteca do Claude: só é usada por quem tem a chave na configuração pessoal, mas instalar não custa nada.
 if [ ! -d node_modules/@anthropic-ai/sdk ]; then
   echo "Instalando bibliotecas do app..."
-  npm install --omit=dev --no-audit --no-fund >/dev/null 2>&1 || echo "Aviso: não consegui instalar as bibliotecas. O app abre normalmente, só sem os recursos de IA."
+  npm install --omit=dev --no-audit --no-fund --no-package-lock >/dev/null 2>&1 || echo "Aviso: não consegui instalar as bibliotecas. O app abre normalmente, só sem os recursos de IA."
 fi
 
 porta=$(grep -E '^PORT=' .env 2>/dev/null | tail -1 | cut -d= -f2 | tr -d '[:space:]')
