@@ -28,8 +28,11 @@ Cada culto tem um responsável, que faz sozinho da transcrição aos cortes.
      **Selecionar** → marque as linhas → **Criar corte da seleção**.
 5. Em cada corte, clique em **Baixar corte**, confira o trecho e exporte. A legenda vem desligada,
    porque a edição é feita no CapCut; dá para ligar no editor.
-6. Com o corte exportado, clique em **Enviar para o Drive**. Ele vai para uma subpasta com o nome
+6. Com o corte exportado, clique em **Enviar ao Drive**. Ele vai para uma subpasta com o nome
    da pregação, dentro da pasta da equipe.
+
+Para fazer tudo de uma vez, use **Baixar todos** ou **Enviar todos ao Drive** no alto da lista: o app exporta o que
+faltar e baixa (ou envia) cada corte da aba, um por vez.
 
 ### A pregação inteira não fica guardada
 
@@ -55,8 +58,8 @@ um aviso com o botão **Baixar de novo**.
      espaço no fim), arraste o arquivo `iniciar.command` para a janela e aperte Enter.
 
 Na primeira vez o arquivo instala o que faltar (Node, ffmpeg e yt-dlp). No Windows ele pede para
-fechar a janela e abrir de novo depois de instalar. Nas vezes seguintes ele só atualiza o yt-dlp e
-abre o app no navegador. Deixe a janela preta aberta enquanto usa.
+fechar a janela e abrir de novo depois de instalar. Nas vezes seguintes ele atualiza o yt-dlp e
+abre o app no navegador. Se a pasta veio do GitHub por `git clone`, ele também busca a versão nova do app sozinho. Deixe a janela preta aberta enquanto usa.
 
 Se a configuração da equipe mudar, basta trocar o `equipe.env` na pasta `install`: o arquivo de início
 aplica a versão nova na próxima vez que for aberto. Por isso, não edite o `.env` à mão quando houver

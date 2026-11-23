@@ -47,6 +47,20 @@ if !VERSAO! LSS 20 (
   goto :fim_erro
 )
 
+rem Atualizacao automatica: quando a pasta veio do GitHub (git clone), busca a versao nova antes de abrir.
+rem Depois de atualizar, este arquivo e executado de novo do comeco, ja na versao nova.
+if not defined INVB_ATUALIZADO if exist ".git" (
+  where git >nul 2>nul
+  if not errorlevel 1 (
+    echo Procurando atualizacao do app...
+    git pull --ff-only --quiet >nul 2>nul
+    if errorlevel 1 echo Nao deu para atualizar agora. Abrindo a versao atual.
+    set INVB_ATUALIZADO=1
+    "%~f0"
+    exit /b
+  )
+)
+
 rem O equipe.env e a fonte da configuracao: sempre que ele mudar, a mudanca vale no proximo inicio.
 if exist "install\equipe.env" (
   fc /b "install\equipe.env" ".env" >nul 2>nul

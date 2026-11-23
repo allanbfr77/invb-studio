@@ -721,7 +721,7 @@ async function api(req, res, url, q) {
 
   if (a === 'uploads') {
     if (!b) {
-      if (method === 'GET') return send(res, 200, await listMeta());
+      if (method === 'GET') return send(res, 200, await Promise.all((await listMeta()).map(async (m) => { const cl = await readJson(U(m.id, 'clips.json'), []); return { ...m, cuts: { total: cl.length, ready: cl.filter((k) => k.render && k.render.status === 'done').length, drive: cl.filter((k) => k.drive && k.drive.link).length } }; })));
       if (method === 'POST') { // corpo bruto do arquivo
         const name = (q.get('name') || 'arquivo').replace(/[\\/:*?"<>|]/g, '_').slice(0, 160);
         const ext = path.extname(name).toLowerCase();

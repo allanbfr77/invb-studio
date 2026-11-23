@@ -7,6 +7,19 @@ parar() { echo; echo "$1"; echo; read -r -p "Aperte Enter para fechar." _; exit 
 
 echo "== INVB Studio =="
 
+# Atualização automática: quando a pasta veio do GitHub (git clone), busca a versão nova antes de abrir.
+# Sem internet ou com arquivos alterados à mão, segue com a versão que já está aqui.
+# O bloco fica entre chaves para o bash ler tudo antes de o arquivo mudar; depois de atualizar, o arquivo novo é executado do começo.
+if [ -z "$INVB_ATUALIZADO" ] && [ -d .git ] && command -v git >/dev/null 2>&1; then {
+  echo "Procurando atualização do app..."
+  antes=$(git rev-parse HEAD 2>/dev/null)
+  if git pull --ff-only --quiet >/dev/null 2>&1; then
+    if [ "$antes" != "$(git rev-parse HEAD 2>/dev/null)" ]; then echo "App atualizado."; INVB_ATUALIZADO=1 exec /bin/bash "$0"; fi
+  else
+    echo "Não deu para atualizar agora (sem internet ou com arquivos alterados à mão). Abrindo a versão atual."
+  fi
+}; fi
+
 # O Homebrew pode estar instalado sem estar no PATH desta janela.
 for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do
   if [ -x "$b" ]; then eval "$("$b" shellenv)"; break; fi

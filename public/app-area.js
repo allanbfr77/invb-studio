@@ -268,7 +268,7 @@
       <div class="rpanel">${c.kind === 'vid' ? '<div class="vid vid-slot"></div>' : ''}<div class="dlp"><b style="color:var(--fg)">Baixar</b><button class="ap-btn" data-d="orig">Baixar arquivo original</button><div class="g2">${['TXT', 'SRT', 'VTT'].map((f) => `<button class="ap-btn" data-d="${f}">${f}</button>`).join('')}</div></div></div></div>`,
     clips: (c) => `${S.status && S.status.ai && c.aiCutsError ? `<div class="ap-demo gone" role="status"><span>A IA não conseguiu sugerir os cortes automáticos desta pregação: ${esc(c.aiCutsError)}</span><button class="ap-btn" id="ai-retry">Tentar de novo com IA</button></div>` : ''}<div class="ap-head"><div><h1>Cortes</h1><p class="sub2">Crie os cortes, ajuste na tesoura, baixe e envie para o Drive.</p></div><div class="ap-tools" style="margin:0">${S.status && S.status.ai ? '<button class="ap-btn" id="cl-ai" title="O Claude lê a transcrição e cria os cortes">✨ Sugerir cortes com IA</button>' : ''}<button class="ap-btn" id="cl-paste">Colar minutagens</button><button class="ap-btn pri" id="cl-new">+ Novo corte</button></div></div>
       <div class="ap-tabs" id="cl-tabs"><button role="tab" aria-selected="true" data-m="0">Automáticos <span class="tabn" id="cn0"></span></button><button role="tab" aria-selected="false" data-m="1">Manuais <span class="tabn" id="cn1"></span></button></div>
-      <div class="ap-tools"><label class="ap-search">${ic.search}<input id="cq" placeholder="Buscar nos cortes"></label><span class="ap-sp"></span><button class="ap-btn" id="csort">⇅ Maior impacto ⌄</button><button class="ap-btn" id="cfil">Filtros</button></div><p class="sub2" id="ccnt" style="margin-bottom:12px"></p><div class="cuts" id="cuts"></div>`,
+      <div class="ap-tools"><label class="ap-search">${ic.search}<input id="cq" placeholder="Buscar nos cortes"></label><span class="ap-sp"></span><button class="ap-btn" id="call-dl" title="Exporta e baixa todos os cortes desta aba">Baixar todos</button>${S.status && S.status.driveCuts ? '<button class="ap-btn" id="call-dr" title="Exporta e envia à pasta da equipe todos os cortes desta aba">Enviar todos ao Drive</button>' : ''}<button class="ap-btn" id="csort">⇅ Maior impacto ⌄</button><button class="ap-btn" id="cfil">Filtros</button></div><p class="sub2" id="ccnt" style="margin-bottom:12px"></p><div class="cuts" id="cuts"></div>`,
     templates: () => `<div class="ap-demo" style="background:#f3f2ff;border-color:#d5d2ff;color:#3b2fc0">Prévia: os templates ainda <b>não são aplicados</b> na renderização dos cortes.</div><div class="ap-head"><div><h1>Templates</h1><p class="sub2">Salve um visual inteiro uma vez e aplique em qualquer corte com um clique.</p></div><button class="ap-btn pri" id="tp-new">+ Novo template</button></div><div class="ap-tabs" id="tp-tabs"><button role="tab" aria-selected="true" data-k="0">Meus templates</button><button role="tab" aria-selected="false" data-k="1">Prontos</button></div><div id="tp-body"></div>`,
     library: () => `<div class="ap-demo" style="background:#f3f2ff;border-color:#d5d2ff;color:#3b2fc0">Prévia: as imagens ficam só nesta aba do navegador e ainda <b>não entram</b> nos cortes renderizados.</div><div class="ap-head"><div><h1>Biblioteca</h1><p class="sub2">Suas imagens e fontes, prontas para usar em qualquer corte.</p></div><button class="ap-btn pri" id="lb-up">${ic.img.replace('<svg', '<svg width="14" height="14"')} Enviar imagem</button><input type="file" id="lb-f" hidden accept="image/png,image/jpeg,image/webp,image/svg+xml"></div><div class="ap-tabs" id="lb-tabs"><button role="tab" aria-selected="true" data-k="0">Mídias</button><button role="tab" aria-selected="false" data-k="1">Fontes</button></div><div id="lb-body"></div>`,
     chapters: (c) => `${note(c)}<div class="ap-head"><div><h1>Capítulos</h1><p class="sub2">Navegue pelo conteúdo do áudio por temas e tópicos.</p></div><button class="ap-btn" id="ch-exp">Exportar timestamps ⌄</button></div>
@@ -285,8 +285,8 @@
     const draw = () => {
       let l = S.uploads.filter((u) => u.name.toLowerCase().includes(q) && (!stF || (stF === 'done' ? u.status === 'done' : stF === 'err' ? u.status === 'error' : ['queued', 'processing'].includes(u.status))));
       if (sort === 'name') l = [...l].sort((a, b) => a.name.localeCompare(b.name)); if (sort === 'old') l = [...l].sort((a, b) => a.createdAt - b.createdAt);
-      $('#fcnt').textContent = `${l.length} arquivo${l.length === 1 ? '' : 's'}`;
-      $('#flist').innerHTML = l.map((u) => `<div class="ap-row" data-up="${u.id}"><span style="color:var(--primary)">${u.kind === 'aud' ? ic.aud.replace('20', '16') : ic.vid.replace('20', '16')}</span><a class="nm" href="/app/uploads/${u.id}/overview"><b>${esc(u.name)}</b><small>Enviado em ${fmtDate(u.createdAt)} • ${fmtSize(u.size)}</small></a><span class="st ${stClass(u)}">${esc(statusLabel(u))}</span><button class="ap-ic" data-opt="${u.id}" aria-label="Opções do upload">⋮</button></div>`).join('') || '<div class="empty"><p>Nenhum arquivo encontrado.</p></div>';
+      $('#fcnt').textContent = l.length === 1 ? '1 pregação' : `${l.length} pregações`;
+      $('#flist').innerHTML = l.map((u) => `<div class="ap-row" data-up="${u.id}"><span style="color:var(--primary)">${u.kind === 'aud' ? ic.aud.replace('20', '16') : ic.vid.replace('20', '16')}</span><a class="nm" href="/app/uploads/${u.id}/overview"><b>${esc(u.name)}</b><small>${fmtDate(u.createdAt)} • ${fmtSize(u.size)}${u.cuts && u.cuts.total ? ` • ${u.cuts.total} corte${u.cuts.total === 1 ? '' : 's'}${u.cuts.ready ? ` · ${u.cuts.ready} exportado${u.cuts.ready === 1 ? '' : 's'}` : ''}${u.cuts.drive ? ` · ${u.cuts.drive} no Drive` : ''}` : ''}</small></a><span class="st ${stClass(u)}">${esc(statusLabel(u))}</span><button class="ap-ic" data-opt="${u.id}" aria-label="Opções do upload">⋮</button></div>`).join('') || '<div class="empty"><p>Nenhuma pregação encontrada.</p></div>';
       $$('[data-opt]').forEach((b) => b.onclick = (e) => { e.preventDefault(); const id = b.dataset.opt, u = S.uploads.find((z) => z.id === id);
         popover(b, `<button data-a="open">Abrir</button><button data-a="ren">Renomear</button>${u.status === 'error' ? '<button data-a="retry">Tentar de novo</button>' : ''}${u.status === 'done' && !u.originalGone && (u.source === 'youtube' || u.source === 'drive') && u.url ? '<button data-a="free">Liberar espaço</button>' : ''}<button data-a="del" style="color:#c0262d">Excluir</button>`, (m) => $$('button', m).forEach((x) => x.onclick = () => { m.remove(); const a = x.dataset.a;
           if (a === 'free') return modal('Liberar espaço', '', guard(async () => { await api(`/uploads/${id}/free`, { json: {} }); u.originalGone = true; toast('Pregação apagada deste computador. O link continua salvo.'); }), 'Apagar o vídeo', `Apaga só o vídeo de “${esc(u.name)}” deste computador. A transcrição, a minutagem e os cortes prontos ficam. Para usar o vídeo de novo, o app baixa pelo link.`);
@@ -346,6 +346,35 @@
     const mediaTag = (k) => { const src = `/api/uploads/${c.id}/media#t=${k.start.toFixed(2)},${k.end.toFixed(2)}`; return c.kind === 'vid' ? `<video class="vid" controls preload="metadata" src="${src}" style="width:100%;aspect-ratio:16/9;background:#000"></video>` : `<audio controls preload="metadata" src="${src}" style="width:100%"></audio>`; };
     const pollRender = guard(async (id) => { for (let i = 0; i < 600; i++) { await new Promise((r) => setTimeout(r, 1500)); const l = await api(`/uploads/${c.id}/clips`); clips = l; const k = l.find((x) => x.id === id); if (!k || !k.render || k.render.status !== 'rendering') { draw(); if (k && k.render && k.render.status === 'done') { toast('Corte pronto. Baixando…'); fileDl(k); } else if (k && k.render) toast('Falha ao renderizar: ' + (k.render.error || '')); return; } } });
     const fileDl = (k) => { const a = document.createElement('a'); a.href = `/api/uploads/${c.id}/clips/${k.id}/file`; a.click(); setTimeout(async () => { clips = await api(`/uploads/${c.id}/clips`); draw(); }, 800); };
+    // Exportação de um corte: com a edição salva dele, ou no formato do vídeo e sem legenda.
+    const renderJson = (k) => (k.editor ? ClipEditor.renderOpts({ ...k.editor, start: k.editor.start ?? k.start, end: k.editor.end ?? k.end }, false) : { captions: false });
+    const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+    const rendered = async (k0) => { // devolve o corte já exportado (exporta se preciso e espera terminar)
+      if (k0.render && k0.render.status === 'done') return k0;
+      if (!(k0.render && k0.render.status === 'rendering')) await api(`/uploads/${c.id}/clips/${k0.id}/render`, { json: renderJson(k0) });
+      for (let i = 0; i < 800; i++) { await pause(1500); clips = await api(`/uploads/${c.id}/clips`); const k = clips.find((x) => x.id === k0.id); if (!k || !k.render || k.render.status !== 'rendering') { draw(); return k && k.render && k.render.status === 'done' ? k : null; } if (i === 0) draw(); }
+      return null;
+    };
+    let batchOn = false;
+    // Todos os cortes visíveis da aba, um por vez: exporta o que faltar e baixa, ou envia ao Drive.
+    const batch = async (kind, btn) => {
+      if (batchOn) return; const list = fil().filter((k) => !k.hid && !(kind === 'drive' && k.drive && k.drive.link));
+      if (!list.length) return toast(kind === 'drive' && fil().length ? 'Todos os cortes desta aba já estão no Drive.' : 'Não há cortes nesta aba.');
+      const label = btn.textContent; batchOn = true; btn.disabled = true; let ok = 0, last = '';
+      try {
+        if (kind === 'drive') await driveToken(); // o login do Google precisa abrir dentro do clique
+        for (let i = 0; i < list.length; i++) {
+          btn.textContent = `${kind === 'drive' ? 'Enviando' : 'Baixando'} ${i + 1} de ${list.length}…`;
+          try {
+            const k = await rendered(list[i]); if (!k) { last = 'a exportação falhou'; continue; }
+            if (kind === 'drive') await sendDrive(k); else { const a = document.createElement('a'); a.href = `/api/uploads/${c.id}/clips/${k.id}/file`; a.click(); await pause(1200); }
+            ok++;
+          } catch (e) { if (e.status === 401) throw e; last = e.message; if (e.data && (e.data.wrongAccount || e.data.needsLogin)) break; } // conta errada: não adianta insistir nos outros
+        }
+        toast(ok === list.length ? (kind === 'drive' ? `${ok} corte${ok === 1 ? '' : 's'} na pasta da equipe.` : `${ok} corte${ok === 1 ? '' : 's'} baixado${ok === 1 ? '' : 's'}.`) : `${ok} de ${list.length} ${kind === 'drive' ? 'enviados' : 'baixados'}. O que faltou: ${last || 'erro desconhecido'}`);
+      } catch (e) { if (e.status === 401) go('/entrar'); else toast(e.message); }
+      finally { batchOn = false; btn.disabled = false; btn.textContent = label; try { clips = await api(`/uploads/${c.id}/clips`); } catch { /* fica a lista atual */ } draw(); }
+    };
     const draw = () => {
       const l = fil().sort((a, b) => sort === 'score' ? b.score - a.score : sort === 'low' ? a.score - b.score : a.start - b.start);
       $('#ccnt').textContent = l.length === 1 ? '1 corte' : `${l.length} cortes`;
@@ -365,7 +394,7 @@
         else if (a === 'dl') { // baixa direto: exporta com a edição salva do corte (ou, sem edição, no formato do vídeo e sem legenda) e salva o arquivo
           if (k.render && k.render.status === 'rendering') return toast('Este corte já está sendo exportado.');
           if (k.render && k.render.status === 'done') return fileDl(k);
-          await api(`/uploads/${c.id}/clips/${k.id}/render`, { json: k.editor ? ClipEditor.renderOpts({ ...k.editor, start: k.editor.start ?? k.start, end: k.editor.end ?? k.end }, false) : { captions: false } });
+          await api(`/uploads/${c.id}/clips/${k.id}/render`, { json: renderJson(k) });
           k.render = { status: 'rendering' }; draw(); toast(k.editor ? 'Exportando o corte com a edição salva… O download começa quando terminar.' : 'Exportando o corte… O download começa quando terminar.'); pollRender(k.id);
         } else if (a === 'open') { // tesoura: abre o editor (formato, legenda, textos, ajustes finos)
           if (k.render && k.render.status === 'rendering') return toast('Este corte já está sendo exportado.');
@@ -374,6 +403,7 @@
         const dd = $('#edel'); if (dd) dd.onclick = guard(async () => { await api(`/uploads/${c.id}/clips/${k.id}`, { method: 'DELETE' }); clips = clips.filter((x) => x.id !== k.id); document.querySelector('.modal-bg')?.remove(); draw(); });
       })); });
     };
+    $('#call-dl').onclick = (e) => batch('dl', e.currentTarget); if ($('#call-dr')) $('#call-dr').onclick = (e) => batch('drive', e.currentTarget);
     $$('#cl-tabs button').forEach((b) => b.onclick = () => { mode = +b.dataset.m; $$('#cl-tabs button').forEach((x) => x.setAttribute('aria-selected', x === b)); draw(); });
     $('#cq').oninput = (e) => { q = e.target.value.toLowerCase(); draw(); };
     $('#csort').onclick = (e) => popover(e.currentTarget, [['score', 'Maior impacto'], ['low', 'Menor impacto'], ['time', 'Ordem no vídeo']].map((o) => `<button data-s="${o[0]}">${o[1]}</button>`).join(''), (m) => $$('button', m).forEach((b) => b.onclick = () => { sort = b.dataset.s; $('#csort').textContent = `⇅ ${b.textContent} ⌄`; m.remove(); draw(); }));
