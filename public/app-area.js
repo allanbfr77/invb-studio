@@ -172,7 +172,11 @@
   // Versão do app: a data da última atualização e o código dela (ex.: 23/11/2026 · 38abb15).
   const verLabel = (v) => { const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.date || ''); return [d ? `${d[3]}/${d[2]}/${d[1]}` : v.name, v.commit].filter(Boolean).join(' · '); };
   // Interruptor de modo claro/noturno (aparece na barra lateral e na tela de entrada).
-  document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-theme-sw]'); if (!b || !window.InvbTheme) return; const t = InvbTheme.toggle(); document.querySelectorAll('[data-theme-sw]').forEach((x) => x.setAttribute('aria-checked', t === 'dark')); });
+  document.addEventListener('click', (e) => { const g = e.target.closest && e.target.closest('[data-theme-set]'); if (g && window.InvbTheme) { InvbTheme.set(g.dataset.themeSet); document.querySelectorAll('[data-theme-set]').forEach((x) => x.setAttribute('aria-pressed', x.dataset.themeSet === InvbTheme.get())); return; } const b = e.target.closest && e.target.closest('[data-theme-sw]'); if (!b || !window.InvbTheme) return; const t = InvbTheme.toggle(); document.querySelectorAll('[data-theme-sw]').forEach((x) => x.setAttribute('aria-checked', t === 'dark')); });
+  // Atalho para as últimas pregações, na barra lateral.
+  const recents = () => { const us = (S.uploads || []).slice(0, 4); return us.length ? `<div class="ap-sec">Recentes</div>${us.map((u) => `<a class="ap-rec" href="/app/uploads/${u.id}/${u.status !== 'done' ? 'overview' : u.cuts && u.cuts.total ? 'clips' : 'transcription'}" title="${esc(u.name)}"><span class="th">${u.kind === 'vid' && u.status === 'done' ? `<img src="/api/uploads/${u.id}/thumb" alt="" loading="lazy" onerror="this.remove()">` : ''}</span><span class="tx"><b>${esc(String(u.name || '').replace(/\.[^.]+$/, ''))}</b><small>${esc(upWhere(u))}</small></span></a>`).join('')}` : ''; };
+  // Em que ponto a pregação está, em poucas palavras.
+  const upWhere = (u) => u.status === 'error' ? 'Erro ao processar' : u.status !== 'done' ? statusLabel(u) : u.cuts && u.cuts.total ? `${u.cuts.total} corte${u.cuts.total === 1 ? '' : 's'}${u.cuts.drive ? ` · ${u.cuts.drive} no Drive` : ''}` : 'Pronta para os cortes';
   function shell(path, inner, uid) {
     const up = uid ? `/app/uploads/${uid}` : null, st = S.status;
     const nav = up
@@ -180,13 +184,12 @@
          <div class="ap-sec">Passo a passo</div>${link(up + '/transcription', ic.doc, '1. Transcrição', path)}${link(up + '/clips', ic.cut, '2. Cortes', path)}
          <div class="ap-sec">Sobre a pregação</div>${link(up + '/chapters', ic.book, 'Capítulos', path)}${link(up + '/emotions', ic.heart, 'Emoções', path)}${link(up + '/scripts', ic.script, 'Roteiros', path)}${link(up + '/diagrams', ic.dia, 'Diagramas', path)}
          <div class="ap-sec">Para o editor</div>${link(up + '/templates', ic.tpl, 'Templates', path)}${link(up + '/library', ic.img, 'Biblioteca', path)}`
-      : `${link('/app', ic.home, 'Início', path)}${link('/app/uploads', ic.files, 'Pregações', path)}${link('/app/projects', ic.folder, 'Projetos', path)}`;
+      : `<a class="ap-new" href="/app/uploads/new"><span aria-hidden="true">+</span> Nova pregação</a>${link('/app', ic.home, 'Início', path)}${link('/app/uploads', ic.files, 'Pregações', path)}${link('/app/projects', ic.folder, 'Projetos', path)}${recents()}`;
     return `<div class="ap">
       <div class="ap-top"><a href="/app"><b>INVB Studio</b></a><button id="ap-burger" aria-label="Abrir menu">☰</button></div>
       <aside class="ap-side" id="ap-side"><a class="ap-brand" href="/app" aria-label="INVB Studio, início"><img class="lg-c" src="/img/nv-logo-claro.png" alt="Nova Vida Botafogo"><img class="lg-n" src="/img/nv-logo-noturno.png" alt="Nova Vida Botafogo"><span class="ap-brand-sub">INVB<br>Studio</span></a>${nav}<div class="ap-grow"></div>
-        ${st ? `<div class="ap-info">Transcrição: <b>${esc(st.provider_name || 'API')}</b><br>IA: <b>${st.llm ? esc(st.llmModel) : 'desligada'}</b>${st.version ? `<div class="ap-ver" title="Versão do app neste computador${st.version.commit ? ' (código ' + esc(st.version.commit) + ')' : ''}"><i></i>Versão ${esc(verLabel(st.version))}</div>` : ''}</div>` : ''}
-        <div class="ap-theme"><span class="t-l"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Claro</span><button class="thsw" data-theme-sw role="switch" aria-checked="${window.InvbTheme && InvbTheme.get() === 'dark'}" aria-label="Modo noturno" title="Trocar entre o modo claro e o noturno"></button><span class="t-d">Noturno<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span></div>
-        <div class="ap-foot"><button class="ap-btn" id="ap-out" style="flex:1;justify-content:center">${ic.out} Sair</button></div></aside>
+        ${st ? `<div class="ap-box" aria-label="Situação do app"><div class="ap-kv"><span>Transcrição</span><b><i class="dot on"></i>${esc(st.provider_name || 'API')}</b></div><div class="ap-kv"><span>IA</span><b><i class="dot ${st.llm ? 'on' : ''}"></i>${st.llm ? esc(st.llmModel) : 'Desligada'}</b></div>${st.version ? `<div class="ap-kv" title="Versão do app neste computador: data da última atualização e código dela"><span>Versão</span><b>${esc(verLabel(st.version))}</b></div>` : ''}</div>` : ''}
+        <div class="ap-foot2"><div class="ap-mode" role="group" aria-label="Modo de cores"><button data-theme-set="light" aria-pressed="${!(window.InvbTheme && InvbTheme.get() === 'dark')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Claro</button><button data-theme-set="dark" aria-pressed="${!!(window.InvbTheme && InvbTheme.get() === 'dark')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>Noturno</button></div><button class="ap-outb" id="ap-out" title="Sair do app" aria-label="Sair do app">${ic.out}</button></div></aside>
       <div class="ap-main"><div class="ap-card" id="ap-card">${inner}</div>${uid && S.cur && isDone(S.cur) ? player() : ''}</div></div>`;
   }
 
@@ -249,7 +252,7 @@
 
   /* ---------- Páginas ---------- */
   const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; };
-  const upCard = (u) => `<a class="ap-up" href="/app/uploads/${u.id}/overview"><div class="th"><i>${u.kind === 'aud' ? ic.aud : ic.vid}</i>${u.kind === 'vid' && u.status === 'done' ? `<img src="/api/uploads/${u.id}/thumb" alt="" loading="lazy" onerror="this.remove()">` : ''}${u.duration ? `<em>${tm(u.duration)}</em>` : ''}</div><b>${esc(u.name)}</b><small>${fmtDate(u.createdAt).split(',')[0]} · ${fmtSize(u.size)}</small></a>`;
+  const upCard = (u) => `<a class="ap-up" href="/app/uploads/${u.id}/overview"><div class="th"><i>${u.kind === 'aud' ? ic.aud : ic.vid}</i>${u.kind === 'vid' && u.status === 'done' ? `<img src="/api/uploads/${u.id}/thumb" alt="" loading="lazy" onerror="this.remove()">` : ''}${u.duration ? `<em>${tm(u.duration)}</em>` : ''}</div><b>${esc(u.name)}</b><small>${fmtDate(u.createdAt).split(',')[0]} · ${esc(upWhere(u))}</small></a>`;
   const aiOn = () => !!(S.status && S.status.ai);
   const aiFailNote = (c) => { const n = String((c.analysis && c.analysis.note) || ''), m = /^A IA não conseguiu analisar esta pregação \((.*?)\)\./.exec(n); return m ? m[1] : ''; };
   const note = (c) => !(c.analysis && c.analysis.mode === 'heuristic') ? '' : aiOn()
@@ -266,8 +269,16 @@
   const procView = (c) => `<div class="empty" id="proc"><div class="ci">${c.status === 'error' ? '⚠️' : '⏳'}</div><h3>${c.status === 'error' ? 'Não foi possível processar' : 'Processando…'}</h3><p id="procmsg">${c.status === 'error' ? esc(c.error || 'Erro desconhecido.') : esc(statusLabel(c))}</p>${c.status === 'error' ? `<button class="ap-btn pri" id="retry">Tentar de novo</button> ` : `<div class="bigbar" style="max-width:320px;margin:10px auto"><i id="procbar" style="width:${c.progress || 3}%"></i></div>`}<a class="ap-btn" href="/app/uploads">Todas as pregações</a></div>`;
 
   const pages = {
-    home: () => `<span class="eyebrow" style="font-size:11px;font-weight:800;text-transform:uppercase;display:block;margin-bottom:6px">Mídia · Nova Vida Botafogo</span><h1>${greeting()}</h1><p class="sub2">Cole o link da pregação. Depois da transcrição, é só fazer os cortes.</p><div style="height:20px"></div>${uploadBox()}
-      <div class="ap-h2"><h2>Últimas pregações</h2><a href="/app/uploads">Ver mais ›</a></div>${S.uploads.length ? `<div class="ap-cards">${S.uploads.slice(0, 4).map(upCard).join('')}</div>` : '<p class="sub2">Nenhuma pregação ainda. Cole um link acima para começar.</p>'}`,
+    home: () => {
+      const us = S.uploads, last = us[0], sum = (k) => us.reduce((n, u) => n + ((u.cuts && u.cuts[k]) || 0), 0);
+      const next = last ? (last.status !== 'done' ? 'overview' : last.cuts && last.cuts.total ? 'clips' : 'transcription') : '';
+      const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+      return `<div class="hm-hd"><div><span class="eyebrow hm-eye">Mídia · Nova Vida Botafogo</span><h1>${greeting()}</h1><p class="sub2">Cole o link da pregação. O app baixa, transcreve e deixa pronta para os cortes.</p></div><span class="hm-date">${esc(today)}</span></div>
+      <div class="hm-up">${uploadBox()}</div>
+      ${last ? `<div class="hm-row"><a class="hm-go" href="/app/uploads/${last.id}/${next}"><span class="th">${last.kind === 'vid' && last.status === 'done' ? `<img src="/api/uploads/${last.id}/thumb" alt="" onerror="this.remove()">` : ''}</span><span class="tx"><small>Continuar de onde parou</small><b>${esc(String(last.name || '').replace(/\.[^.]+$/, ''))}</b><em>${esc(upWhere(last))}</em></span><span class="arr" aria-hidden="true">→</span></a>
+        <div class="hm-st"><b>${us.length}</b><span>${us.length === 1 ? 'pregação' : 'pregações'}</span></div><div class="hm-st"><b>${sum('total')}</b><span>cortes criados</span></div><div class="hm-st"><b>${sum('drive')}</b><span>no Drive</span></div></div>` : ''}
+      <div class="ap-h2"><h2>Últimas pregações</h2><a href="/app/uploads">Ver todas ›</a></div>${us.length ? `<div class="ap-cards">${us.slice(0, 8).map(upCard).join('')}</div>` : '<p class="sub2">Nenhuma pregação ainda. Cole um link acima para começar.</p>'}`;
+    },
     uploads: () => `<div class="ap-head"><div><h1>Pregações</h1><p class="sub2">Todas as pregações deste computador e em que ponto cada uma está.</p></div><a class="ap-btn pri" href="/app/uploads/new">+ Nova pregação</a></div>
       <div class="ap-tools"><label class="ap-search">${ic.search}<input id="fq" placeholder="Buscar pregação pelo nome..."></label><span class="ap-sp"></span><button class="ap-btn" id="fsort">⇅ Data: Mais recentes ⌄</button><button class="ap-btn" id="ffil">Filtros</button></div>
       <p class="sub2" id="fcnt" style="margin-bottom:10px"></p><div id="flist"></div>`,
