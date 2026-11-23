@@ -1,10 +1,7 @@
 /* INVB Studio — área logada
-   Organização (início, arquivos, projetos): tema claro.
-   Editor (qualquer tela de um envio: resumo, transcrição, cortes…): tema escuro, detectado só por CSS.
-   O :has() abaixo acende o tema escuro quando a barra lateral mostra o link "…/overview",
-   que só existe dentro de um envio. Navegadores sem :has() simplesmente ficam no tema claro. */
+   Modo claro e modo noturno em todas as telas, escolhidos no interruptor da barra lateral (ver theme.js e theme.css). */
 
-:root:has(.ap-side [href$="/overview"]){
+:root[data-theme="dark"]{
   color-scheme:dark;
   --bg:#17181a;--surface:#1f2124;--surface-2:#2a2c30;--raised:#34373c;--hover:#2a2c30;
   --fg:#f2f3f5;--muted:#a3a7ae;--border:#34373c;--border-strong:#4a4e55;
@@ -290,7 +287,7 @@
 .ap h1{overflow-wrap:anywhere}
 .ap [style*="font-size:10px"],.ap [style*="font-size:11px"]{font-size:12px!important}
 .pctl .mid button:not(.play){filter:grayscale(1) opacity(.8)}
-:root:has(.ap-side [href$="/overview"]) .pctl .mid button:not(.play){filter:grayscale(1) brightness(1.8)}
+:root[data-theme="dark"] .pctl .mid button:not(.play){filter:grayscale(1) brightness(1.8)}
 .vid-slot{overflow:hidden}
 code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--hover);padding:1px 6px;border-radius:5px}
 

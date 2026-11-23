@@ -3,6 +3,9 @@
 Transcrição e cortes de pregações. Roda no computador de cada pessoa; os cortes prontos vão para uma
 pasta compartilhada do Google Drive, de onde a equipe pega para editar.
 
+O visual segue a identidade da Nova Vida Botafogo (preto e dourado). Na barra lateral, embaixo, ficam o interruptor
+**Claro / Noturno** e a **versão** do app neste computador (data da última atualização e código dela).
+
 ## Como a equipe trabalha
 
 Cada culto tem um responsável, que faz sozinho da transcrição aos cortes.

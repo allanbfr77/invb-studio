@@ -1,0 +1,131 @@
+/* INVB Studio — identidade Nova Vida Botafogo: preto e dourado, com modo claro e modo noturno.
+   Carregado por último. Troca as cores do sistema (variáveis) e ajusta as peças que dão cara à tela.
+   O modo vem de <html data-theme="light|dark"> (public/theme.js), escolhido no interruptor da barra lateral.
+   Para mudar o dourado do site inteiro, mude --gold, --gold-hi e --gold-deep. */
+
+:root{
+  --gold:#f0b93a;--gold-hi:#f6d27a;--gold-deep:#8a6208;
+  --display:"Montserrat","Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+
+/* ---------- Claro: papel marfim, tinta preta, dourado escuro nos destaques ---------- */
+:root,:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#f6f3ec;--surface:#fffefb;--surface-2:#efeadf;--raised:#fff;--hover:#ebe5d8;
+  --fg:#16140f;--muted:#6a655a;--border:#e2dbcc;--border-strong:#bfb6a3;
+  --primary:#16140f;--primary-hover:#34302a;--on-primary:#fff;--link:var(--gold-deep);
+  --soft:#fbf0d2;--soft-2:#f3e0a8;--soft-fg:#6f4f05;--soft-border:#e8d08c;--ring:#b8860b;
+  --headline:var(--gold-deep);
+  --accent:#8a5a00;--accent-bg:#fff4dc;--accent-border:#f0d9a2;
+  --c-red:var(--gold-deep);--c-green:var(--gold-deep);--c-orange:var(--gold-deep);--c-teal:var(--gold-deep);--c-magenta:var(--gold-deep);--c-blue:var(--gold-deep);
+  --ok:#05703a;--ok-bg:#e6f4ea;--ok-border:#b9dcc6;
+  --err:#b3170d;--err-bg:#fdeceb;--err-border:#f2c2be;
+  --mark:#fde9a6;--mark-fg:#16140f;
+  --mark-brand:var(--gold-deep);
+  --glow:rgba(240,185,58,.16);
+}
+
+/* ---------- Noturno: preto de verdade, dourado aceso ---------- */
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0a0a0b;--surface:#121214;--surface-2:#1b1b1e;--raised:#262629;--hover:#1b1b1e;
+  --fg:#f5f3ee;--muted:#a8a59d;--border:#262629;--border-strong:#3d3d42;
+  --primary:var(--gold);--primary-hover:var(--gold-hi);--on-primary:#0b0b0c;--link:var(--gold);
+  --soft:#2a2110;--soft-2:#43340f;--soft-fg:var(--gold-hi);--soft-border:#5e4a14;--ring:var(--gold-hi);
+  --headline:var(--gold);
+  --accent:#f6c768;--accent-bg:#2a2110;--accent-border:#5e4a14;
+  --c-red:var(--gold);--c-green:var(--gold);--c-orange:var(--gold);--c-teal:var(--gold);--c-magenta:var(--gold);--c-blue:var(--gold);
+  --ok:#4ade80;--ok-bg:#0f2a1a;--ok-border:#1d5233;
+  --warn:#fbbf24;--warn-bg:#2e240b;--warn-border:#5a4513;
+  --err:#ff7a70;--err-bg:#331517;--err-border:#63282b;
+  --mark:#5c4a0c;--mark-fg:#fff3c9;
+  --video-a:#26262a;--video-b:#050506;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.5);--shadow-md:0 8px 24px rgba(0,0,0,.5);--shadow-lg:0 24px 60px rgba(0,0,0,.65);
+  --scrim:rgba(0,0,0,.7);
+  --mark-brand:var(--gold);
+  --glow:rgba(240,185,58,.09);
+}
+
+/* troca suave entre os modos (só no clique do interruptor) */
+html.th-anim,html.th-anim *{transition:background-color .3s ease,border-color .3s ease,color .2s ease,fill .2s ease!important}
+
+/* ---------- Letras ---------- */
+h1,h2,h3,.ap-h2 h2{font-family:var(--display);letter-spacing:-.02em}
+.ap-card h1{font-weight:800}
+.eyebrow{font-family:var(--display);color:var(--mark-brand)!important;letter-spacing:.16em!important}
+::selection{background:var(--gold);color:#0b0b0c}
+
+/* ---------- Barra lateral ---------- */
+.ap-side{background:var(--bg);border-right-color:var(--border)}
+.ap-brand{display:flex;align-items:center;gap:12px;padding:10px 8px 16px;margin-bottom:8px;border-bottom:1px solid var(--border);position:relative}
+.ap-brand::after{content:'';position:absolute;left:8px;bottom:-1px;width:44px;height:2px;background:var(--gold);border-radius:2px}
+.ap-brand img{height:34px;width:auto;display:block}
+.ap-brand .lg-n{display:none}
+:root[data-theme="dark"] .ap-brand .lg-n{display:block}
+:root[data-theme="dark"] .ap-brand .lg-c{display:none}
+.ap-brand-sub{font:800 10.5px/1.25 var(--display);letter-spacing:.2em;text-transform:uppercase;color:var(--mark-brand);border-left:1px solid var(--border-strong);padding-left:12px}
+.ap-sec{font-family:var(--display);font-size:10.5px;letter-spacing:.16em}
+.ap-link{border-radius:10px}
+.ap-link svg{color:var(--muted)}
+.ap-link:hover svg{color:var(--fg)}
+.ap-link.on{background:var(--soft);color:var(--fg);box-shadow:inset 3px 0 0 var(--gold);border-radius:10px}
+.ap-link.on svg{color:var(--mark-brand)}
+
+/* rodapé da barra: estado, versão, modo e sair */
+.ap-info{padding:10px;font-size:12px;line-height:1.5;color:var(--muted);border-top:1px solid var(--border);margin-top:8px}
+.ap-info b{color:var(--fg);font-weight:600}
+.ap-ver{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11.5px}
+.ap-ver i{width:6px;height:6px;border-radius:50%;background:var(--gold);flex:none}
+.ap-theme{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;margin-bottom:6px;border:1px solid var(--border);border-radius:10px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.ap-theme span{display:inline-flex;align-items:center;gap:6px}
+.ap-theme svg{width:14px;height:14px}
+:root[data-theme="light"] .ap-theme .t-l,:root[data-theme="dark"] .ap-theme .t-d{color:var(--fg)}
+.thsw{position:relative;width:44px;height:24px;border-radius:99px;background:var(--surface-2);border:1px solid var(--border-strong);cursor:pointer;flex:none;padding:0;transition:background .2s}
+.thsw::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--fg);transition:transform .25s var(--ease),background .2s}
+.thsw[aria-checked="true"]{background:var(--soft-2);border-color:var(--soft-border)}
+.thsw[aria-checked="true"]::after{transform:translateX(20px);background:var(--gold)}
+.thsw:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+
+/* ---------- Área principal ---------- */
+.ap-card{background:var(--surface);background-image:radial-gradient(900px 260px at 12% -80px,var(--glow),transparent 70%);border-color:var(--border)}
+.ap-btn{border-radius:10px}
+.ap-btn.pri{font-weight:700;border-color:var(--primary)}
+.ap-btn.pri:hover{background:var(--primary-hover);border-color:var(--primary-hover)}
+:root[data-theme="dark"] .ap-btn.pri{box-shadow:0 0 0 1px rgba(240,185,58,.25),0 6px 18px rgba(240,185,58,.14)}
+.ap-btn:not(.pri):hover{border-color:var(--gold)}
+.ap-tabs [aria-selected="true"]{box-shadow:var(--shadow-sm),inset 0 -2px 0 var(--gold)}
+.ap-up,.cut,.ap-row,.rdy a{transition:border-color .15s,transform .15s,box-shadow .15s}
+.ap-up:hover .th,.cut:hover,.ap-row:hover,.rdy a:hover{border-color:var(--gold)}
+.ap-up:hover{transform:translateY(-2px)}
+.ap-drop{border-color:var(--soft-border)}
+.ap-yt,.ap-drop{background:linear-gradient(180deg,var(--surface),var(--surface-2))}
+input:focus,textarea:focus,select:focus{border-color:var(--ring)!important;outline:none;box-shadow:0 0 0 3px var(--glow)}
+.chipx{border-radius:99px}
+.drv-err{color:var(--err);background:var(--err-bg);border-color:var(--err-border)}
+.play{box-shadow:0 0 0 4px var(--glow)}
+.pbar{border-color:var(--border-strong)}
+.wave2 i.p{background:var(--gold)}
+.toast{background:var(--fg);color:var(--bg);border-radius:12px;box-shadow:var(--shadow-lg);border-left:3px solid var(--gold)}
+.modal{border-top:3px solid var(--gold)}
+*{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+
+/* ---------- Editor do corte ---------- */
+.dlx{background:var(--bg)}
+.dlx-top{border-bottom-color:var(--border)}
+.dlx-go{font-weight:700}
+.dlx-sect{font-family:var(--display);font-size:13px;letter-spacing:.01em}
+.dlx-sw[aria-checked="true"]{background:var(--gold)}
+
+/* ---------- Entrada ---------- */
+.lg{background:var(--bg)}
+.lg .l{background:var(--surface)}
+.lg .r{background:radial-gradient(700px 500px at 70% 20%,rgba(240,185,58,.18),transparent 65%),#0a0a0b;color:#f5f3ee;position:relative;overflow:hidden}
+.lg .r::before{content:'';position:absolute;right:-90px;bottom:-110px;width:520px;height:520px;background:url(/img/nv-v.png) center/contain no-repeat;opacity:.1;pointer-events:none}
+.lg .r h2{font-family:var(--display);font-weight:800;color:#f5f3ee;letter-spacing:-.02em}
+.lg .r .tag{display:block;border:0;background:none;padding:0;border-radius:0;font:800 11px/1 var(--display);letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin:22px 0 12px}
+.lg .r .pill2{border-color:rgba(240,185,58,.4);color:#f5f3ee;background:rgba(240,185,58,.08)}
+.lgc .lg-logo{display:block;height:44px;width:auto;margin:0 auto 26px}
+.lgc .lg-logo.n{display:none}
+:root[data-theme="dark"] .lgc .lg-logo.n{display:block}
+:root[data-theme="dark"] .lgc .lg-logo.c{display:none}
+.lg-theme{position:absolute;top:16px;left:16px;display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--muted)}

@@ -5,7 +5,9 @@ const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
 const crypto = require('crypto');
-const { spawn } = require('child_process');
+const { spawn, execFileSync } = require('child_process');
+// Versão do app neste computador: o código e a data da última atualização (git); sem git, a versão do package.json.
+const VERSION = (() => { const v = { name: 'v' + require('./package.json').version, commit: '', date: '' }; try { const o = execFileSync('git', ['log', '-1', '--format=%h|%cs'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'], timeout: 4000, windowsHide: true }).toString().trim().split('|'); if (/^[0-9a-f]{6,12}$/.test(o[0] || '')) { v.commit = o[0]; v.date = o[1] || ''; } } catch { /* pasta baixada em ZIP ou sem git: fica a versão do package.json */ } return v; })();
 const { analyze } = require('./lib/analyze');
 const { parseDriveLink, openDrive, ensureFolder, uploadFile } = require('./lib/drive');
 const { splitLines } = require('./lib/lines');
@@ -717,7 +719,7 @@ async function api(req, res, url, q) {
   if (a === 'logout' && method === 'POST') return send(res, 200, { ok: true }, { 'set-cookie': 'invb_sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' });
   if (method !== 'GET' && req.headers['x-invb'] !== '1') return send(res, 403, { error: 'Requisição inválida' });
 
-  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, voiceAI: !!tools.demucs, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, ai: !!AI, driveCuts: !!(cfg.googleClientId && cfg.driveCutsFolder), provider_name: isCloud() ? cloud().name : 'Local', aiName: AI ? AI.label : null, llm: !!AI, llmModel: AI ? AI.label : null, queue: queue.length + (busy ? 1 : 0) });
+  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, voiceAI: !!tools.demucs, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, ai: !!AI, driveCuts: !!(cfg.googleClientId && cfg.driveCutsFolder), provider_name: isCloud() ? cloud().name : 'Local', aiName: AI ? AI.label : null, llm: !!AI, llmModel: AI ? AI.label : null, queue: queue.length + (busy ? 1 : 0), version: VERSION });
 
   if (a === 'uploads') {
     if (!b) {
