@@ -90,25 +90,31 @@
     /* Sincronia do áudio na prévia: com ajuste, o vídeo fica mudo e o som sai de um segundo player, adiantado ou atrasado. */
     const au = isAud ? null : new Audio(); if (au) au.preload = 'auto';
     const syncOn = () => !!au && Math.abs(st.sync) >= 0.005;
+    const auSrc = `/api/uploads/${upload.id}/media?som=1`;
     let auOk = false, auTry = null; // auOk: o navegador já liberou o som do segundo player (o Safari só libera dentro de um clique)
     // Chamado dentro de cliques e teclas: é o único momento em que o Safari aceita iniciar um player de áudio novo.
     const unlockAudio = () => {
       if (!au || auOk || auTry || !syncOn()) return;
-      if (!au.src) au.src = v.src;
+      if (!au.src) au.src = auSrc;
       auTry = au.play().then(() => { auOk = true; if (v.paused) au.pause(); syncAudio(true); }).catch(() => {}).finally(() => { auTry = null; });
     };
     const syncAudio = (force) => {
       if (!au) return;
       if (!syncOn()) { if (!au.paused) au.pause(); v.muted = false; return; }
-      if (!au.src) au.src = v.src;
-      v.muted = auOk; // enquanto o segundo player não estiver liberado, o som continua saindo do vídeo (sem o ajuste) em vez de sumir
+      if (!au.src) au.src = auSrc;
+      muteRule();
       if (!auOk) return;
       const want = Math.max(0, v.currentTime - st.sync), err = (au.currentTime || 0) - want;
       // Erro grande: pula para o ponto certo. Erro pequeno: acelera ou segura um pouco o som até encaixar, sem cortes.
-      if (force || Math.abs(err) > 0.35) { if (!au.seeking) { try { au.currentTime = want; } catch { /* ainda carregando */ } } au.playbackRate = v.playbackRate; }
+      if ((force && Math.abs(err) > 0.05) || Math.abs(err) > 0.35) { if (!au.seeking) { try { au.currentTime = want; } catch { /* ainda carregando */ } } au.playbackRate = v.playbackRate; }
       else au.playbackRate = v.playbackRate * (Math.abs(err) < 0.02 ? 1 : err > 0 ? 0.93 : 1.07);
       if (v.paused || v.seeking) { if (!au.paused) au.pause(); } else if (au.paused) au.play().catch(() => { auOk = false; v.muted = false; });
+      muteRule();
     };
+    // O vídeo só fica mudo enquanto o segundo player está de fato tocando. Se ele travar, carregar ou for bloqueado, o som volta a sair do vídeo.
+    const auLive = () => auOk && !au.paused && !au.seeking && au.readyState >= 3 && !au.error;
+    const muteRule = () => { if (au) v.muted = syncOn() && (v.paused ? auOk : auLive()); };
+    if (au) ['playing', 'waiting', 'stalled', 'pause', 'seeking', 'seeked', 'canplay', 'error', 'emptied'].forEach((ev) => au.addEventListener(ev, muteRule));
     ['play', 'pause', 'seeked', 'ratechange'].forEach((ev) => v.addEventListener(ev, () => syncAudio(ev !== 'ratechange')));
     ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend'].forEach((ev) => root.addEventListener(ev, unlockAudio, true));
     v.addEventListener('timeupdate', () => syncAudio(false));
