@@ -34,7 +34,14 @@ def main():
     from faster_whisper import WhisperModel
 
     compute = "int8" if a.device == "cpu" else "float16"
-    print(json.dumps({"type": "stage", "stage": "loading_model"}), flush=True)
+    # Diz ao app se o modelo já está guardado neste computador ou se ainda vai ser baixado (só na primeira vez).
+    cached = True
+    try:
+        from faster_whisper.utils import download_model
+        download_model(a.model, local_files_only=True)
+    except Exception:  # noqa
+        cached = False
+    print(json.dumps({"type": "stage", "stage": "loading_model" if cached else "downloading_model"}), flush=True)
     model = WhisperModel(a.model, device=a.device, compute_type=compute)
     lang = None if a.language == "auto" else a.language
     segments, info = model.transcribe(

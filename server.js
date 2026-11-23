@@ -439,7 +439,7 @@ async function pipeline(id) {
     }
     await set({ duration: dur, stage: 'Transcrevendo', progress: 0 });
     let last = 0;
-    const setProgress = (pct, stage) => { const now = Date.now(); if (stage) set({ stage: stage === 'loading_model' ? 'Carregando modelo (1ª vez baixa o modelo)' : stage, progress: pct }); else { set({ stage: 'Transcrevendo', progress: pct }); } last = now; };
+    const setProgress = (pct, stage) => { const now = Date.now(); if (stage) set({ stage: stage === 'loading_model' ? 'Carregando o modelo de transcrição' : stage === 'downloading_model' ? 'Baixando o modelo de transcrição (só na primeira vez)' : stage, progress: pct }); else { set({ stage: 'Transcrevendo', progress: pct }); } last = now; };
     let tr;
     if (isCloud(P)) { if (!cloud(P).key) throw new Error(P === 'groq' ? 'GROQ_API_KEY não configurada.' : 'OPENAI_API_KEY não configurada.'); tr = await transcribeOpenAI(id, orig, dur, setProgress, P); }
     else { if (!tools.whisper) throw new Error('faster-whisper não instalado (pip install faster-whisper). Troque para a nuvem na barra lateral.'); tr = await transcribeLocal(id, wav, setProgress); }
