@@ -619,3 +619,65 @@ test('trecho inválido é recusado antes de começar, com o motivo', async (t) =
   assert.equal(dr.status, 400); assert.match(dr.body.error, /30 segundos/);
   assert.deepEqual(fs.existsSync(path.join(d, 'uploads')) ? fs.readdirSync(path.join(d, 'uploads')) : [], []);
 });
+
+/* ---------- Sincronia automática (AutoSync) ---------- */
+test('sincronia automática não instalada: a rota avisa como instalar e a tela fica sabendo', async (t) => {
+  const d = tmp(t); seed(d, 'ssssssssssss');
+  const s = await boot(t, d, { env: { AUTOSYNC_PYTHON: path.join(d, 'nao-existe', 'python') } });
+  assert.equal((await s.api('/status')).body.autosync, false);
+  const r = await s.api('/uploads/ssssssssssss/autosync', { json: { start: 0, end: 30 } });
+  assert.equal(r.status, 501);
+  assert.match(r.body.error, /instalar-autosync/);
+});
+
+const AS_PY = path.join(ROOT, '.venv-sync', ...(process.platform === 'win32' ? ['Scripts', 'python.exe'] : ['bin', 'python']));
+const HAS_AUTOSYNC = fs.existsSync(AS_PY) && spawnSync(AS_PY, [path.join(ROOT, 'worker', 'autosync.py'), '--check']).status === 0;
+test('sincronia automática: arquivo só de áudio e trecho curto são recusados com mensagem clara', { skip: !HAS_AUTOSYNC }, async (t) => {
+  const d = tmp(t); seed(d, 'aaaaaaaaaaab', { kind: 'aud', file: 'original.mp4' }); seed(d, 'aaaaaaaaaaac');
+  const s = await boot(t, d);
+  assert.equal((await s.api('/status')).body.autosync, true);
+  assert.match((await s.api('/uploads/aaaaaaaaaaab/autosync', { json: {} })).body.error, /só áudio/);
+  const r = await s.api('/uploads/aaaaaaaaaaac/autosync', { json: { start: 10, end: 11 } });
+  assert.equal(r.status, 400); assert.match(r.body.error, /curto demais/);
+});
+
+test('sincronia automática: vídeo sem rosto é analisado de verdade, não corrige e não mexe no original', { skip: !HAS_AUTOSYNC || !HAS_FFMPEG }, async (t) => {
+  const d = tmp(t); const dir = seed(d, 'aaaaaaaaaaad', { duration: 14 }, { original: false });
+  spawnSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=25:d=14', '-f', 'lavfi', '-i', 'sine=f=220:d=14', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', path.join(dir, 'original.mp4')]);
+  const before = fs.readFileSync(path.join(dir, 'original.mp4'));
+  const s = await boot(t, d);
+  const r = await s.api('/uploads/aaaaaaaaaaad/autosync', { json: { apply: true } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.status, 'sem_rosto');
+  assert.equal(r.body.needsCorrection, false);
+  assert.equal(r.body.file, undefined);
+  assert.ok(!has(dir, 'sincronizado.mp4'));
+  assert.ok(before.equals(fs.readFileSync(path.join(dir, 'original.mp4'))));
+  assert.deepEqual(fs.readdirSync(dir).filter((f) => f.startsWith('.autosync')), []);
+});
+
+test('sincronia da pregação: grava o ajuste, e cortes já exportados voltam a ser exportados', async (t) => {
+  const d = tmp(t); const dir = seed(d, 'aaaaaaaaaaae', {}, { clips: [clip(), clip({ id: 'm222222222222', render: null })] });
+  const s = await boot(t, d);
+  const r = await s.api('/uploads/aaaaaaaaaaae/sync', { json: { audioShift: 1.46 } });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.audioShift, 1.46);
+  assert.equal(r.body.resetClips, 1);
+  assert.equal(meta(dir).audioShift, 1.46);
+  assert.ok((await s.api('/uploads/aaaaaaaaaaae/clips')).body.every((k) => k.render === null));
+  assert.equal((await s.api('/uploads/aaaaaaaaaaae/sync', { json: { audioShift: 99 } })).body.audioShift, 5); // limite de ±5 s
+});
+
+test('a exportação soma a sincronia da pregação ao ajuste do corte', { skip: !HAS_FFMPEG }, async (t) => {
+  const d = tmp(t); const dir = seed(d, 'aaaaaaaaaaaf', { duration: 6, audioShift: 0.3 }, { clips: [clip({ start: 1, end: 6, render: null })], original: false });
+  // clarão na imagem e bipe no som, ambos em 2,0 s
+  spawnSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=black:s=160x120:r=25:d=6', '-f', 'lavfi', '-i', "aevalsrc='if(between(t,2,2.05),sin(2*PI*1000*t),0)':s=48000:d=6", '-vf', "drawbox=x=0:y=0:w=iw:h=ih:color=white:t=fill:enable='between(t,2,2.03)'", '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', path.join(dir, 'original.mp4')]);
+  const s = await boot(t, d);
+  assert.equal((await s.api('/uploads/aaaaaaaaaaaf/clips/m111111111111/render', { json: { start: 1, end: 6, audioShift: 0.1 } })).status < 300, true);
+  let k; for (let i = 0; i < 100; i++) { await new Promise((r) => setTimeout(r, 200)); k = (await s.api('/uploads/aaaaaaaaaaaf/clips')).body[0]; if (k.render && k.render.status !== 'rendering') break; }
+  assert.equal(k.render.status, 'done', JSON.stringify(k.render));
+  assert.equal(k.render.audioShift, 0.4);
+  const a = spawnSync('ffmpeg', ['-v', 'error', '-i', path.join(dir, 'clips', k.render.file), '-map', '0:a', '-af', 'aresample=async=1:first_pts=0', '-ac', '1', '-ar', '48000', '-f', 's16le', '-'], { maxBuffer: 1 << 26 }).stdout;
+  let beep = -1; for (let i = 0; i < a.length / 2; i++) if (Math.abs(a.readInt16LE(i * 2)) > 3000) { beep = i / 48000; break; }
+  assert.ok(Math.abs(beep - 1.4) < 0.03, `bipe deveria ir para 1,4 s do corte (1,0 + 0,3 da pregação + 0,1 do corte); foi ${beep}`);
+});

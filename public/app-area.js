@@ -327,7 +327,7 @@
       <div class="ap-tools"><span class="ap-sp"></span><button class="ap-btn pri" id="tclaude">Copiar para o Claude</button><button class="ap-btn" id="tcut" hidden>Criar corte da seleção</button><button class="ap-btn" id="tsel">Selecionar</button><button class="ap-btn" id="tdl">${ic.dl} Baixar ⌄</button><button class="ap-btn" id="tfil">Filtros</button></div></div>
       <div class="segs" id="segs"></div><div class="stat3"><h4>Resumo Estatístico</h4><div class="g"><div><b>${(c.clips || []).length}</b><small>Momentos-chave</small></div><div><b>${tm(c.duration)}</b><small>Duração total</small></div><div><b>${c.words || 0}</b><small>Palavras</small></div></div></div></div>
       <div class="rpanel">${c.kind === 'vid' ? '<div class="vid vid-slot"></div>' : ''}<div class="dlp"><b style="color:var(--fg)">Baixar</b><button class="ap-btn" data-d="orig">Baixar arquivo original</button><div class="g2">${['TXT', 'SRT', 'VTT'].map((f) => `<button class="ap-btn" data-d="${f}">${f}</button>`).join('')}</div></div></div></div>`,
-    clips: (c) => `${S.status && S.status.ai && c.aiCutsError ? `<div class="ap-demo gone" role="status"><span>A IA não conseguiu sugerir os cortes automáticos desta pregação: ${esc(c.aiCutsError)}</span><button class="ap-btn" id="ai-retry">Tentar de novo com IA</button></div>` : ''}<div class="ap-head"><div><h1>Cortes</h1><p class="sub2">Crie os cortes, ajuste na tesoura, baixe e envie para o Drive.</p></div><div class="ap-tools" style="margin:0">${S.status && S.status.ai ? '<button class="ap-btn" id="cl-ai" title="O Claude lê a transcrição e cria os cortes">✨ Sugerir cortes com IA</button>' : ''}<button class="ap-btn" id="cl-paste">Colar minutagens</button><button class="ap-btn pri" id="cl-new">+ Novo corte</button></div></div>
+    clips: (c) => `${S.status && S.status.ai && c.aiCutsError ? `<div class="ap-demo gone" role="status"><span>A IA não conseguiu sugerir os cortes automáticos desta pregação: ${esc(c.aiCutsError)}</span><button class="ap-btn" id="ai-retry">Tentar de novo com IA</button></div>` : ''}<div class="ap-head"><div><h1>Cortes</h1><p class="sub2">Crie os cortes, ajuste na tesoura, baixe e envie para o Drive.</p></div><div class="ap-tools" style="margin:0">${S.status && S.status.ai ? '<button class="ap-btn" id="cl-ai" title="O Claude lê a transcrição e cria os cortes">✨ Sugerir cortes com IA</button>' : ''}${c.kind === 'vid' ? `<button class="ap-btn" id="cl-sync" title="Acertar o som com a boca na pregação inteira (vale para todos os cortes)">🔊 Sincronia${c.audioShift ? ' · ' + (c.audioShift > 0 ? '+' : '−') + Math.abs(Math.round(c.audioShift * 1000)) + ' ms' : ''}</button>` : ''}<button class="ap-btn" id="cl-paste">Colar minutagens</button><button class="ap-btn pri" id="cl-new">+ Novo corte</button></div></div>
       <div class="ap-tabs" id="cl-tabs"><button role="tab" aria-selected="true" data-m="0">Automáticos <span class="tabn" id="cn0"></span></button><button role="tab" aria-selected="false" data-m="1">Manuais <span class="tabn" id="cn1"></span></button></div>
       <div class="ap-tools"><label class="ap-search">${ic.search}<input id="cq" placeholder="Buscar nos cortes"></label><span class="ap-sp"></span><button class="ap-btn" id="call-dl" title="Exporta e baixa todos os cortes desta aba">Baixar todos</button>${S.status && S.status.driveCuts ? '<button class="ap-btn" id="call-dr" title="Exporta e envia à pasta da equipe todos os cortes desta aba">Enviar todos ao Drive</button>' : ''}<button class="ap-btn" id="csort">⇅ Maior impacto ⌄</button><button class="ap-btn" id="cfil">Filtros</button></div><p class="sub2" id="ccnt" style="margin-bottom:12px"></p><div class="cuts" id="cuts"></div>`,
     chapters: (c) => `${note(c)}<div class="ap-head"><div><h1>Capítulos</h1><p class="sub2">Navegue pelo conteúdo do áudio por temas e tópicos.</p></div><button class="ap-btn" id="ch-exp">Exportar timestamps ⌄</button></div>
@@ -482,7 +482,7 @@
           k.render = { status: 'rendering' }; draw(); toast(k.editor ? 'Exportando o corte com a edição salva… O download começa quando terminar.' : 'Exportando o corte… O download começa quando terminar.'); pollRender(k.id);
         } else if (a === 'open') { // tesoura: abre o editor (formato, legenda, textos, ajustes finos)
           if (k.render && k.render.status === 'rendering') return toast('Este corte já está sendo exportado.');
-          ClipEditor.open({ upload: c, clip: k, segs: S.segs, api, toast, tm, esc, dl, drive: driveOn ? { token: driveToken, send: sendDrive } : null, voiceAI: !!(S.status && S.status.voiceAI), onDone: (list) => { clips = list; draw(); } });
+          ClipEditor.open({ upload: c, clip: k, segs: S.segs, api, toast, tm, esc, dl, drive: driveOn ? { token: driveToken, send: sendDrive } : null, voiceAI: !!(S.status && S.status.voiceAI), autosync: !!(S.status && S.status.autosync), onDone: (list) => { clips = list; draw(); } });
         } else if (a === 'ed') modal('Editar corte', `<label>Título</label><input id="et" value="${esc(k.title)}"><label>Início (mm:ss)</label><input id="es" value="${tm(k.start)}"><label>Fim (mm:ss)</label><input id="ee" value="${tm(k.end)}">${k.manual ? '<label style="margin-top:14px"><a id="edel" style="color:#c0262d;cursor:pointer">Excluir este corte</a></label>' : ''}`, guard(async (m) => { const s = parseT($('#es', m).value), e = parseT($('#ee', m).value); if (!(e - s >= 3)) { toast('O corte precisa ter ao menos 3s.'); return false; } const r = await api(`/uploads/${c.id}/clips/${k.id}`, { method: 'PATCH', json: { title: $('#et', m).value, start: s, end: e } }); Object.assign(k, r); draw(); }), 'Salvar', 'Alterar o tempo descarta a renderização anterior.');
         const dd = $('#edel'); if (dd) dd.onclick = guard(async () => { await api(`/uploads/${c.id}/clips/${k.id}`, { method: 'DELETE' }); clips = clips.filter((x) => x.id !== k.id); document.querySelector('.modal-bg')?.remove(); draw(); });
       })); });
@@ -535,6 +535,32 @@
         toast(!r.created.length ? 'A IA não encontrou outros trechos fortes para sugerir.' : r.created.length === 1 ? '1 corte sugerido pela IA.' : `${r.created.length} cortes sugeridos pela IA.`);
       } finally { btn.disabled = false; btn.textContent = label; }
     });
+    // Sincronia da pregação inteira: um ajuste fixo do som que vale para todos os cortes. Pode ser medido sozinho no vídeo todo.
+    const syncBtn = $('#cl-sync');
+    if (syncBtn) syncBtn.onclick = () => {
+      let auto = null;
+      const autoOn = !!(S.status && S.status.autosync);
+      const m = modal('Sincronia da pregação', `<label for="sy-ms">Ajuste do som (milissegundos)</label><input id="sy-ms" type="number" step="10" min="-5000" max="5000" value="${Math.round((c.audioShift || 0) * 1000)}">
+        <p class="sub2" style="margin:6px 0 14px">Positivo atrasa o som (use quando o som vem antes da boca). Negativo adianta (quando o som vem depois). Vale para todos os cortes desta pregação; o ajuste do editor de cada corte soma a este.</p>
+        ${autoOn ? '<button class="ap-btn" id="sy-auto" type="button">✨ Detectar no vídeo inteiro</button><p class="sub2" id="sy-msg" role="status" style="margin:10px 0 0"></p>' : '<p class="sub2">Para detectar sozinho, rode uma vez o arquivo <code>install/instalar-autosync</code> e abra o app de novo.</p>'}`,
+      guard(async (mm) => {
+        const v = Math.max(-5000, Math.min(5000, Math.round(+$('#sy-ms', mm).value || 0))) / 1000;
+        const r = await api(`/uploads/${c.id}/sync`, { json: { audioShift: v, auto } });
+        c.audioShift = r.audioShift; clips = await api(`/uploads/${c.id}/clips`);
+        toast(v ? `Sincronia da pregação: ${v > 0 ? '+' : '−'}${Math.abs(Math.round(v * 1000))} ms.${r.resetClips ? ` ${r.resetClips} corte(s) já exportado(s) voltam a ser exportados com o som novo.` : ''}` : 'Sincronia da pregação zerada.');
+        window.__render(location.pathname);
+      }), 'Salvar', 'Acerta o som com a boca na pregação toda, antes de exportar os cortes.');
+      const b = $('#sy-auto', m), msg = $('#sy-msg', m);
+      if (b) b.onclick = async () => {
+        b.disabled = true; b.textContent = 'Medindo boca e som no vídeo todo… (1 a 2 min)'; msg.textContent = '';
+        try {
+          const r = await api(`/uploads/${c.id}/autosync`, { json: {} });
+          if (r.ok) { auto = { offsetMs: r.offsetMs }; $('#sy-ms', m).value = Math.round(r.shiftSec * 1000); msg.textContent = r.message + (r.needsCorrection ? ` O ajuste ${Math.round(r.shiftSec * 1000) > 0 ? '+' : ''}${Math.round(r.shiftSec * 1000)} ms foi preenchido: clique em Salvar.` : ' Nada a ajustar.'); }
+          else msg.textContent = r.message;
+        } catch (e) { msg.textContent = e.message; }
+        b.disabled = false; b.textContent = '✨ Detectar no vídeo inteiro';
+      };
+    };
     $('#cl-paste').onclick = () => modal('Colar minutagens', `<label for="cutlist">Uma minutagem por linha</label><textarea id="cutlist" rows="7" placeholder="12:40 - 14:05 O amor de Deus&#10;31:10 - 32:20 O bom pastor"></textarea><div class="cut-rej" hidden></div>`, guard(async (m) => {
       const text = $('#cutlist', m).value; if (!text.trim()) return false;
       const r = await api(`/uploads/${c.id}/clips/bulk`, { json: { text } });

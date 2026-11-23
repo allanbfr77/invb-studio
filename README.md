@@ -147,10 +147,26 @@ Para liberar essa opção, rode uma vez, com dois cliques:
 Ele baixa cerca de 1 GB para a pasta `.venv-voz` do projeto. Depois, feche e abra o app. A exportação com
 **Remover música** demora mais: nos testes, perto de 12 segundos para um corte de 20 segundos.
 
+## Sincronia automática (opcional, por computador)
+
+Quando o som do vídeo vem adiantado ou atrasado em relação à boca, o editor do corte acha e corrige sozinho: na
+seção **Sincronia do áudio**, clique em **✨ Detectar automaticamente**; para a pregação inteira (vale para todos os cortes), use o botão **🔊 Sincronia** na página **Cortes**. O app compara o movimento da boca com o som
+(modelo SyncNet, no próprio computador) e, se a medida for segura, já deixa o ajuste no controle; confira com
+**Testar** e exporte. Se não der para medir (rosto pequeno ou de lado, microfone na frente da boca, sem fala, atraso
+que muda ao longo do vídeo), ele explica o motivo e não mexe em nada.
+
+Para liberar o botão, rode uma vez, com dois cliques:
+
+- **Mac:** `install/instalar-autosync.command`
+- **Windows:** `install\instalar-autosync.bat`
+
+Baixa cerca de 1 GB para a pasta `.venv-sync` e dois modelos (55 MB) para `models/autosync`. Depois, feche e abra o
+app. Cada análise leva de 25 a 45 segundos. Detalhes, testes e limitações em `docs/autosync.md`.
+
 ## Para quem desenvolve
 
 - Uma única dependência npm, o SDK oficial da Anthropic, carregada só quando há chave. `npm start` sobe o servidor; `npm test` roda os testes (`node --test`).
 - Variáveis de ambiente: veja `.env.example`.
 - Lógica testável em `lib/`: `lines.js` (linhas curtas), `cutlist.js` (ida e volta com o Claude),
-  `drive.js` (importar e enviar), `kit.js` (legenda e texto do corte), `cleanup.js` (limpeza do original), `claude.js` (IA), `analyze.js`.
+  `drive.js` (importar e enviar), `kit.js` (legenda e texto do corte), `cleanup.js` (limpeza do original), `claude.js` (IA), `autosync.js` (sincronia automática), `analyze.js`.
 - O projeto e o plano desta mudança estão em `docs/superpowers/`.

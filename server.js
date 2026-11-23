@@ -20,6 +20,7 @@ const { needsPreview } = require('./lib/preview');
 const { cleanSpeed, atempo, cleanShift } = require('./lib/speed');
 const { cleanVoice } = require('./lib/voice');
 const { cues, toSrt, kitText } = require('./lib/kit');
+const autosync = require('./lib/autosync');
 const { cleanRange } = require('./public/range-utils.js');
 const { Readable } = require('stream');
 
@@ -157,6 +158,10 @@ async function detectTools() {
   // Remoção de música: modelo de separação de voz (Demucs) instalado à parte por install/instalar-voz-ia, na pasta .venv-voz.
   const vozPy = E.DEMUCS_PYTHON || path.join(__dirname, '.venv-voz', process.platform === 'win32' ? 'Scripts\\python.exe' : 'bin/python');
   tools.demucs = fs.existsSync(vozPy) && (await run(vozPy, ['-m', 'demucs', '--help'])).code === 0 ? [vozPy, '-m', 'demucs'] : null;
+  // Sincronia automática (AutoSync): SyncNet + detector de rosto, instalados à parte por install/instalar-autosync, na pasta .venv-sync.
+  const as = autosync.locate(__dirname, E), asc = fs.existsSync(as.python) ? await run(as.python, [as.worker, '--check']) : null;
+  tools.autosync = asc && asc.code === 0 ? as : null;
+  if (asc && asc.code !== 0) { let why = (asc.err || '').split(/\r?\n/).filter(Boolean).pop() || 'falhou'; for (const l of (asc.out || '').split(/\r?\n/)) try { const j = JSON.parse(l); if (j.message) why = j.message; } catch { /* ruído */ } log('sincronia automática indisponível:', why); }
   tools.checked = true;
 }
 
@@ -243,7 +248,7 @@ const YT_ATTEMPTS = [{ f: YT_FORMAT, fast: true }, { f: YT_ANY, fast: true }, { 
 const MEDIA_FILE = /^original\.(mp4|mov|mkv|webm|avi|m4v|mp3|wav|m4a|aac|opus|flac|ogg|oga)$/i;
 /** Remove o original e qualquer sobra de download (pedaços .part, faixas separadas). */
 async function clearOriginals(id) { for (const f of await fsp.readdir(U(id)).catch(() => [])) if (f.startsWith('original.')) await fsp.rm(U(id, f), { force: true }); }
-async function dropOriginal(m) { await clearOriginals(m.id); for (const f of ['preview.mp4', 'preview.tmp.mp4']) await fsp.rm(U(m.id, f), { force: true }); await update(m.id, { originalGone: true, preview: null }); log('original liberado', m.id, m.name); }
+async function dropOriginal(m) { await clearOriginals(m.id); for (const f of ['preview.mp4', 'preview.tmp.mp4', 'sincronizado.mp4']) await fsp.rm(U(m.id, f), { force: true }); await update(m.id, { originalGone: true, preview: null }); log('original liberado', m.id, m.name); }
 /** O vídeo de um envio concluído não está no disco (apagado pela limpeza, ou sumiu por outro motivo). */
 const isGone = (m) => m.status === 'done' && !m.refetching && !!(m.originalGone || !m.file || !fs.existsSync(U(m.id, m.file)));
 /** Este computador consegue baixar de novo? Link do YouTube precisa de yt-dlp e ffmpeg instalados. */
@@ -627,6 +632,7 @@ async function clipKit(id, m, cl) {
   await fsp.writeFile(txt, kitText({ sermon: m.name.replace(/\.[^.]+$/, ''), clip: { ...cl, start, end }, seconds: r.seconds, speech }));
   return { srt, txt };
 }
+let syncBusy = false; // uma análise de sincronia por vez: ela usa o processador inteiro
 const renders = new Map(); // `${id}:${cid}` -> { proc, cancelled }
 async function renderClip(id, cid, rawOpt) {
   const opt = cleanOpts(rawOpt || {});
@@ -661,7 +667,9 @@ async function renderClip(id, cid, rawOpt) {
     for (const o of images) { const it = lib.find((x) => x.id === o.imgId); if (it) imgFiles.push({ o, file: LIB(it.id + it.ext) }); }
     const inArgs = [...baseIn, ...imgFiles.flatMap((f) => ['-i', f.file])];
     // Sincronia: o áudio é lido do mesmo arquivo, começando um pouco antes ou depois do vídeo.
-    const aStart = Math.max(0, c.start - opt.audioShift);
+    // A sincronia da pregação inteira (meta.audioShift) vale para todos os cortes; o ajuste do corte soma a ela.
+    const shift = cleanShift((m.audioShift || 0) + opt.audioShift);
+    const aStart = Math.max(0, c.start - shift);
     // Remover música: separa a voz do trecho com o modelo e usa esse arquivo como o áudio do corte.
     if (opt.voice === 'ia') {
       if (!tools.demucs) throw new Error('A remoção de música não está instalada neste computador. Rode uma vez o arquivo install/instalar-voz-ia e abra o app de novo.');
@@ -719,7 +727,7 @@ async function renderClip(id, cid, rawOpt) {
     const kc = cues(clipWords(tr, c, opt).map((w) => ({ t: w.t, s: rel(w.s) / opt.speed, e: rel(w.e) / opt.speed })));
     const srt = kc.length ? `${cid}.srt` : null;
     if (srt) await fsp.writeFile(path.join(dir, srt), toSrt(kc)); else await fsp.rm(path.join(dir, `${cid}.srt`), { force: true });
-    await setR({ status: 'done', file: out, srt, start: c.start, end: c.end, format: audioOnly ? null : opt.format, vertical: opt.format === '9:16', bw: opt.bw, hq: opt.hq, removePauses: opt.removePauses, speed: opt.speed, audioShift: opt.audioShift, voice: opt.voice, removedWords: rm.length, overlays: imgFiles.length + opt.overlays.filter((o) => o.type === 'text').length, captions, audio: audioOnly, seconds: +(total / opt.speed).toFixed(1), at: Date.now() });
+    await setR({ status: 'done', file: out, srt, start: c.start, end: c.end, format: audioOnly ? null : opt.format, vertical: opt.format === '9:16', bw: opt.bw, hq: opt.hq, removePauses: opt.removePauses, speed: opt.speed, audioShift: shift, voice: opt.voice, removedWords: rm.length, overlays: imgFiles.length + opt.overlays.filter((o) => o.type === 'text').length, captions, audio: audioOnly, seconds: +(total / opt.speed).toFixed(1), at: Date.now() });
   } catch (e) { await setR(state.cancelled ? { status: 'cancelled' } : { status: 'error', error: e.message }); }
   finally { renders.delete(key); for (const f of [`${cid}.src.wav`, `${cid}.sep`]) await fsp.rm(U(id, 'clips', f), { recursive: true, force: true }).catch(() => {}); }
 }
@@ -784,7 +792,7 @@ async function api(req, res, url, q) {
   if (a === 'logout' && method === 'POST') return send(res, 200, { ok: true }, { 'set-cookie': 'invb_sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' });
   if (method !== 'GET' && req.headers['x-invb'] !== '1') return send(res, 403, { error: 'Requisição inválida' });
 
-  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, voiceAI: !!tools.demucs, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, ai: !!AI, driveCuts: !!(cfg.googleClientId && cfg.driveCutsFolder), provider_name: isCloud() ? cloud().name : 'Local', transcribers: transcribers(), aiName: AI ? AI.label : null, llm: !!AI, llmModel: AI ? AI.label : null, queue: queue.length + (busy ? 1 : 0), version: VERSION });
+  if (a === 'status') return send(res, 200, { ffmpeg: !!tools.ffmpeg, whisper: tools.whisper, ytdlp: !!tools.ytdlp, voiceAI: !!tools.demucs, autosync: !!tools.autosync, provider: cfg.provider, model: isCloud() ? cloud().model : cfg.whisperModel, driveClientId: cfg.googleClientId, ai: !!AI, driveCuts: !!(cfg.googleClientId && cfg.driveCutsFolder), provider_name: isCloud() ? cloud().name : 'Local', transcribers: transcribers(), aiName: AI ? AI.label : null, llm: !!AI, llmModel: AI ? AI.label : null, queue: queue.length + (busy ? 1 : 0), version: VERSION });
 
   if (a === 'transcriber' && method === 'POST') {
     const j = await body(req), t = transcribers().find((x) => x.id === j.provider);
@@ -873,7 +881,7 @@ async function api(req, res, url, q) {
       if (method === 'DELETE') { await fsp.rm(U(b), { recursive: true, force: true }); return send(res, 200, { ok: true }); }
     }
     if (c === 'thumb' && method === 'GET') { const f = await ensureThumb(m); return f ? serveFile(req, res, f, 'image/jpeg') : send(res, 404, { error: 'Sem capa' }); }
-    if ((c === 'media' || c === 'synctest' || c === 'peaks') && method === 'GET' && (m.refetching || isGone(m))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
+    if ((c === 'media' || c === 'synctest' || c === 'peaks' || c === 'autosync') && (m.refetching || isGone(m))) return send(res, 410, { error: 'A pregação saiu deste computador para liberar espaço. Abra o envio e clique em "Baixar de novo".', originalGone: true, canRefetch: canRefetch(m) });
     if (c === 'media' && method === 'GET') touchUsed(b);
     if (c === 'free' && method === 'POST') { // apaga o original agora; o link continua salvo
       if (!canRefetch(m)) return send(res, 400, { error: 'Este arquivo foi enviado do computador. Como não há link para baixar de novo, ele não é apagado.' });
@@ -941,7 +949,7 @@ async function api(req, res, url, q) {
     }
     // Teste da sincronia: um trecho curto renderizado como o arquivo final (mesma leitura do vídeo e do som), em baixa resolução.
     if (c === 'synctest' && method === 'GET') {
-      const at = Math.max(0, +q.get('at') || 0), len = clamp(+q.get('len') || 8, 1, 15), shift = cleanShift(q.get('shift'));
+      const at = Math.max(0, +q.get('at') || 0), len = clamp(+q.get('len') || 8, 1, 15), shift = cleanShift((m.audioShift || 0) + cleanShift(q.get('shift')));
       if (!tools.ffmpeg) return send(res, 501, { error: 'O ffmpeg não está instalado.' });
       if (m.kind === 'aud') return send(res, 400, { error: 'Este arquivo é só áudio.' });
       touchUsed(b); await fsp.mkdir(U(b, 'clips'), { recursive: true });
@@ -953,6 +961,37 @@ async function api(req, res, url, q) {
         const buf = await fsp.readFile(tmpFile);
         res.writeHead(200, { 'content-type': 'video/mp4', 'content-length': buf.length, 'cache-control': 'no-store' }); return res.end(buf);
       } finally { await fsp.rm(tmpFile, { force: true }).catch(() => {}); }
+    }
+    /* Sincronia automática: mede o atraso entre a fala e a boca (num trecho ou no vídeo inteiro) e diz se dá para
+       corrigir. Com apply, grava sincronizado.mp4 ao lado do original (que não é alterado), sem recodificar a imagem. */
+    // Sincronia da pregação inteira: um ajuste fixo do som que vale para todos os cortes (inclusive os já criados).
+    // Cortes já exportados voltam a "novo", para sair de novo com o som no lugar.
+    if (c === 'sync' && method === 'POST') {
+      const j = await body(req), v = cleanShift(j.audioShift);
+      const mm = await update(b, { audioShift: v, audioShiftAt: Date.now(), audioShiftAuto: j.auto && typeof j.auto === 'object' ? { offsetMs: +j.auto.offsetMs || 0, at: Date.now() } : null });
+      let reset = 0;
+      if ((m.audioShift || 0) !== v) await withLock('clips:' + b, async () => { const cl = await readJson(U(b, 'clips.json'), []); for (const k of cl) if (k.render && k.render.status === 'done') { k.render = null; delete k.drive; reset++; } await writeJson(U(b, 'clips.json'), cl); });
+      log('sincronia da pregação', b, Math.round(v * 1000) + ' ms', reset ? `(${reset} cortes para exportar de novo)` : '');
+      return send(res, 200, { ...mm, resetClips: reset });
+    }
+    if (c === 'autosync' && d === 'file' && method === 'GET') return serveFile(req, res, U(b, 'sincronizado.mp4'), 'video/mp4', m.name.replace(/\.[^.]+$/, '') + ' (sincronizado).mp4');
+    if (c === 'autosync' && !d && method === 'POST') {
+      if (!tools.autosync) return send(res, 501, { error: 'A sincronia automática não está instalada neste computador. Rode uma vez o arquivo install/instalar-autosync e abra o app de novo.' });
+      if (!tools.ffmpeg) return send(res, 501, { error: 'O ffmpeg não está instalado.' });
+      if (m.kind === 'aud') return send(res, 400, { error: 'Este arquivo é só áudio: não há boca para comparar com o som.' });
+      if (m.status !== 'done') return send(res, 409, { error: 'Aguarde o processamento terminar.' });
+      if (syncBusy) return send(res, 409, { error: 'Já há uma análise de sincronia em andamento. Aguarde terminar.' });
+      const j = await body(req), dur = m.duration || 0;
+      const start = clamp(+j.start || 0, 0, dur || 1e9), end = +j.end > 0 ? clamp(+j.end, 0, dur || 1e9) : 0;
+      if (end && end - start < 3) return send(res, 400, { error: 'Trecho curto demais para medir a sincronia (mínimo de 3 segundos).' });
+      syncBusy = true; touchUsed(b, true); const t0 = Date.now();
+      try {
+        const r = await autosync.analyze({ ...tools.autosync, ffmpeg: tools.ffmpeg, video: U(b, m.file), start, end, tmpDir: U(b) });
+        log('sincronia automática', b, r.status, r.offsetMs === null ? '' : r.offsetMs + ' ms', `${Math.round((Date.now() - t0) / 1000)} s`);
+        if (j.apply && r.needsCorrection) { await autosync.applyShift({ ffmpeg: tools.ffmpeg, input: U(b, m.file), output: U(b, 'sincronizado.mp4'), shiftSec: r.shiftSec }); r.file = `/api/uploads/${b}/autosync/file`; }
+        return send(res, 200, r);
+      } catch (e) { log('sincronia automática falhou', b, e.message); return send(res, 500, { error: e.message }); }
+      finally { syncBusy = false; }
     }
     if (c === 'media' && method === 'GET') { const f = q.get('orig') ? m.file : playable(m); return serveFile(req, res, U(b, f), mime[path.extname(f)] || 'application/octet-stream', q.get('orig') ? m.name : undefined); }
     if (c === 'retry' && method === 'POST') { if (m.status === 'processing' || m.status === 'queued') return send(res, 409, { error: 'Já em processamento.' }); await update(b, { status: 'queued', stage: 'Na fila', progress: 0, error: null }); enqueue(() => pipeline(b)); return send(res, 200, { ok: true }); }

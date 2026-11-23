@@ -6,3 +6,5 @@ install/equipe.env
 .superpowers/
 install/pessoal.env
 .venv-voz/
+.venv-sync/
+models/

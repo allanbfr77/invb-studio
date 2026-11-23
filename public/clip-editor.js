@@ -122,6 +122,22 @@
       } catch (e) { toast(e.message); }
       btn.disabled = false; btn.textContent = old;
     };
+    /* Sincronia automática: o servidor compara a boca com o som neste corte. Só mexe no ajuste quando a medida é segura;
+       nos outros casos explica por que não deu e deixa o ajuste como estava. */
+    const asy = { busy: false, msg: '', kind: '' };
+    const runAutoSync = async (L) => {
+      if (asy.busy) return; asy.busy = true; asy.msg = ''; drawLeft();
+      try {
+        const r = await api(`/uploads/${upload.id}/autosync`, { json: { start: st.start, end: st.end } });
+        if (r.needsCorrection) {
+          // A sincronia da pregação já é aplicada na exportação: aqui fica só o que falta além dela.
+          const x = Math.max(-2, Math.min(2, Math.round((r.shiftSec - (upload.audioShift || 0)) * 100) / 100));
+          st.sync = x; commit(); asy.kind = 'ok'; asy.msg = `${r.message} Ajuste aplicado: ${syLabel(x)}. Confira com Testar.`;
+        } else if (r.status === 'sincronizado' && upload.audioShift) { st.sync = Math.max(-2, Math.min(2, Math.round(-upload.audioShift * 100) / 100)); commit(); asy.kind = 'ok'; asy.msg = `${r.message} Como a pregação tem ajuste próprio, este corte recebe ${syLabel(st.sync)} para anular.`; }
+        else { asy.kind = r.status === 'sincronizado' ? 'ok' : 'warn'; asy.msg = r.message; }
+      } catch (e) { asy.kind = 'warn'; asy.msg = e.message; }
+      asy.busy = false; drawLeft();
+    };
     const syLabel = (x) => { const ms = Math.round(x * 1000); return ms === 0 ? 'Sem ajuste' : (ms > 0 ? '+' : '−') + Math.abs(ms) + ' ms'; };
 
     /* ----- palavras ----- */
@@ -307,7 +323,8 @@
         isAud ? '' : sec('sy', 'Sincronia do áudio', syLabel(st.sync), `<input type="range" id="dx-sy" class="dlx-sp" min="-2" max="2" step="0.01" value="${st.sync}" aria-label="Sincronia do áudio">
           <div class="dlx-spb">${[[-0.1, '−100'], [-0.01, '−10'], [0, 'Zerar'], [0.01, '+10'], [0.1, '+100']].map((x) => `<button style="min-width:36px" title="${x[0] ? x[1] + ' milissegundos' : 'Voltar ao áudio original'}" data-sy="${x[0]}">${x[1]}</button>`).join('')}</div>
           <button class="dlx-sytgo" id="dx-syt">▶ Testar o ajuste (8 s)</button>
-          <p class="dlx-hint">Som depois da boca: vá para a esquerda. Som antes: para a direita. A prévia ao lado não muda; use Testar.</p>`, 'dx-syv'),
+          ${ctx.autosync ? `<button class="dlx-sytgo" id="dx-asy"${asy.busy ? ' disabled' : ''}>${asy.busy ? 'Medindo boca e som… (1 a 2 min)' : '✨ Detectar automaticamente'}</button>${asy.msg ? `<p class="dlx-hint dlx-asr ${asy.kind}" id="dx-asr" role="status">${esc(asy.msg)}</p>` : ''}` : '<p class="dlx-hint">Para detectar o atraso sozinho, rode uma vez o arquivo <code>install/instalar-autosync</code> e abra o app de novo.</p>'}
+          <p class="dlx-hint">Som depois da boca: vá para a esquerda. Som antes: para a direita. A prévia ao lado não muda; use Testar.${upload.audioShift ? ` A pregação já tem ajuste de ${syLabel(upload.audioShift)} (botão Sincronia, em Cortes); este controle soma a ele.` : ''}</p>`, 'dx-syv'),
         sec('cut', 'Remover trecho', nCuts ? nCuts + (nCuts === 1 ? ' removido' : ' removidos') : 'Nenhum', `
           <p class="dlx-hint">Pare o vídeo no começo do trecho e marque. Depois pare no fim e marque de novo.</p>
           <div class="dlx-spb" style="margin-bottom:12px"><button id="dx-ca" aria-pressed="${st.cutA !== null}">${st.cutA === null ? 'Marcar início' : 'Início: ' + tmx(st.cutA - st.start)}</button><button id="dx-cb" ${st.cutA === null ? 'disabled' : ''}>Marcar fim</button></div>
@@ -350,6 +367,7 @@
       const sp = $('#dx-sp', L), setSp = (x, redraw) => { st.speed = Math.max(0.25, Math.min(2, Math.round(x * 100) / 100)); v.playbackRate = st.speed; $('#dx-spv', L).textContent = spLabel(st.speed); $('#dx-spd', L).textContent = durTxt(); tickUI(); refreshBar(); if (redraw) { commit(); drawLeft(); } };
       const sy = $('#dx-sy', L), setSy = (x, save) => { st.sync = Math.max(-2, Math.min(2, Math.round(x * 100) / 100)); sy.value = st.sync; $('#dx-syv', L).textContent = syLabel(st.sync); if (save) commit(); };
       const syt = $('#dx-syt', L); if (syt) syt.onclick = () => runSyTest(syt);
+      const asb = $('#dx-asy', L); if (asb) asb.onclick = () => runAutoSync(L);
       if (sy) { sy.oninput = () => setSy(+sy.value, false); sy.onchange = () => setSy(+sy.value, true); $$('[data-sy]', L).forEach((b) => b.onclick = () => setSy(+b.dataset.sy === 0 ? 0 : st.sync + +b.dataset.sy, true)); }
       if (sp) { sp.oninput = () => setSp(+sp.value, false); sp.onchange = () => setSp(+sp.value, true); $$('[data-sp]', L).forEach((b) => b.onclick = () => setSp(+b.dataset.sp, true)); v.playbackRate = st.speed; }
     }
