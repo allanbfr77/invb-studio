@@ -38,7 +38,7 @@ para fazer quantos cortes quiser sem baixar de novo. Depois de 7 dias sem uso el
 transcrição, a minutagem e os cortes prontos continuam. Se precisar do vídeo outra vez, o app mostra
 um aviso com o botão **Baixar de novo**.
 
-- Para apagar antes: em **Arquivos**, menu `⋮` do envio → **Liberar espaço**.
+- Para apagar antes: em **Pregações**, menu `⋮` do envio → **Liberar espaço**.
 - Arquivos enviados direto do computador (sem link) nunca são apagados automaticamente.
 - Se o vídeo sair do ar na origem, os cortes já feitos continuam, mas não dá para baixar de novo.
 
