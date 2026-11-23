@@ -173,20 +173,33 @@
   const verLabel = (v) => { const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.date || ''); return [d ? `${d[3]}/${d[2]}/${d[1]}` : v.name, v.commit].filter(Boolean).join(' · '); };
   // Interruptor de modo claro/noturno (aparece na barra lateral e na tela de entrada).
   document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-theme-sw]'); if (!b || !window.InvbTheme) return; const t = InvbTheme.toggle(); document.querySelectorAll('[data-theme-sw]').forEach((x) => x.setAttribute('aria-checked', t === 'dark')); });
+  // Moldura de todas as telas: barra no topo com a logo, as três áreas, a versão, o modo e o sair.
+  // Dentro de uma pregação entra uma segunda faixa, com o nome dela e os passos do trabalho.
   function shell(path, inner, uid) {
     const up = uid ? `/app/uploads/${uid}` : null, st = S.status;
-    const nav = up
-      ? `<a class="ap-link" href="/app/uploads">${ic.back}Todas as pregações</a>${link(up + '/overview', ic.files, 'Resumo', path)}
-         <div class="ap-sec">Passo a passo</div>${link(up + '/transcription', ic.doc, '1. Transcrição', path)}${link(up + '/clips', ic.cut, '2. Cortes', path)}
-         <div class="ap-sec">Sobre a pregação</div>${link(up + '/chapters', ic.book, 'Capítulos', path)}${link(up + '/emotions', ic.heart, 'Emoções', path)}${link(up + '/scripts', ic.script, 'Roteiros', path)}${link(up + '/diagrams', ic.dia, 'Diagramas', path)}
-         <div class="ap-sec">Para o editor</div>${link(up + '/templates', ic.tpl, 'Templates', path)}${link(up + '/library', ic.img, 'Biblioteca', path)}`
-      : `${link('/app', ic.home, 'Início', path)}${link('/app/uploads', ic.files, 'Pregações', path)}${link('/app/projects', ic.folder, 'Projetos', path)}`;
-    return `<div class="ap">
-      <div class="ap-top"><a href="/app"><b>INVB Studio</b></a><button id="ap-burger" aria-label="Abrir menu">☰</button></div>
-      <aside class="ap-side" id="ap-side"><a class="ap-brand" href="/app" aria-label="INVB Studio, início"><img class="lg-c" src="/img/nv-logo-claro.png" alt="Nova Vida Botafogo"><img class="lg-n" src="/img/nv-logo-noturno.png" alt="Nova Vida Botafogo"><span class="ap-brand-sub">INVB<br>Studio</span></a>${nav}<div class="ap-grow"></div>
-        ${st ? `<div class="ap-info">Transcrição: <b>${esc(st.provider_name || 'API')}</b><br>IA: <b>${st.llm ? esc(st.llmModel) : 'desligada'}</b>${st.version ? `<div class="ap-ver" title="Versão do app neste computador${st.version.commit ? ' (código ' + esc(st.version.commit) + ')' : ''}"><i></i>Versão ${esc(verLabel(st.version))}</div>` : ''}</div>` : ''}
-        <div class="ap-theme"><span class="t-l"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Claro</span><button class="thsw" data-theme-sw role="switch" aria-checked="${window.InvbTheme && InvbTheme.get() === 'dark'}" aria-label="Modo noturno" title="Trocar entre o modo claro e o noturno"></button><span class="t-d">Noturno<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span></div>
-        <div class="ap-foot"><button class="ap-btn" id="ap-out" style="flex:1;justify-content:center">${ic.out} Sair</button></div></aside>
+    const top = (href, label, on) => `<a class="tb-link ${on ? 'on' : ''}" href="${href}">${label}</a>`;
+    const sub = (seg, label, cls = '') => `<a class="sb-link ${cls} ${path === up + '/' + seg ? 'on' : ''}" href="${up}/${seg}">${label}</a>`;
+    const name = uid && S.cur && S.cur.id === uid ? String(S.cur.name || '').replace(/\.[^.]+$/, '') : '';
+    const ver = st && st.version ? `<span class="tb-ver" title="Versão do app neste computador: data da última atualização e código dela"><i></i>Versão ${esc(verLabel(st.version))}</span>` : '';
+    const ai = st ? `<span class="tb-ai" title="Transcrição: ${esc(st.provider_name || 'API')} (${esc(st.model || '')})">IA: ${st.llm ? esc(st.llmModel) : 'desligada'}</span>` : '';
+    return `<div class="ap ap2">
+      <header class="tb">
+        <a class="tb-brand" href="/app" aria-label="INVB Studio, início"><img class="lg-c" src="/img/nv-logo-claro.png" alt="Nova Vida Botafogo"><img class="lg-n" src="/img/nv-logo-noturno.png" alt="Nova Vida Botafogo"><span class="tb-sub">INVB<br>Studio</span></a>
+        <nav class="tb-nav" aria-label="Áreas do app">${top('/app', 'Início', path === '/app')}${top('/app/uploads', 'Pregações', path.startsWith('/app/uploads'))}${top('/app/projects', 'Projetos', path.startsWith('/app/projects'))}</nav>
+        <div class="tb-right">${ai}${ver}
+          <div class="tb-theme" title="Modo claro ou noturno"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><button class="thsw" data-theme-sw role="switch" aria-checked="${window.InvbTheme && InvbTheme.get() === 'dark'}" aria-label="Modo noturno"></button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></div>
+          <button class="tb-out" id="ap-out" title="Sair do app">${ic.out}<span>Sair</span></button>
+        </div>
+      </header>
+      ${up ? `<div class="sb">
+        <a class="sb-back" href="/app/uploads" title="Todas as pregações" aria-label="Todas as pregações">${ic.back}</a>
+        <div class="sb-t"><small>Pregação</small><b title="${esc(name)}">${esc(name) || '…'}</b></div>
+        <nav class="sb-nav" aria-label="Telas desta pregação">
+          ${sub('overview', 'Resumo')}
+          <span class="sb-steps">${sub('transcription', '<i>1</i>Transcrição', 'step')}<span class="sb-arrow" aria-hidden="true">→</span>${sub('clips', '<i>2</i>Cortes', 'step')}</span>
+          <span class="sb-div"></span>${sub('chapters', 'Capítulos', 'sec')}${sub('emotions', 'Emoções', 'sec')}${sub('scripts', 'Roteiros', 'sec')}${sub('diagrams', 'Diagramas', 'sec')}
+          <span class="sb-div"></span>${sub('templates', 'Templates', 'sec')}${sub('library', 'Biblioteca', 'sec')}
+        </nav></div>` : ''}
       <div class="ap-main"><div class="ap-card" id="ap-card">${inner}</div>${uid && S.cur && isDone(S.cur) ? player() : ''}</div></div>`;
   }
 
@@ -266,7 +279,7 @@
   const procView = (c) => `<div class="empty" id="proc"><div class="ci">${c.status === 'error' ? '⚠️' : '⏳'}</div><h3>${c.status === 'error' ? 'Não foi possível processar' : 'Processando…'}</h3><p id="procmsg">${c.status === 'error' ? esc(c.error || 'Erro desconhecido.') : esc(statusLabel(c))}</p>${c.status === 'error' ? `<button class="ap-btn pri" id="retry">Tentar de novo</button> ` : `<div class="bigbar" style="max-width:320px;margin:10px auto"><i id="procbar" style="width:${c.progress || 3}%"></i></div>`}<a class="ap-btn" href="/app/uploads">Todas as pregações</a></div>`;
 
   const pages = {
-    home: () => `<span class="eyebrow" style="font-size:11px;font-weight:800;text-transform:uppercase;display:block;margin-bottom:6px">Mídia · Nova Vida Botafogo</span><h1>${greeting()}</h1><p class="sub2">Cole o link da pregação. Depois da transcrição, é só fazer os cortes.</p><div style="height:20px"></div>${uploadBox()}
+    home: () => `<section class="hero"><div class="hero-t"><span class="hero-eye">Mídia · Nova Vida Botafogo</span><h1>${greeting()}.</h1><p>Cole o link da pregação e o app cuida do resto: baixa, transcreve e deixa pronto para os cortes.</p><ol class="hflow"><li><b>1</b>Link</li><li><b>2</b>Transcrição</li><li><b>3</b>Cortes</li><li><b>4</b>Drive</li></ol></div><div class="hero-box">${uploadBox()}</div></section>
       <div class="ap-h2"><h2>Últimas pregações</h2><a href="/app/uploads">Ver mais ›</a></div>${S.uploads.length ? `<div class="ap-cards">${S.uploads.slice(0, 4).map(upCard).join('')}</div>` : '<p class="sub2">Nenhuma pregação ainda. Cole um link acima para começar.</p>'}`,
     uploads: () => `<div class="ap-head"><div><h1>Pregações</h1><p class="sub2">Todas as pregações deste computador e em que ponto cada uma está.</p></div><a class="ap-btn pri" href="/app/uploads/new">+ Nova pregação</a></div>
       <div class="ap-tools"><label class="ap-search">${ic.search}<input id="fq" placeholder="Buscar pregação pelo nome..."></label><span class="ap-sp"></span><button class="ap-btn" id="fsort">⇅ Data: Mais recentes ⌄</button><button class="ap-btn" id="ffil">Filtros</button></div>
@@ -308,7 +321,7 @@
       let l = S.uploads.filter((u) => u.name.toLowerCase().includes(q) && (!stF || (stF === 'done' ? u.status === 'done' : stF === 'err' ? u.status === 'error' : ['queued', 'processing'].includes(u.status))));
       if (sort === 'name') l = [...l].sort((a, b) => a.name.localeCompare(b.name)); if (sort === 'old') l = [...l].sort((a, b) => a.createdAt - b.createdAt);
       $('#fcnt').textContent = l.length === 1 ? '1 pregação' : `${l.length} pregações`;
-      $('#flist').innerHTML = l.map((u) => `<div class="ap-row" data-up="${u.id}"><span style="color:var(--primary)">${u.kind === 'aud' ? ic.aud.replace('20', '16') : ic.vid.replace('20', '16')}</span><a class="nm" href="/app/uploads/${u.id}/overview"><b>${esc(u.name)}</b><small>${fmtDate(u.createdAt)} • ${fmtSize(u.size)}${u.cuts && u.cuts.total ? ` • ${u.cuts.total} corte${u.cuts.total === 1 ? '' : 's'}${u.cuts.ready ? ` · ${u.cuts.ready} exportado${u.cuts.ready === 1 ? '' : 's'}` : ''}${u.cuts.drive ? ` · ${u.cuts.drive} no Drive` : ''}` : ''}</small></a><span class="st ${stClass(u)}">${esc(statusLabel(u))}</span><button class="ap-ic" data-opt="${u.id}" aria-label="Opções do upload">⋮</button></div>`).join('') || '<div class="empty"><p>Nenhuma pregação encontrada.</p></div>';
+      $('#flist').innerHTML = l.map((u) => `<div class="ap-row" data-up="${u.id}"><span class="rthumb">${u.kind === 'aud' ? ic.aud.replace('20', '16') : ic.vid.replace('20', '16')}${u.kind === 'vid' && u.status === 'done' ? `<img src="/api/uploads/${u.id}/thumb" alt="" loading="lazy" onerror="this.remove()">` : ''}</span><a class="nm" href="/app/uploads/${u.id}/overview"><b>${esc(u.name)}</b><small>${fmtDate(u.createdAt)} • ${fmtSize(u.size)}${u.cuts && u.cuts.total ? ` • ${u.cuts.total} corte${u.cuts.total === 1 ? '' : 's'}${u.cuts.ready ? ` · ${u.cuts.ready} exportado${u.cuts.ready === 1 ? '' : 's'}` : ''}${u.cuts.drive ? ` · ${u.cuts.drive} no Drive` : ''}` : ''}</small></a><span class="st ${stClass(u)}">${esc(statusLabel(u))}</span><button class="ap-ic" data-opt="${u.id}" aria-label="Opções do upload">⋮</button></div>`).join('') || '<div class="empty"><p>Nenhuma pregação encontrada.</p></div>';
       $$('[data-opt]').forEach((b) => b.onclick = (e) => { e.preventDefault(); const id = b.dataset.opt, u = S.uploads.find((z) => z.id === id);
         popover(b, `<button data-a="open">Abrir</button><button data-a="ren">Renomear</button>${u.status === 'error' ? '<button data-a="retry">Tentar de novo</button>' : ''}${u.status === 'done' && !u.originalGone && (u.source === 'youtube' || u.source === 'drive') && u.url ? '<button data-a="free">Liberar espaço</button>' : ''}<button data-a="del" style="color:#c0262d">Excluir</button>`, (m) => $$('button', m).forEach((x) => x.onclick = () => { m.remove(); const a = x.dataset.a;
           if (a === 'free') return modal('Liberar espaço', '', guard(async () => { await api(`/uploads/${id}/free`, { json: {} }); u.originalGone = true; toast('Pregação apagada deste computador. O link continua salvo.'); }), 'Apagar o vídeo', `Apaga só o vídeo de “${esc(u.name)}” deste computador. A transcrição, a minutagem e os cortes prontos ficam. Para usar o vídeo de novo, o app baixa pelo link.`);
