@@ -1,8 +1,8 @@
 {
-  "name": "clipscribe-replica",
+  "name": "invb-studio",
   "version": "1.0.0",
   "private": true,
-  "description": "Reprodução de estudo de um site de transcrição, cortes e legendas. Dados fictícios, sem IA real.",
+  "description": "Transcrição e cortes das pregações da Nova Vida Botafogo. Roda no computador de cada pessoa.",
   "scripts": {
     "start": "node server.js",
     "test": "node --test"

@@ -72,14 +72,6 @@ h1,h2,h3,.ap-h2 h2{font-family:var(--display);letter-spacing:-.02em}
 .ap-link.on svg{color:var(--mark-brand)}
 
 /* rodapé da barra: estado, versão, modo e sair */
-.ap-info{padding:10px;font-size:12px;line-height:1.5;color:var(--muted);border-top:1px solid var(--border);margin-top:8px}
-.ap-info b{color:var(--fg);font-weight:600}
-.ap-ver{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11.5px}
-.ap-ver i{width:6px;height:6px;border-radius:50%;background:var(--gold);flex:none}
-.ap-theme{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;margin-bottom:6px;border:1px solid var(--border);border-radius:10px;font-size:12.5px;font-weight:600;color:var(--muted)}
-.ap-theme span{display:inline-flex;align-items:center;gap:6px}
-.ap-theme svg{width:14px;height:14px}
-:root[data-theme="light"] .ap-theme .t-l,:root[data-theme="dark"] .ap-theme .t-d{color:var(--fg)}
 .thsw{position:relative;width:44px;height:24px;border-radius:99px;background:var(--surface-2);border:1px solid var(--border-strong);cursor:pointer;flex:none;padding:0;transition:background .2s}
 .thsw::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--fg);transition:transform .25s var(--ease),background .2s}
 .thsw[aria-checked="true"]{background:var(--soft-2);border-color:var(--soft-border)}
@@ -132,8 +124,6 @@ input:focus,textarea:focus,select:focus{border-color:var(--ring)!important;outli
 
 /* ---------- Acabamento: mesmo desenho, com mais cuidado nos detalhes ---------- */
 /* versão do app: selo visível no rodapé da barra lateral */
-.ap-ver{display:inline-flex;white-space:nowrap;margin-top:9px;padding:5px 10px;border:1px solid var(--border-strong);border-radius:99px;background:var(--surface);font-size:11.5px;font-weight:600;color:var(--fg)}
-.ap-ver i{width:7px;height:7px;background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.2)}
 /* cartões e linhas: cantos um pouco maiores, sombra leve, sobem ao passar o mouse */
 .cut{border-radius:16px;box-shadow:var(--shadow-sm)}
 .cut:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
@@ -184,7 +174,6 @@ input:focus,textarea:focus,select:focus{border-color:var(--ring)!important;outli
 .ap-head .sub2,.ap-card>h1+.sub2{max-width:70ch}
 .ap-card h1{letter-spacing:-.025em}
 /* números do resumo e cartões "o que está pronto" */
-.stats{border-radius:16px;overflow:hidden}
 .rdy a .ib{border-radius:10px}
 /* links de texto */
 .ap-h2 a{color:var(--link);font-weight:600}

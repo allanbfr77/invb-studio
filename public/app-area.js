@@ -1,5 +1,5 @@
 /* INVB Studio — área logada. Conversa com a API local (server.js): login, uploads, transcrição,
-   análise, cortes e roteiros são reais. Ver README para o que depende de IA/ferramentas. */
+   análise e cortes são reais. Ver README para o que depende de IA/ferramentas. */
 (function () {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -16,18 +16,14 @@
   const ic = {
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v10H3z"/></svg>',
     files: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14"/></svg>',
-    folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h7l2 2h9v11H3z"/></svg>',
     up: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>',
     vid: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg>',
     aud: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
     doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/></svg>',
     cut: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8 15M20 20L8 9"/></svg>',
-    tpl: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg>',
-    img: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>',
     book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h6a2 2 0 012 2v13a2 2 0 00-2-2H4zM20 5h-6a2 2 0 00-2 2v13a2 2 0 012-2h6z"/></svg>',
     heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20s-8-5-8-11a4.5 4.5 0 018-2.5A4.5 4.5 0 0120 9c0 6-8 11-8 11z"/></svg>',
-    script: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
     dia: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="5"/><rect x="3" y="16" width="6" height="5"/><rect x="15" y="16" width="6" height="5"/><path d="M12 8v4M6 16v-4h12v4"/></svg>',
     dl: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>',
     eye: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M10 6a9 9 0 0111 6 9 9 0 01-3 4M6 8a9 9 0 00-3 4 9 9 0 0012 5"/></svg>',
@@ -42,7 +38,7 @@
   const EC = { Determinação: '#a855f7', Confiança: '#3b82f6', Esperança: '#06b6d4', Humildade: '#f59e0b', Gratidão: '#10b981', Alegria: '#eab308', Tristeza: '#64748b', Medo: '#ef4444', Raiva: '#dc2626', Compaixão: '#ec4899', Neutra: '#94a3b8' };
 
   /* ---------- Estado e API ---------- */
-  const S = { authed: null, status: null, uploads: [], cur: null, projects: [], templates: [], images: [], poll: null, media: null, mediaId: null, speed: 1, mode: 'video', rt: 0 };
+  const S = { authed: null, status: null, uploads: [], cur: null, poll: null, media: null, mediaId: null, speed: 1, mode: 'video', rt: 0 };
   let go = (p) => { history.pushState({}, '', p); window.__render(p); };
 
   async function api(p, o = {}) {
@@ -201,9 +197,8 @@
     const nav = up
       ? `<a class="ap-link" href="/app/uploads">${ic.back}Todas as pregações</a>${link(up + '/overview', ic.files, 'Resumo', path)}
          <div class="ap-sec">Passo a passo</div>${link(up + '/transcription', ic.doc, '1. Transcrição', path)}${link(up + '/clips', ic.cut, '2. Cortes', path)}
-         <div class="ap-sec">Sobre a pregação</div>${link(up + '/chapters', ic.book, 'Capítulos', path)}${link(up + '/emotions', ic.heart, 'Emoções', path)}${link(up + '/scripts', ic.script, 'Roteiros', path)}${link(up + '/diagrams', ic.dia, 'Diagramas', path)}
-         <div class="ap-sec">Para o editor</div>${link(up + '/templates', ic.tpl, 'Templates', path)}${link(up + '/library', ic.img, 'Biblioteca', path)}`
-      : `${path === '/app' || path === '/app/uploads/new' ? '' : '<a class="ap-new" href="/app/uploads/new"><span aria-hidden="true">+</span> Nova pregação</a>'}${link('/app', ic.home, 'Início', path)}${link('/app/uploads', ic.files, 'Pregações', path)}${link('/app/projects', ic.folder, 'Projetos', path)}`;
+         <div class="ap-sec">Sobre a pregação</div>${link(up + '/chapters', ic.book, 'Capítulos', path)}${link(up + '/emotions', ic.heart, 'Emoções', path)}${link(up + '/diagrams', ic.dia, 'Diagramas', path)}`
+      : `${path === '/app' || path === '/app/uploads/new' ? '' : '<a class="ap-new" href="/app/uploads/new"><span aria-hidden="true">+</span> Nova pregação</a>'}${link('/app', ic.home, 'Início', path)}${link('/app/uploads', ic.files, 'Pregações', path)}`;
     return `<div class="ap">
       <div class="ap-top"><a href="/app"><b>INVB Studio</b></a><button id="ap-burger" aria-label="Abrir menu">☰</button></div>
       <aside class="ap-side" id="ap-side"><a class="ap-brand" href="/app" aria-label="INVB Studio, início"><img class="lg-c" src="/img/nv-logo-claro.png" alt="Nova Vida Botafogo"><img class="lg-n" src="/img/nv-logo-noturno.png" alt="Nova Vida Botafogo"><span class="ap-brand-sub">INVB<br>Studio</span></a>${nav}<div class="ap-grow"></div>
@@ -309,12 +304,9 @@
       <div class="ap-tools"><label class="ap-search">${ic.search}<input id="fq" placeholder="Buscar pregação pelo nome..."></label><span class="ap-sp"></span><button class="ap-btn" id="fsort">⇅ Data: Mais recentes ⌄</button><button class="ap-btn" id="ffil">Filtros</button></div>
       <p class="sub2" id="fcnt" style="margin-bottom:10px"></p><div id="flist"></div>`,
     uploadsNew: () => `<div style="max-width:720px;margin:30px auto"><div class="ap-head"><h1 style="font-size:24px">Nova pregação</h1></div>${uploadBox()}<p class="sub2" style="text-align:center">Seus arquivos ficam no seu computador (pasta <code>data/</code>) e não são enviados a terceiros${S.status && (S.status.provider === 'openai' || S.status.llm) ? ', exceto o texto/áudio enviado à API de IA configurada' : ''}.</p></div>`,
-    projects: () => `<div class="ap-head"><div><h1>Projetos</h1><p class="sub2">Organize seus arquivos em projetos.</p></div>${S.projects.length ? '<button class="ap-btn pri" id="newproj">Novo Projeto</button>' : ''}</div>
-      ${S.projects.length ? `<div class="ap-cards">${S.projects.map((p) => `<div class="tpl"><div style="aspect-ratio:3/2;background:#f4f4f6;border-radius:10px;display:grid;place-items:center">${ic.folder.replace('<svg', '<svg width="28" height="28"')}</div><b style="margin-top:8px">${esc(p.name)}</b><small style="color:var(--muted)">${S.uploads.filter((u) => u.projectId === p.id).length} arquivos</small><button class="ap-btn" data-addp="${p.id}">Adicionar arquivo</button><button class="ap-btn" data-delp="${p.id}">Excluir</button></div>`).join('')}</div>`
-        : `<div class="empty"><div class="ci">${ic.folder}</div><h3>Nenhum projeto encontrado</h3><p>Crie seu primeiro projeto para organizar seus envios.</p><button class="ap-btn pri" id="newproj">Novo Projeto</button></div>`}`,
     overview: (c) => {
       const segs = segsOf(c), spk = new Set(segs.map((s) => s.who)).size, ch = chaptersOf(c), emo = (c.analysis.emotions || []).length;
-      const cards = [['transcription', ic.doc, 'Transcrição', 'Seu áudio foi transcrito automaticamente, com segmentação por trecho.', `Palavras transcritas: ${c.words || 0}`], ['chapters', ic.book, 'Capítulos', 'O conteúdo foi dividido em capítulos para facilitar a navegação.', `Capítulos: ${ch.length}`], ['emotions', ic.heart, 'Emoções', emo ? 'Tom emocional das falas mais marcantes.' : aiOn() ? 'Ainda não analisado com a IA.' : 'Marcado pela IA (Claude ou OpenAI).', emo ? `${emo} falas marcadas` : aiOn() ? 'Refaça a análise' : 'Sem IA'], ['clips', ic.cut, 'Cortes', 'Trechos sugeridos, com nota.', `${(c.clips || []).length} cortes`], ['scripts', ic.script, 'Roteiros', 'Roteiros que apontam para as falas exatas do arquivo.', `${(c.scripts || []).length} criados`]];
+      const cards = [['transcription', ic.doc, 'Transcrição', 'Seu áudio foi transcrito automaticamente, com segmentação por trecho.', `Palavras transcritas: ${c.words || 0}`], ['chapters', ic.book, 'Capítulos', 'O conteúdo foi dividido em capítulos para facilitar a navegação.', `Capítulos: ${ch.length}`], ['emotions', ic.heart, 'Emoções', emo ? 'Tom emocional das falas mais marcantes.' : aiOn() ? 'Ainda não analisado com a IA.' : 'Marcado pela IA (Claude ou OpenAI).', emo ? `${emo} falas marcadas` : aiOn() ? 'Refaça a análise' : 'Sem IA'], ['clips', ic.cut, 'Cortes', 'Trechos sugeridos, com nota.', `${(c.clips || []).length} cortes`]];
       return `${note(c)}<div class="ov"><div class="vid vid-slot"><div class="pl">▶</div></div><div><span class="eyebrow" style="font-size:10px">Resumo</span><h1 style="font-size:24px;margin-top:4px">${esc(c.name)}</h1><div class="metachips"><span class="metachip">${c.kind === 'aud' ? 'Áudio' : 'Vídeo'} enviado</span><span class="metachip">${tm(c.duration)}</span><span class="metachip">${esc(c.language || '—')}</span><span class="metachip">${fmtDate(c.createdAt)}</span></div>
         <p style="margin:12px 0">Transcrevemos <b>${c.words || 0}</b> palavras, divididas em <b>${ch.length}</b> capítulos.</p><a class="ap-btn" href="/app/uploads/${c.id}/transcription">Abrir transcrição</a> <a class="ap-btn" href="/app/uploads/${c.id}/clips">Ver cortes</a> <button class="ap-btn" id="reana">Refazer análise</button></div></div>
         <div class="kpis">${[['Duração do áudio', tm(c.duration)], ['Palavras transcritas', String(c.words || 0)], ['Segmentos de fala', String(segs.length)], ['Falantes identificados', String(spk)], ['Momentos-chave', String((c.clips || []).length)]].map((k) => `<div><small>${k[0]}</small><b>${k[1]}</b></div>`).join('')}</div>
@@ -328,13 +320,10 @@
     clips: (c) => `${S.status && S.status.ai && c.aiCutsError ? `<div class="ap-demo gone" role="status"><span>A IA não conseguiu sugerir os cortes automáticos desta pregação: ${esc(c.aiCutsError)}</span><button class="ap-btn" id="ai-retry">Tentar de novo com IA</button></div>` : ''}<div class="ap-head"><div><h1>Cortes</h1><p class="sub2">Crie os cortes, ajuste na tesoura, baixe e envie para o Drive.</p></div><div class="ap-tools" style="margin:0">${S.status && S.status.ai ? '<button class="ap-btn" id="cl-ai" title="O Claude lê a transcrição e cria os cortes">✨ Sugerir cortes com IA</button>' : ''}<button class="ap-btn" id="cl-paste">Colar minutagens</button><button class="ap-btn pri" id="cl-new">+ Novo corte</button></div></div>
       <div class="ap-tabs" id="cl-tabs"><button role="tab" aria-selected="true" data-m="0">Automáticos <span class="tabn" id="cn0"></span></button><button role="tab" aria-selected="false" data-m="1">Manuais <span class="tabn" id="cn1"></span></button></div>
       <div class="ap-tools"><label class="ap-search">${ic.search}<input id="cq" placeholder="Buscar nos cortes"></label><span class="ap-sp"></span><button class="ap-btn" id="call-dl" title="Exporta e baixa todos os cortes desta aba">Baixar todos</button>${S.status && S.status.driveCuts ? '<button class="ap-btn" id="call-dr" title="Exporta e envia à pasta da equipe todos os cortes desta aba">Enviar todos ao Drive</button>' : ''}<button class="ap-btn" id="csort">⇅ Maior impacto ⌄</button><button class="ap-btn" id="cfil">Filtros</button></div><p class="sub2" id="ccnt" style="margin-bottom:12px"></p><div class="cuts" id="cuts"></div>`,
-    templates: () => `<div class="ap-demo" style="background:#f3f2ff;border-color:#d5d2ff;color:#3b2fc0">Prévia: os templates ainda <b>não são aplicados</b> na renderização dos cortes.</div><div class="ap-head"><div><h1>Templates</h1><p class="sub2">Salve um visual inteiro uma vez e aplique em qualquer corte com um clique.</p></div><button class="ap-btn pri" id="tp-new">+ Novo template</button></div><div class="ap-tabs" id="tp-tabs"><button role="tab" aria-selected="true" data-k="0">Meus templates</button><button role="tab" aria-selected="false" data-k="1">Prontos</button></div><div id="tp-body"></div>`,
-    library: () => `<div class="ap-demo" style="background:#f3f2ff;border-color:#d5d2ff;color:#3b2fc0">Prévia: as imagens ficam só nesta aba do navegador e ainda <b>não entram</b> nos cortes renderizados.</div><div class="ap-head"><div><h1>Biblioteca</h1><p class="sub2">Suas imagens e fontes, prontas para usar em qualquer corte.</p></div><button class="ap-btn pri" id="lb-up">${ic.img.replace('<svg', '<svg width="14" height="14"')} Enviar imagem</button><input type="file" id="lb-f" hidden accept="image/png,image/jpeg,image/webp,image/svg+xml"></div><div class="ap-tabs" id="lb-tabs"><button role="tab" aria-selected="true" data-k="0">Mídias</button><button role="tab" aria-selected="false" data-k="1">Fontes</button></div><div id="lb-body"></div>`,
     chapters: (c) => `${note(c)}<div class="ap-head"><div><h1>Capítulos</h1><p class="sub2">Navegue pelo conteúdo do áudio por temas e tópicos.</p></div><button class="ap-btn" id="ch-exp">Exportar timestamps ⌄</button></div>
       <p class="sub2" style="margin-bottom:12px">${chaptersOf(c).length} capítulos</p><div id="chps">${chaptersOf(c).map((k, i) => `<div class="chp ${i === 0 ? 'open' : ''}" data-i="${i}" style="cursor:pointer"><div class="n">${i + 1}</div><div style="flex:1"><h3>${esc(k.title)}</h3><p>${esc(k.summary)}</p><div class="mt"><span>⏱ ${tm(k.start)}</span><span>${tm(k.end - k.start)} de duração</span>${k.moments.length ? `<span>${k.moments.length} momentos</span>` : ''}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${(k.tags || []).map((t) => `<span class="tag2">${esc(t)}</span>`).join('')}</div></div><button class="ap-ic" data-dlc="${i}" aria-label="Baixar">${ic.dl}</button></div><div class="moms" ${i === 0 ? '' : 'hidden'}><div class="mom" data-t="${k.start}"><span>${tm(k.start)}</span>Ir para o início do capítulo</div>${k.moments.map((m) => `<div class="mom" data-t="${m.t}"><span>${tm(m.t)}</span>${esc(m.title)}</div>`).join('')}</div>`).join('')}</div>`,
     emotions: (c) => (c.analysis.emotions || []).length ? `<div class="ap-head"><div><h1>Emoções</h1><p class="sub2">Análise emocional da transcrição.</p></div><button class="ap-btn" id="em-ord">⇅ Ordem no vídeo ⌄</button></div><label class="ap-search" style="max-width:none">${ic.search}<input id="eq" placeholder="Buscar na transcrição..."></label><div class="chiprow" id="echips"></div><div class="emo" id="emo"></div>`
       : `<h1>Emoções</h1><div class="empty"><div class="ci">${ic.heart}</div><h3>${aiOn() ? 'Emoções ainda não analisadas' : 'Emoções precisam de IA'}</h3><p>${aiOn() ? `Esta pregação foi analisada antes de a IA estar ligada. Refaça a análise para o ${esc(S.status.aiName || 'modelo')} marcar o tom emocional das falas.` : 'O tom emocional das falas é marcado pela IA. Para ativar, coloque uma chave do Claude ou da OpenAI no arquivo <code>install/pessoal.env</code> e abra o app de novo.'}</p>${aiOn() ? '<button class="ap-btn pri" data-reana>Refazer análise com IA</button>' : `<a class="ap-btn" href="/app/uploads/${c.id}/overview">Ir ao Resumo</a>`}</div>`,
-    scripts: (c) => `<div class="ap-head"><div><h1>Roteiros</h1><p class="sub2">Cada roteiro aponta para as falas exatas do seu arquivo, pronto pro editor.</p></div>${(c.scripts || []).length ? '<button class="ap-btn pri" id="sc-new">+ Novo roteiro</button>' : ''}</div><div id="sc-body"></div>`,
     diagrams: (c) => `<h1>Diagramas</h1><p class="sub2">Sua transcrição em mapa mental, fluxo e linha do tempo, montados a partir dos capítulos. Clique em qualquer ponto para abrir o trecho no player.</p><div style="height:16px"></div><div id="dg-body"></div>`,
   };
 
@@ -361,11 +350,6 @@
     draw();
   }
   async function refreshList() { S.uploads = await api('/uploads'); if (S.redraw) S.redraw(); }
-  function bindProjects() {
-    const b = $('#newproj'); if (b) b.onclick = () => modal('Novo Projeto', '<label>Nome do projeto</label><input id="pn" placeholder="Ex.: Entrevistas de outubro">', guard(async (m) => { const v = $('#pn', m).value.trim(); if (!v) return false; await api('/projects', { json: { name: v } }); go('/app/projects'); }), 'Criar projeto');
-    $$('[data-delp]').forEach((x) => x.onclick = () => modal('Excluir projeto', '', guard(async () => { await api('/projects/' + x.dataset.delp, { method: 'DELETE' }); go('/app/projects'); }), 'Excluir', 'Os arquivos do projeto não são apagados.'));
-    $$('[data-addp]').forEach((x) => x.onclick = () => modal('Adicionar arquivo', `<label>Arquivo</label><select id="ap">${S.uploads.map((u) => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>`, guard(async (m) => { const id = $('#ap', m).value; if (!id) return false; await api('/uploads/' + id, { method: 'PATCH', json: { projectId: x.dataset.addp } }); go('/app/projects'); }), 'Adicionar'));
-  }
   function bindTranscription() {
     const c = S.cur; let q = '', sel = false, spk = '', chk = new Set();
     let claudeTxt = ''; const loadClaude = () => api(`/uploads/${c.id}/claude`).then((r) => { claudeTxt = r.text; }).catch(() => {});
@@ -556,26 +540,6 @@
     $('#cl-new').onclick = () => modal('Novo corte', `<label>Título</label><input id="nt" placeholder="Ex.: Minha melhor frase"><label>Início (mm:ss)</label><input id="ns" value="00:00"><label>Fim (mm:ss)</label><input id="ne" value="${tm(Math.min(30, c.duration))}">`, guard(async (m) => { const s = parseT($('#ns', m).value), e = parseT($('#ne', m).value); if (!(e - s >= 3)) { toast('O corte precisa ter ao menos 3s.'); return false; } const k = await api(`/uploads/${c.id}/clips`, { json: { title: $('#nt', m).value.trim() || 'Corte manual', start: s, end: e } }); clips.push(k); mode = 1; $$('#cl-tabs button').forEach((x) => x.setAttribute('aria-selected', +x.dataset.m === 1)); draw(); }), 'Criar corte', 'Informe o intervalo exato do trecho.');
     draw();
   }
-  function bindTemplates() {
-    let k = 0;
-    const draw = () => { const b = $('#tp-body');
-      if (k === 0) b.innerHTML = S.templates.length ? `<div class="tpls">${S.templates.map((t) => `<div class="tpl"><div class="pv" style="${esc(t.css)}">${esc(t.name)}</div><b>${esc(t.name)}</b><button class="ap-btn" data-rm="${t.id}">Remover</button></div>`).join('')}</div>` : `<div class="empty"><h3>Nenhum template ainda</h3><p>Crie um para guardar um estilo de legenda.</p></div>`;
-      else b.innerHTML = `<div class="tpls">${D.estilos.map((e) => `<div class="tpl"><div class="pv" style="${e[1]}">Exemplo de legenda</div><b>${e[0]}</b></div>`).join('')}</div>`;
-      $$('[data-rm]', b).forEach((x) => x.onclick = guard(async () => { await api('/templates/' + x.dataset.rm, { method: 'DELETE' }); S.templates = S.templates.filter((t) => t.id !== x.dataset.rm); draw(); })); };
-    $$('#tp-tabs button').forEach((b) => b.onclick = () => { k = +b.dataset.k; $$('#tp-tabs button').forEach((x) => x.setAttribute('aria-selected', x === b)); draw(); });
-    $('#tp-new').onclick = () => modal('Novo template', `<label>Nome</label><input id="tn" placeholder="Meu template"><label>Estilo de legenda</label><select id="ts">${D.estilos.map((e, i) => `<option value="${i}">${e[0]}</option>`).join('')}</select>`, guard(async (m) => { const n = $('#tn', m).value.trim() || 'Template'; const t = await api('/templates', { json: { name: n, css: D.estilos[+$('#ts', m).value][1] } }); S.templates.push(t); k = 0; $$('#tp-tabs button').forEach((x) => x.setAttribute('aria-selected', +x.dataset.k === 0)); draw(); }), 'Salvar template');
-    draw();
-  }
-  function bindLibrary() {
-    let k = 0;
-    const draw = () => { const b = $('#lb-body');
-      if (k === 0) b.innerHTML = `<p class="sub2" style="margin-bottom:12px">Imagens que você coloca sobre um corte: logos, selos, adesivos.<br><small>PNG, JPEG, WebP ou SVG, até 8 MB.</small></p>` + (S.images.length ? `<div class="tpls">${S.images.map((s) => `<div class="tpl"><img src="${s.url}" alt="" style="width:100%;border-radius:10px;aspect-ratio:1;object-fit:contain;background:#f4f4f6"><b style="font-size:12px;margin-top:6px">${esc(s.name)}</b></div>`).join('')}</div>` : `<div class="empty"><h3>Nenhuma imagem</h3></div>`);
-      else b.innerHTML = `<div class="fonts">${['Montserrat', 'Poppins', 'Inter', 'Oswald', 'Bebas Neue', 'Playfair Display', 'Roboto Slab', 'Archivo Black'].map((f) => `<div style="font-family:'${f}',var(--sans)">${f}<small>Fonte de exemplo</small></div>`).join('')}</div>`; };
-    $$('#lb-tabs button').forEach((b) => b.onclick = () => { k = +b.dataset.k; $$('#lb-tabs button').forEach((x) => x.setAttribute('aria-selected', x === b)); draw(); });
-    $('#lb-up').onclick = () => $('#lb-f').click();
-    $('#lb-f').onchange = (e) => { const f = e.target.files[0]; if (!f) return; if (f.size > 8 * 1048576) return toast('Máximo de 8 MB.'); S.images.push({ name: f.name, url: URL.createObjectURL(f) }); k = 0; $$('#lb-tabs button').forEach((x) => x.setAttribute('aria-selected', +x.dataset.k === 0)); draw(); };
-    draw();
-  }
   function bindChapters() {
     const CH = chaptersOf(S.cur);
     $$('.chp').forEach((el) => el.onclick = (e) => { if (e.target.closest('[data-dlc]')) return; const open = el.classList.toggle('open'); el.nextElementSibling.hidden = !open; });
@@ -594,17 +558,6 @@
     };
     $('#eq').oninput = (e) => { q = e.target.value.toLowerCase(); draw(); };
     $('#em-ord').onclick = (e) => popover(e.currentTarget, '<button data-o="video">Ordem no vídeo</button><button data-o="emo">Por emoção</button>', (m) => $$('button', m).forEach((b) => b.onclick = () => { ord = b.dataset.o; $('#em-ord').textContent = `⇅ ${b.textContent} ⌄`; m.remove(); draw(); }));
-    draw();
-  }
-  function bindScripts() {
-    const c = S.cur; let list = c.scripts || [];
-    const draw = () => { $('#sc-body').innerHTML = list.length ? list.map((s, i) => `<div class="ap-row" style="display:block"><div style="display:flex;justify-content:space-between;gap:8px"><b>Versão ${i + 1} · ${s.mins} min · ${fmtDate(s.createdAt)}</b><span><button class="ap-btn" data-sd="${s.id}">${ic.dl} Baixar</button> <button class="ap-btn" data-sx="${s.id}">Excluir</button></span></div><p class="sub2" style="margin-top:6px"><i>${esc(s.brief || 'Sem instruções')}</i> · método: seleção dos cortes de maior nota (sem IA generativa)</p><div style="margin-top:8px;font-size:13px">${s.items.map((l) => `<div class="mom" data-t="${l.start}"><span>${tm(l.start)}</span>${esc(l.text || l.title)}</div>`).join('') || '<p class="sub2">Nenhum trecho selecionado.</p>'}</div></div>`).join('') : `<div class="empty"><div class="ci">${ic.script}</div><h3>Nenhum roteiro criado</h3><p>Você ainda não criou nenhum roteiro para este arquivo.</p><button class="ap-btn pri" id="sc-first">+ Criar primeiro roteiro</button></div>`;
-      const mk = () => modal('Novo roteiro', '<label>Duração esperada (minutos)</label><input id="sm" type="number" min="1" max="60" value="3"><label>Anotação (opcional)</label><textarea id="sb" rows="3" placeholder="Ex.: foco nas falas sobre o tema X"></textarea>', guard(async (m) => { const s = await api(`/uploads/${c.id}/scripts`, { json: { mins: +$('#sm', m).value || 3, brief: $('#sb', m).value.trim() } }); list.push(s); draw(); }), 'Gerar roteiro', 'Monta uma sequência cronológica com os cortes de maior nota até chegar na duração pedida.');
-      const f = $('#sc-first'); if (f) f.onclick = mk; const n = $('#sc-new'); if (n) n.onclick = mk;
-      $$('[data-sd]').forEach((b) => b.onclick = () => { const s = list.find((x) => x.id === b.dataset.sd); dl('roteiro.txt', s.items.map((l) => `[${tm(l.start)}–${tm(l.end)}] ${l.text || l.title}`).join('\n\n')); });
-      $$('[data-sx]').forEach((b) => b.onclick = guard(async () => { await api(`/uploads/${c.id}/scripts/${b.dataset.sx}`, { method: 'DELETE' }); list = list.filter((x) => x.id !== b.dataset.sx); draw(); }));
-      $$('#sc-body .mom').forEach((m) => m.onclick = () => seek(+m.dataset.t));
-    };
     draw();
   }
   function bindDiagrams() {
@@ -632,11 +585,10 @@
     if (s[0] !== 'app') return null;
     if (!s[1]) return { v: 'home' };
     if (s[1] === 'uploads') { if (!s[2]) return { v: 'uploads' }; if (s[2] === 'new') return { v: 'uploadsNew' }; return { v: s[3] || 'overview', id: s[2] }; }
-    if (s[1] === 'projects') return { v: 'projects' };
     return { v: 'notfound' };
   }
-  const binds = { uploads: bindUploads, projects: bindProjects, transcription: bindTranscription, clips: bindClips, templates: bindTemplates, library: bindLibrary, chapters: bindChapters, emotions: bindEmotions, scripts: bindScripts, diagrams: bindDiagrams };
-  const needsDone = new Set(['transcription', 'clips', 'chapters', 'emotions', 'scripts', 'diagrams', 'templates', 'library', 'overview']);
+  const binds = { uploads: bindUploads, transcription: bindTranscription, clips: bindClips, chapters: bindChapters, emotions: bindEmotions, diagrams: bindDiagrams };
+  const needsDone = new Set(['transcription', 'clips', 'chapters', 'emotions', 'diagrams', 'overview']);
 
   window.AppArea = {
     match: (p) => !!parse(p),
@@ -655,9 +607,7 @@
         if (S.authed !== true) { await api('/me'); S.authed = true; }
         S.status = await api('/status').catch(() => S.status);
         const p = path.replace(/\/+$/, '') || '/app';
-        if (['home', 'uploads', 'projects'].includes(r.v)) S.uploads = await api('/uploads');
-        if (r.v === 'projects') S.projects = await api('/projects');
-        if (r.v === 'templates') S.templates = await api('/templates');
+        if (['home', 'uploads'].includes(r.v)) S.uploads = await api('/uploads');
         if (r.id) { S.cur = await api('/uploads/' + r.id); if (S.media && S.mediaId !== r.id) { S.media.pause(); S.media.remove(); S.media = null; S.mediaId = null; } }
         if (tok !== S.rt) return;
         if (r.v === 'notfound' || !(pages[r.v])) { root.innerHTML = shell(p, `<div class="empty"><h3>Página não encontrada</h3><a class="ap-btn pri" href="/app">Ir para o início</a></div>`); }

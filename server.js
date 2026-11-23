@@ -710,7 +710,6 @@ async function publicUpload(m, withData) {
   if (o.transcript) { o.transcript.lines = splitLines(o.transcript.segments); o.transcript.segments = o.transcript.segments.map(({ words, avg_logprob, ...s }) => s); }
   o.analysis = await readJson(U(id, 'analysis.json'), null);
   o.clips = await readJson(U(id, 'clips.json'), []);
-  o.scripts = await readJson(U(id, 'scripts.json'), []);
   return o;
 }
 
@@ -811,7 +810,7 @@ async function api(req, res, url, q) {
     const m = await getMeta(b); if (!m) return send(res, 404, { error: 'Envio não encontrado' });
     if (!c) {
       if (method === 'GET') return send(res, 200, await publicUpload(m, true));
-      if (method === 'PATCH') { const j = await body(req); if (typeof j.name === 'string' && j.name.trim()) m.name = j.name.trim().slice(0, 160); if ('projectId' in j) m.projectId = j.projectId || null; await saveMeta(m); return send(res, 200, m); }
+      if (method === 'PATCH') { const j = await body(req); if (typeof j.name === 'string' && j.name.trim()) m.name = j.name.trim().slice(0, 160); await saveMeta(m); return send(res, 200, m); }
       if (method === 'DELETE') { await fsp.rm(U(b), { recursive: true, force: true }); return send(res, 200, { ok: true }); }
     }
     if (c === 'thumb' && method === 'GET') { const f = await ensureThumb(m); return f ? serveFile(req, res, f, 'image/jpeg') : send(res, 404, { error: 'Sem capa' }); }
@@ -1024,19 +1023,6 @@ async function api(req, res, url, q) {
       const st0 = Math.max(0, +q.get('start') || 0), ws0 = clipWords(tr, { start: st0, end: +q.get('end') || 1e9 });
       return send(res, 200, q.get('abs') ? ws0.map((w) => ({ ...w, s: +(w.s + st0).toFixed(3), e: +(w.e + st0).toFixed(3) })) : ws0);
     }
-    if (c === 'scripts') {
-      const sc = await readJson(U(b, 'scripts.json'), []);
-      if (method === 'POST' && !d) {
-        const j = await body(req); const mins = Math.max(1, Math.min(60, +j.mins || 3)), clips = await readJson(U(b, 'clips.json'), []), tr = await readJson(U(b, 'transcript.json'), null);
-        if (!tr) return send(res, 409, { error: 'Sem transcrição.' });
-        // seleção por nota até a duração pedida (sem IA); com LLM, ver README para evoluir
-        const picked = []; let tot = 0; for (const cl of [...clips].filter((x) => !x.hid).sort((x, y) => y.score - x.score)) { if (tot >= mins * 60) break; picked.push(cl); tot += cl.end - cl.start; }
-        picked.sort((x, y) => x.start - y.start);
-        const item = { id: rid(), mins, brief: String(j.brief || '').slice(0, 500), mode: 'selecao-por-nota', createdAt: Date.now(), items: picked.map((cl) => ({ start: cl.start, end: cl.end, title: cl.title, text: tr.segments.filter((s) => s.start >= cl.start - 0.5 && s.end <= cl.end + 0.5).map((s) => s.text).join(' ') })) };
-        sc.push(item); await writeJson(U(b, 'scripts.json'), sc); return send(res, 201, item);
-      }
-      if (method === 'DELETE' && d) { await writeJson(U(b, 'scripts.json'), sc.filter((x) => x.id !== d)); return send(res, 200, { ok: true }); }
-    }
     if (c === 'reanalyze' && method === 'POST') {
       const tr = await readJson(U(b, 'transcript.json'), null); if (!tr) return send(res, 409, { error: 'Sem transcrição.' });
       enqueue(async () => { const an = await analyze(cfg, tr, log); await writeJson(U(b, 'analysis.json'), an); const fresh = await autoClips(b, tr, an); await withLock('clips:' + b, async () => { const old = await readJson(U(b, 'clips.json'), []); await writeJson(U(b, 'clips.json'), [...fresh, ...old.filter((x) => x.manual)]); }); });
@@ -1077,10 +1063,10 @@ async function api(req, res, url, q) {
     return send(res, 200, { lang: j.lang, translations: out });
   }
   const listFile = (n) => path.join(cfg.dataDir, n + '.json');
-  if ((a === 'projects' || a === 'templates')) {
+  if (a === 'templates') { // templates de legenda salvos no editor do corte
     const f = listFile(a), list = await readJson(f, []);
     if (method === 'GET' && !b) return send(res, 200, list);
-    if (method === 'POST' && !b) { const j = await body(req); const name = String(j.name || '').trim().slice(0, 80); if (!name) return send(res, 400, { error: 'Nome vazio' }); const it = { id: rid(), name, createdAt: Date.now(), ...(a === 'templates' ? { css: String(j.css || '').slice(0, 400), config: j.config && typeof j.config === 'object' ? cleanOpts({ captions: j.config }).cap : undefined } : {}) }; list.push(it); await writeJson(f, list); return send(res, 201, it); }
+    if (method === 'POST' && !b) { const j = await body(req); const name = String(j.name || '').trim().slice(0, 80); if (!name) return send(res, 400, { error: 'Nome vazio' }); const it = { id: rid(), name, createdAt: Date.now(), config: j.config && typeof j.config === 'object' ? cleanOpts({ captions: j.config }).cap : undefined }; list.push(it); await writeJson(f, list); return send(res, 201, it); }
     if (method === 'DELETE' && b) { await writeJson(f, list.filter((x) => x.id !== b)); return send(res, 200, { ok: true }); }
   }
   return send(res, 404, { error: 'Rota não encontrada' });
