@@ -184,11 +184,11 @@
          <div class="ap-sec">Passo a passo</div>${link(up + '/transcription', ic.doc, '1. Transcrição', path)}${link(up + '/clips', ic.cut, '2. Cortes', path)}
          <div class="ap-sec">Sobre a pregação</div>${link(up + '/chapters', ic.book, 'Capítulos', path)}${link(up + '/emotions', ic.heart, 'Emoções', path)}${link(up + '/scripts', ic.script, 'Roteiros', path)}${link(up + '/diagrams', ic.dia, 'Diagramas', path)}
          <div class="ap-sec">Para o editor</div>${link(up + '/templates', ic.tpl, 'Templates', path)}${link(up + '/library', ic.img, 'Biblioteca', path)}`
-      : `<a class="ap-new" href="/app/uploads/new"><span aria-hidden="true">+</span> Nova pregação</a>${link('/app', ic.home, 'Início', path)}${link('/app/uploads', ic.files, 'Pregações', path)}${link('/app/projects', ic.folder, 'Projetos', path)}${recents()}`;
+      : `${path === '/app' || path === '/app/uploads/new' ? '' : '<a class="ap-new" href="/app/uploads/new"><span aria-hidden="true">+</span> Nova pregação</a>'}${link('/app', ic.home, 'Início', path)}${link('/app/uploads', ic.files, 'Pregações', path)}${link('/app/projects', ic.folder, 'Projetos', path)}${path === '/app' ? '' : recents()}`;
     return `<div class="ap">
       <div class="ap-top"><a href="/app"><b>INVB Studio</b></a><button id="ap-burger" aria-label="Abrir menu">☰</button></div>
       <aside class="ap-side" id="ap-side"><a class="ap-brand" href="/app" aria-label="INVB Studio, início"><img class="lg-c" src="/img/nv-logo-claro.png" alt="Nova Vida Botafogo"><img class="lg-n" src="/img/nv-logo-noturno.png" alt="Nova Vida Botafogo"><span class="ap-brand-sub">INVB<br>Studio</span></a>${nav}<div class="ap-grow"></div>
-        ${st ? `<div class="ap-box" aria-label="Situação do app"><div class="ap-kv"><span>Transcrição</span><b><i class="dot on"></i>${esc(st.provider_name || 'API')}</b></div><div class="ap-kv"><span>IA</span><b><i class="dot ${st.llm ? 'on' : ''}"></i>${st.llm ? esc(st.llmModel) : 'Desligada'}</b></div>${st.version ? `<div class="ap-kv" title="Versão do app neste computador: data da última atualização e código dela"><span>Versão</span><b>${esc(verLabel(st.version))}</b></div>` : ''}</div>` : ''}
+        ${st ? `<div class="ap-box" aria-label="Situação do app"><div class="ap-kv"><span>Transcrição</span><b><i class="dot on"></i>${esc(st.provider_name || 'API')}</b></div><div class="ap-kv"><span>IA</span><b><i class="dot ${st.llm ? 'on' : ''}"></i>${st.llm ? esc(st.llmModel) : 'Desligada'}</b></div>${st.version ? `<div class="ap-kv" title="Versão do app neste computador: data da última atualização e código dela"><span>Versão</span><b>${esc(verLabel(st.version))}</b></div>` : '<div class="ap-kv" title="As telas foram atualizadas, mas o app que está aberto ainda é o antigo. Feche a janela do Terminal do app e abra de novo pelo iniciar."><span>Versão</span><b class="warn">Feche e abra o app</b></div>'}</div>` : ''}
         <div class="ap-foot2"><div class="ap-mode" role="group" aria-label="Modo de cores"><button data-theme-set="light" aria-pressed="${!(window.InvbTheme && InvbTheme.get() === 'dark')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Claro</button><button data-theme-set="dark" aria-pressed="${!!(window.InvbTheme && InvbTheme.get() === 'dark')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>Noturno</button></div><button class="ap-outb" id="ap-out" title="Sair do app" aria-label="Sair do app">${ic.out}</button></div></aside>
       <div class="ap-main"><div class="ap-card" id="ap-card">${inner}</div>${uid && S.cur && isDone(S.cur) ? player() : ''}</div></div>`;
   }
@@ -228,26 +228,36 @@
     x.onerror = () => toast('Falha de conexão com o servidor.');
     x.send(file);
   }
-  const uploadBox = () => `<div class="ap-tabs full" role="tablist"><button role="tab" aria-selected="true" data-ut="yt">▶ Link do YouTube</button><button role="tab" aria-selected="false" data-ut="drive">${ic.folder.replace('<svg', '<svg width="15" height="15"')}Link do Google Drive</button><button role="tab" aria-selected="false" data-ut="file">${ic.up.replace('22', '15')}Arquivo do computador</button></div><div id="ut-body"></div>`;
+  // Uma caixa só para começar uma pregação: o link (YouTube ou Google Drive, o app reconhece qual é) ou um arquivo do computador.
+  const uploadBox = () => `<div id="ut-body"><div class="ap-yt up1"><b style="font-size:16px">Cole o link da pregação</b><br><span class="sub2">YouTube ou Google Drive. O app baixa e transcreve sozinho.</span><br><input id="lk" placeholder="https://www.youtube.com/watch?v=...  ou  https://drive.google.com/file/d/..." aria-label="Link do YouTube ou do Google Drive" autocomplete="off" spellcheck="false"><br><button class="ap-btn pri lg" id="lkgo">Baixar e transcrever</button><p class="sub2 up-msg" id="lkmsg" role="alert"></p><button class="ap-btn" id="lklogin" hidden>Entrar com o Google e tentar de novo</button><p class="up-alt">Ou <button type="button" class="up-link" id="lkfile">envie um arquivo do computador</button></p></div><div id="ut-file" hidden></div></div>`;
   function bindUpload(root) {
     const body = $('#ut-body', root); if (!body) return;
-    const showFile = () => { body.innerHTML = `<div class="ap-drop" id="drop"><div class="ci">${ic.up}</div><b>Arraste seu arquivo aqui</b><small>ou clique para selecionar</small><p class="fm">Recomendamos formato .MP3 para melhor velocidade de processamento e compatibilidade<br>Áudio: MP3, WAV, M4A, AAC, OGG, OPUS, WEBM • Vídeo: MP4, MOV, AVI, MKV</p><button class="ap-btn pri lg" id="pick">Enviar Arquivo</button><input type="file" id="file" hidden accept="audio/*,video/*,.mkv,.mov"><div hidden style="max-width:420px;margin:18px auto 0"><div class="bigbar"><i id="upbar" style="width:0"></i></div><small id="uplab" class="sub2"></small></div></div>`;
-      const f = $('#file', body), pick = () => f.click(), d = $('#drop', body);
-      $('#pick', body).onclick = (e) => { e.stopPropagation(); pick(); }; d.onclick = (e) => { if (!e.target.closest('[hidden]')) pick(); };
-      f.onchange = () => f.files[0] && sendFile(f.files[0], body);
-      d.ondragover = (e) => { e.preventDefault(); d.classList.add('over'); }; d.ondragleave = () => d.classList.remove('over'); d.ondrop = (e) => { e.preventDefault(); d.classList.remove('over'); e.dataTransfer.files[0] && sendFile(e.dataTransfer.files[0], body); };
+    const cid = S.status && S.status.driveClientId, inp = $('#lk', body), msg = $('#lkmsg', body), login = $('#lklogin', body), btn = $('#lkgo', body);
+    const isDrive = (u) => /^(https?:\/\/)?(drive|docs)\.google\.com\//i.test(u);
+    const send = async (token) => {
+      const url = inp.value.trim(); msg.textContent = ''; login.hidden = true;
+      if (!url) { msg.textContent = 'Cole o link da pregação para continuar.'; return inp.focus(); }
+      btn.disabled = true;
+      try {
+        if (isDrive(url)) { await api('/uploads/drive', { json: { url, token } }); toast('Download do Drive iniciado.'); } else await api('/uploads/youtube', { json: { url } });
+        go('/app/uploads');
+      } catch (e) { if (e.status === 401) return go('/entrar'); msg.textContent = e.message; if (e.data && e.data.needsLogin && cid) login.hidden = false; }
+      finally { btn.disabled = false; }
     };
-    const showYt = () => { body.innerHTML = `<div class="ap-yt"><b style="font-size:16px">Cole o link do YouTube</b><br><span class="sub2">Vídeo, Shorts ou live que já terminou. O app baixa e transcreve sozinho.</span><br><input id="yt" placeholder="https://www.youtube.com/watch?v=..." aria-label="Link do YouTube"><br><button class="ap-btn pri lg" id="ytgo">Baixar e transcrever</button></div>`;
-      $('#ytgo', body).onclick = guard(async () => { await api('/uploads/youtube', { json: { url: $('#yt', body).value.trim() } }); go('/app/uploads'); }); };
-    const showDrive = () => {
-      const cid = S.status && S.status.driveClientId;
-      body.innerHTML = `<div class="ap-yt"><b style="font-size:16px">Cole o link de um arquivo do Google Drive</b><br><span class="sub2">Vídeo ou áudio. Arquivos com “qualquer pessoa com o link” baixam direto; os privados pedem login com o Google.</span><br><input id="dr" placeholder="https://drive.google.com/file/d/..." aria-label="Link do Google Drive"><br><button class="ap-btn pri lg" id="drgo">Importar link</button><p class="sub2" id="drmsg" style="margin-top:12px;color:#c0262d"></p><button class="ap-btn" id="drlogin" hidden>Entrar com o Google e tentar de novo</button></div>`;
-      const send = async (token) => { const msg = $('#drmsg', body); msg.textContent = ''; try { await api('/uploads/drive', { json: { url: $('#dr', body).value.trim(), token } }); toast('Download do Drive iniciado.'); go('/app/uploads'); } catch (e) { if (e.status === 401) return go('/entrar'); msg.textContent = e.message; if (e.data && e.data.needsLogin && cid) $('#drlogin', body).hidden = false; } };
-      $('#drgo', body).onclick = () => send();
-      $('#drlogin', body).onclick = async () => { try { const t = await googleToken(cid); await send(t); } catch (e) { $('#drmsg', body).textContent = e.message; } };
+    btn.onclick = () => send();
+    inp.onkeydown = (e) => { if (e.key === 'Enter') send(); };
+    login.onclick = async () => { try { await send(await googleToken(cid)); } catch (e) { msg.textContent = e.message; } };
+    // arquivo do computador: abre a área de arrastar logo abaixo
+    const fileBox = $('#ut-file', body);
+    $('#lkfile', body).onclick = () => {
+      if (!fileBox.hidden) { fileBox.hidden = true; return; }
+      fileBox.hidden = false;
+      fileBox.innerHTML = `<div class="ap-drop" id="drop"><div class="ci">${ic.up}</div><b>Arraste o arquivo aqui</b><small>ou clique para escolher</small><p class="fm">Áudio: MP3, WAV, M4A, AAC, OGG, OPUS • Vídeo: MP4, MOV, AVI, MKV, WEBM</p><input type="file" id="file" hidden accept="audio/*,video/*,.mkv,.mov"><div hidden style="max-width:420px;margin:18px auto 0"><div class="bigbar"><i id="upbar" style="width:0"></i></div><small id="uplab" class="sub2"></small></div></div>`;
+      const f = $('#file', fileBox), d = $('#drop', fileBox);
+      d.onclick = (e) => { if (!e.target.closest('[hidden]')) f.click(); };
+      f.onchange = () => f.files[0] && sendFile(f.files[0], fileBox);
+      d.ondragover = (e) => { e.preventDefault(); d.classList.add('over'); }; d.ondragleave = () => d.classList.remove('over'); d.ondrop = (e) => { e.preventDefault(); d.classList.remove('over'); e.dataTransfer.files[0] && sendFile(e.dataTransfer.files[0], fileBox); };
     };
-    $$('[data-ut]', root).forEach((b) => b.onclick = () => { $$('[data-ut]', root).forEach((x) => x.setAttribute('aria-selected', x === b)); b.dataset.ut === 'yt' ? showYt() : b.dataset.ut === 'drive' ? showDrive() : showFile(); });
-    showYt();
   }
 
   /* ---------- Páginas ---------- */
@@ -269,9 +279,9 @@
   const procView = (c) => `<div class="empty" id="proc"><div class="ci">${c.status === 'error' ? '⚠️' : '⏳'}</div><h3>${c.status === 'error' ? 'Não foi possível processar' : 'Processando…'}</h3><p id="procmsg">${c.status === 'error' ? esc(c.error || 'Erro desconhecido.') : esc(statusLabel(c))}</p>${c.status === 'error' ? `<button class="ap-btn pri" id="retry">Tentar de novo</button> ` : `<div class="bigbar" style="max-width:320px;margin:10px auto"><i id="procbar" style="width:${c.progress || 3}%"></i></div>`}<a class="ap-btn" href="/app/uploads">Todas as pregações</a></div>`;
 
   const pages = {
-    home: () => `<span class="eyebrow" style="font-size:11px;font-weight:800;text-transform:uppercase;display:block;margin-bottom:6px">Mídia · Nova Vida Botafogo</span><h1>${greeting()}</h1><p class="sub2">Cole o link da pregação. Depois da transcrição, é só fazer os cortes.</p><div style="height:20px"></div>${uploadBox()}
-      <div class="ap-h2"><h2>Últimas pregações</h2><a href="/app/uploads">Ver mais ›</a></div>${S.uploads.length ? `<div class="ap-cards">${S.uploads.slice(0, 4).map(upCard).join('')}</div>` : '<p class="sub2">Nenhuma pregação ainda. Cole um link acima para começar.</p>'}`,
-    uploads: () => `<div class="ap-head"><div><h1>Pregações</h1><p class="sub2">Todas as pregações deste computador e em que ponto cada uma está.</p></div><a class="ap-btn pri" href="/app/uploads/new">+ Nova pregação</a></div>
+    home: () => `<span class="eyebrow" style="font-size:11px;font-weight:800;text-transform:uppercase;display:block;margin-bottom:6px">Mídia · Nova Vida Botafogo</span><h1>${greeting()}</h1><p class="sub2">Depois da transcrição, é só fazer os cortes.</p><div style="height:20px"></div>${uploadBox()}
+      <div class="ap-h2"><h2>Últimas pregações</h2>${S.uploads.length > 4 ? '<a href="/app/uploads">Ver todas ›</a>' : ''}</div>${S.uploads.length ? `<div class="ap-cards">${S.uploads.slice(0, 4).map(upCard).join('')}</div>` : '<p class="sub2">Nenhuma pregação ainda. Cole um link acima para começar.</p>'}`,
+    uploads: () => `<div class="ap-head"><div><h1>Pregações</h1><p class="sub2">Todas as pregações deste computador e em que ponto cada uma está.</p></div></div>
       <div class="ap-tools"><label class="ap-search">${ic.search}<input id="fq" placeholder="Buscar pregação pelo nome..."></label><span class="ap-sp"></span><button class="ap-btn" id="fsort">⇅ Data: Mais recentes ⌄</button><button class="ap-btn" id="ffil">Filtros</button></div>
       <p class="sub2" id="fcnt" style="margin-bottom:10px"></p><div id="flist"></div>`,
     uploadsNew: () => `<div style="max-width:720px;margin:30px auto"><div class="ap-head"><h1 style="font-size:24px">Nova pregação</h1></div>${uploadBox()}<p class="sub2" style="text-align:center">Seus arquivos ficam no seu computador (pasta <code>data/</code>) e não são enviados a terceiros${S.status && (S.status.provider === 'openai' || S.status.llm) ? ', exceto o texto/áudio enviado à API de IA configurada' : ''}.</p></div>`,

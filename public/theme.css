@@ -242,3 +242,15 @@ input:focus,textarea:focus,select:focus{border-color:var(--ring)!important;outli
 /* sem a linha decorativa embaixo da logo: parecia um defeito */
 .ap-brand{border-bottom:0;padding-bottom:10px;margin-bottom:12px}
 .ap-brand::after{display:none}
+
+
+/* ---------- Caixa única do link ---------- */
+.ap-yt.up1{margin:0 0 36px;padding:34px 28px 26px}
+.ap-yt.up1 input{max-width:680px}
+.up-msg{margin:12px 0 0!important;color:var(--err)!important;min-height:0}
+.up-msg:empty{display:none}
+.up-alt{margin:16px 0 0;font-size:13.5px;color:var(--muted)}
+.up-link{border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--link);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.up-link:hover{color:var(--fg)}
+#ut-file .ap-drop{margin:-20px 0 36px}
+.ap-kv b.warn{color:var(--accent)}
