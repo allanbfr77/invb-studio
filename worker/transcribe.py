@@ -6,6 +6,22 @@ Não faz diarização (separação de falantes)."""
 import argparse, json, sys
 
 
+def load_audio(path):
+    """O app já entrega o áudio em WAV de 16 kHz, mono, 16 bits: lemos direto, sem depender do PyAV.
+    (Versões novas do PyAV quebram a leitura de arquivo do faster-whisper: "unexpected keyword argument 'metadata_errors'".)
+    Se o arquivo não estiver nesse formato, devolvemos o caminho e o faster-whisper decodifica como antes."""
+    try:
+        import wave
+        import numpy as np
+        with wave.open(path, "rb") as w:
+            if w.getframerate() != 16000 or w.getnchannels() != 1 or w.getsampwidth() != 2 or w.getcomptype() != "NONE":
+                return path
+            raw = w.readframes(w.getnframes())
+        return np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+    except Exception:  # noqa
+        return path
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("audio")
@@ -22,7 +38,7 @@ def main():
     model = WhisperModel(a.model, device=a.device, compute_type=compute)
     lang = None if a.language == "auto" else a.language
     segments, info = model.transcribe(
-        a.audio, language=lang, word_timestamps=True, vad_filter=True,
+        load_audio(a.audio), language=lang, word_timestamps=True, vad_filter=True,
         beam_size=5, condition_on_previous_text=False,
     )
     dur = float(info.duration or 0) or 1.0
