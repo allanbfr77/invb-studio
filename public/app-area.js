@@ -240,15 +240,20 @@
   const OKEXT = /\.(mp3|wav|m4a|aac|ogg|oga|opus|flac|mp4|mov|avi|mkv|webm|m4v)$/i;
   function sendFile(file, root) {
     if (!OKEXT.test(file.name)) return toast('Formato não suportado. Use MP3, WAV, M4A, MP4, MOV, MKV…');
+    let range; try { range = readRange(root); } catch (e) { return toast(e.message); }
     const bar = $('#upbar', root), lab = $('#uplab', root); if (bar) bar.parentElement.hidden = false;
-    const x = new XMLHttpRequest(); x.open('POST', '/api/uploads?name=' + encodeURIComponent(file.name)); x.setRequestHeader('x-invb', '1');
+    const x = new XMLHttpRequest(); x.open('POST', '/api/uploads?name=' + encodeURIComponent(file.name) + (range.start ? '&start=' + encodeURIComponent(range.start) : '') + (range.end ? '&end=' + encodeURIComponent(range.end) : '')); x.setRequestHeader('x-invb', '1');
     x.upload.onprogress = (e) => { if (e.lengthComputable && bar) { bar.style.width = (e.loaded / e.total) * 100 + '%'; lab.textContent = `Enviando ${fmtSize(e.loaded)} de ${fmtSize(e.total)}…`; } };
     x.onload = () => { if (x.status === 201) { toast('Envio concluído. Processando…'); go('/app/uploads'); } else { let m = 'Falha no envio.'; try { m = JSON.parse(x.responseText).error; } catch { /* */ } if (x.status === 401) return go('/entrar'); toast(m); if (bar) bar.parentElement.hidden = true; } };
     x.onerror = () => toast('Falha de conexão com o servidor.');
     x.send(file);
   }
   // Uma caixa só para começar uma pregação: o link (YouTube ou Google Drive, o app reconhece qual é) ou um arquivo do computador.
-  const uploadBox = () => `<div id="ut-body"><div class="ap-yt up1"><b style="font-size:16px">Cole o link da pregação</b><br><span class="sub2">YouTube ou Google Drive. O app baixa e transcreve sozinho.</span><br><input id="lk" placeholder="https://www.youtube.com/watch?v=...  ou  https://drive.google.com/file/d/..." aria-label="Link do YouTube ou do Google Drive" autocomplete="off" spellcheck="false"><br><button class="ap-btn pri lg" id="lkgo">Baixar e transcrever</button><p class="sub2 up-msg" id="lkmsg" role="alert"></p><button class="ap-btn" id="lklogin" hidden>Entrar com o Google e tentar de novo</button><p class="up-alt">Ou <button type="button" class="up-link" id="lkfile">envie um arquivo do computador</button></p></div><div id="ut-file" hidden></div></div>`;
+  // Trecho da pregação dentro de um vídeo maior (a live inteira do culto): só ele fica no computador e é transcrito.
+  const rangeRow = () => `<div class="up-range" role="group" aria-label="Trecho da pregação"><span class="up-rl">Só a pregação <small>(opcional)</small></span><label>de <input class="rg-a" placeholder="1:05:30" autocomplete="off" spellcheck="false" aria-label="Início da pregação no vídeo"></label><label>até <input class="rg-b" placeholder="1:52:00" autocomplete="off" spellcheck="false" aria-label="Fim da pregação no vídeo"></label></div><p class="up-hint">Vídeo do culto inteiro? Marque onde a pregação começa e termina: só esse trecho fica no computador e é transcrito. Em branco, vale o vídeo todo.</p>`;
+  // Devolve { start, end } como digitado, ou lança o erro em português (o servidor confere de novo).
+  const readRange = (root) => { const r = { start: ($('.rg-a', root) || {}).value || '', end: ($('.rg-b', root) || {}).value || '' }; RangeUtils.cleanRange(r); return r; };
+  const uploadBox = () => `<div id="ut-body"><div class="ap-yt up1"><b style="font-size:16px">Cole o link da pregação</b><br><span class="sub2">YouTube ou Google Drive. O app baixa e transcreve sozinho.</span><br><input id="lk" placeholder="https://www.youtube.com/watch?v=...  ou  https://drive.google.com/file/d/..." aria-label="Link do YouTube ou do Google Drive" autocomplete="off" spellcheck="false">${rangeRow()}<button class="ap-btn pri lg" id="lkgo">Baixar e transcrever</button><p class="sub2 up-msg" id="lkmsg" role="alert"></p><button class="ap-btn" id="lklogin" hidden>Entrar com o Google e tentar de novo</button><p class="up-alt">Ou <button type="button" class="up-link" id="lkfile">envie um arquivo do computador</button></p></div><div id="ut-file" hidden></div></div>`;
   function bindUpload(root) {
     const body = $('#ut-body', root); if (!body) return;
     const cid = S.status && S.status.driveClientId, inp = $('#lk', body), msg = $('#lkmsg', body), login = $('#lklogin', body), btn = $('#lkgo', body);
@@ -256,21 +261,26 @@
     const send = async (token) => {
       const url = inp.value.trim(); msg.textContent = ''; login.hidden = true;
       if (!url) { msg.textContent = 'Cole o link da pregação para continuar.'; return inp.focus(); }
+      let range; try { range = readRange(body); } catch (e) { msg.textContent = e.message; return; }
       btn.disabled = true;
       try {
-        if (isDrive(url)) { await api('/uploads/drive', { json: { url, token } }); toast('Download do Drive iniciado.'); } else await api('/uploads/youtube', { json: { url } });
+        if (isDrive(url)) { await api('/uploads/drive', { json: { url, token, range } }); toast('Download do Drive iniciado.'); } else await api('/uploads/youtube', { json: { url, range } });
         go('/app/uploads');
       } catch (e) { if (e.status === 401) return go('/entrar'); msg.textContent = e.message; if (e.data && e.data.needsLogin && cid) login.hidden = false; }
       finally { btn.disabled = false; }
     };
     btn.onclick = () => send();
     inp.onkeydown = (e) => { if (e.key === 'Enter') send(); };
+    // Link do YouTube com o tempo marcado (&t=...): já sugere esse ponto como início da pregação.
+    const ra = $('.rg-a', body);
+    inp.oninput = () => { const t = RangeUtils.ytStart(inp.value.trim()); if (t && (!ra.value || ra.dataset.auto)) { ra.value = tm(t); ra.dataset.auto = '1'; } else if (!t && ra.dataset.auto) { ra.value = ''; delete ra.dataset.auto; } };
+    ra.addEventListener('input', () => { delete ra.dataset.auto; });
     login.onclick = async () => { try { await send(await googleToken(cid)); } catch (e) { msg.textContent = e.message; } };
     // arquivo do computador: abre a área de arrastar logo abaixo
     const fileBox = $('#ut-file', body);
     $('#lkfile', body).onclick = () => {
       const linkBox = $('.up1', body); linkBox.hidden = true; fileBox.hidden = false;
-      fileBox.innerHTML = `<div class="up-file"><button type="button" class="up-back" id="lkback">${ic.back} Voltar para colar um link</button><div class="ap-drop" id="drop"><div class="ci">${ic.up}</div><b>Arraste o arquivo aqui</b><small>ou clique para escolher</small><p class="fm">Áudio: MP3, WAV, M4A, AAC, OGG, OPUS • Vídeo: MP4, MOV, AVI, MKV, WEBM</p><input type="file" id="file" hidden accept="audio/*,video/*,.mkv,.mov"><div hidden style="max-width:420px;margin:18px auto 0"><div class="bigbar"><i id="upbar" style="width:0"></i></div><small id="uplab" class="sub2"></small></div></div></div>`;
+      fileBox.innerHTML = `<div class="up-file"><button type="button" class="up-back" id="lkback">${ic.back} Voltar para colar um link</button>${rangeRow()}<div class="ap-drop" id="drop"><div class="ci">${ic.up}</div><b>Arraste o arquivo aqui</b><small>ou clique para escolher</small><p class="fm">Áudio: MP3, WAV, M4A, AAC, OGG, OPUS • Vídeo: MP4, MOV, AVI, MKV, WEBM</p><input type="file" id="file" hidden accept="audio/*,video/*,.mkv,.mov"><div hidden style="max-width:420px;margin:18px auto 0"><div class="bigbar"><i id="upbar" style="width:0"></i></div><small id="uplab" class="sub2"></small></div></div></div>`;
       $('#lkback', fileBox).onclick = () => { fileBox.hidden = true; fileBox.innerHTML = ''; linkBox.hidden = false; inp.focus(); };
       const f = $('#file', fileBox), d = $('#drop', fileBox);
       d.onclick = (e) => { if (!e.target.closest('[hidden]')) f.click(); };
@@ -307,7 +317,7 @@
     overview: (c) => {
       const segs = segsOf(c), spk = new Set(segs.map((s) => s.who)).size, ch = chaptersOf(c), emo = (c.analysis.emotions || []).length;
       const cards = [['transcription', ic.doc, 'Transcrição', 'Seu áudio foi transcrito automaticamente, com segmentação por trecho.', `Palavras transcritas: ${c.words || 0}`], ['chapters', ic.book, 'Capítulos', 'O conteúdo foi dividido em capítulos para facilitar a navegação.', `Capítulos: ${ch.length}`], ['emotions', ic.heart, 'Emoções', emo ? 'Tom emocional das falas mais marcantes.' : aiOn() ? 'Ainda não analisado com a IA.' : 'Marcado pela IA (Claude ou OpenAI).', emo ? `${emo} falas marcadas` : aiOn() ? 'Refaça a análise' : 'Sem IA'], ['clips', ic.cut, 'Cortes', 'Trechos sugeridos, com nota.', `${(c.clips || []).length} cortes`]];
-      return `${note(c)}<div class="ov"><div class="vid vid-slot"><div class="pl">▶</div></div><div><span class="eyebrow" style="font-size:10px">Resumo</span><h1 style="font-size:24px;margin-top:4px">${esc(c.name)}</h1><div class="metachips"><span class="metachip">${c.kind === 'aud' ? 'Áudio' : 'Vídeo'} enviado</span><span class="metachip">${tm(c.duration)}</span><span class="metachip">${esc(c.language || '—')}</span><span class="metachip">${fmtDate(c.createdAt)}</span></div>
+      return `${note(c)}<div class="ov"><div class="vid vid-slot"><div class="pl">▶</div></div><div><span class="eyebrow" style="font-size:10px">Resumo</span><h1 style="font-size:24px;margin-top:4px">${esc(c.name)}</h1><div class="metachips"><span class="metachip">${c.kind === 'aud' ? 'Áudio' : 'Vídeo'} enviado</span><span class="metachip">${tm(c.duration)}</span>${c.range ? `<span class="metachip" title="Só este trecho do vídeo foi guardado e transcrito">Trecho ${tm(c.range.start)}–${c.range.end ? tm(c.range.end) : 'fim'}</span>` : ''}<span class="metachip">${esc(c.language || '—')}</span><span class="metachip">${fmtDate(c.createdAt)}</span></div>
         <p style="margin:12px 0">Transcrevemos <b>${c.words || 0}</b> palavras, divididas em <b>${ch.length}</b> capítulos.</p><a class="ap-btn" href="/app/uploads/${c.id}/transcription">Abrir transcrição</a> <a class="ap-btn" href="/app/uploads/${c.id}/clips">Ver cortes</a> <button class="ap-btn" id="reana">Refazer análise</button></div></div>
         <div class="kpis">${[['Duração do áudio', tm(c.duration)], ['Palavras transcritas', String(c.words || 0)], ['Segmentos de fala', String(segs.length)], ['Falantes identificados', String(spk)], ['Momentos-chave', String((c.clips || []).length)]].map((k) => `<div><small>${k[0]}</small><b>${k[1]}</b></div>`).join('')}</div>
         <h2 style="font-size:17px;margin-bottom:4px">O que está pronto</h2><p class="sub2" style="margin-bottom:14px">Toque numa análise para abrir.</p><div class="rdy">${cards.map((k) => `<a href="/app/uploads/${c.id}/${k[0]}"><div class="ib">${k[1]}</div><b>${k[2]}</b><p>${k[3]}</p><p style="margin-top:8px;font-size:11px">${k[4]}</p></a>`).join('')}</div>`;
@@ -493,7 +503,7 @@
       try { r = await post(S.gtok && S.gtok.exp > Date.now() ? S.gtok.t : await fresh()); }
       catch (e) { if (e.data && e.data.wrongAccount) { S.gtok = null; S.gPick = true; } // conta sem acesso à pasta: o próximo envio pergunta qual conta usar
         if (!(e.data && e.data.needsLogin)) throw e; S.gtok = null; r = await post(await fresh()); } // token vencido: pede o login de novo, uma vez
-      k.drive = r.drive; toast('Corte enviado para a pasta da equipe.');
+      k.drive = r.drive; toast(`Corte enviado para a pasta da equipe, com ${r.drive && r.drive.srt ? 'a legenda (.srt) e o texto' : 'o texto'} para a edição.`);
     };
     // Login do Google feito no próprio clique (o navegador bloqueia a janela se ela abrir depois de uma espera longa).
     const driveToken = async () => { if (!(S.gtok && S.gtok.exp > Date.now())) { S.gtok = { t: await googleToken(S.status.driveClientId, G_WRITE, !!S.gPick), exp: Date.now() + 45 * 60000 }; S.gPick = false; } return S.gtok.t; };

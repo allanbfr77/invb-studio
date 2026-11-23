@@ -563,3 +563,12 @@ kbd{display:inline-block;min-width:18px;padding:0 5px;border:1px solid var(--bor
 .dlx-triml{display:flex;justify-content:space-between;gap:12px;width:min(100%,720px);margin-top:6px;font:12px var(--mono,ui-monospace,monospace);color:var(--fg)}
 .dlx-triml .mid{font-family:inherit;color:var(--muted);text-align:center;flex:1;font-size:11.5px}
 @media (max-width:900px){.dlx-triml .mid{display:none}}
+/* Trecho da pregação (opcional) na caixa do link e no envio de arquivo */
+.up-range{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 12px;margin:0 auto 4px;font-size:14px;color:var(--fg)}
+.up-range .up-rl{font-weight:600}
+.up-range small{font-weight:400;color:var(--muted)}
+.up-range label{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+.ap-yt .up-range input,.up-file .up-range input{width:92px;height:38px;margin:0;padding:0 8px;text-align:center;border:1px solid var(--border-strong);border-radius:var(--r-sm);font:inherit;font-variant-numeric:tabular-nums;background:var(--surface);color:var(--fg)}
+.up-hint{max-width:520px;margin:6px auto 16px;font-size:12.5px;line-height:1.5;color:var(--muted)}
+.up-file .up-range{margin-top:16px}
+.up-file .up-hint{text-align:center}

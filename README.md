@@ -21,6 +21,9 @@ Cada culto tem um responsável, que faz sozinho da transcrição aos cortes.
 ## Passo a passo de um culto
 
 1. **Cole o link** da pregação (YouTube ou Google Drive) na tela inicial. O app baixa e transcreve.
+   - Se o vídeo é o culto inteiro, preencha **Só a pregação: de … até …** (ex.: `1:05:30` a `1:52:00`). Só esse
+     trecho fica no computador e é transcrito, o que poupa tempo e a cota do Groq. Link do YouTube com o tempo
+     marcado (`&t=...`) já sugere o início. Vale também para arquivo enviado do computador.
 2. Abra **Transcrição**. O texto aparece em linhas curtas, cada uma com o seu tempo. Clicar em uma
    palavra leva o vídeo ao segundo exato dela.
 3. Clique em **Copiar para o Claude**, cole no Claude e envie. A resposta vem como uma lista:
@@ -35,7 +38,10 @@ Cada culto tem um responsável, que faz sozinho da transcrição aos cortes.
 5. Em cada corte, clique em **Baixar corte**, confira o trecho e exporte. A legenda vem desligada,
    porque a edição é feita no CapCut; dá para ligar no editor.
 6. Com o corte exportado, clique em **Enviar ao Drive**. Ele vai para uma subpasta com o nome
-   da pregação, dentro da pasta da equipe.
+   da pregação, dentro da pasta da equipe, junto com o kit de edição:
+   - `Título.srt`: a legenda no tempo do corte exportado, em blocos curtos, pronta para importar no CapCut;
+   - `Título - texto.txt`: título, descrição e hashtags (quando gerados com **✨ Gerar texto**), o trecho de
+     onde o corte veio e a fala transcrita.
 
 Para fazer tudo de uma vez, use **Baixar todos** ou **Enviar todos ao Drive** no alto da lista: o app exporta o que
 faltar e baixa (ou envia) cada corte da aba, um por vez.
@@ -146,5 +152,5 @@ Ele baixa cerca de 1 GB para a pasta `.venv-voz` do projeto. Depois, feche e abr
 - Uma única dependência npm, o SDK oficial da Anthropic, carregada só quando há chave. `npm start` sobe o servidor; `npm test` roda os testes (`node --test`).
 - Variáveis de ambiente: veja `.env.example`.
 - Lógica testável em `lib/`: `lines.js` (linhas curtas), `cutlist.js` (ida e volta com o Claude),
-  `drive.js` (importar e enviar), `cleanup.js` (limpeza do original), `claude.js` (IA), `analyze.js`.
+  `drive.js` (importar e enviar), `kit.js` (legenda e texto do corte), `cleanup.js` (limpeza do original), `claude.js` (IA), `analyze.js`.
 - O projeto e o plano desta mudança estão em `docs/superpowers/`.

@@ -528,3 +528,94 @@ test('a tela troca entre Local e Groq, e a escolha fica salva para o próximo in
   assert.equal(ok.status, 200); assert.equal(ok.body.provider, 'groq');
   assert.equal(JSON.parse(fs.readFileSync(path.join(d, 'settings.json'), 'utf8')).transcriber, 'groq');
 });
+
+// --- kit do corte: legenda (.srt) gravada na exportação e enviada ao Drive com o texto ---
+test('a exportação grava a legenda no tempo do vídeo final: acompanha a velocidade e os trechos removidos', { skip: !HAS_FFMPEG || process.platform === 'win32' }, async (t) => {
+  const d = tmp(t); const dir = seedTone(d, 'kkkkkkkkkkk1');
+  const s = await boot(t, d);
+  const srt = async (opts) => { await s.api('/uploads/kkkkkkkkkkk1/clips/m111111111111/render', { json: { captions: false, ...opts } }); const r = await waitRender(s, 'kkkkkkkkkkk1'); return fs.readFileSync(path.join(dir, 'clips', r.srt), 'utf8'); };
+  assert.equal(await srt({}), '1\n00:00:00,000 --> 00:00:02,000\nolá mundo\n');
+  assert.equal(await srt({ speed: 2 }), '1\n00:00:00,000 --> 00:00:01,000\nolá mundo\n');
+  assert.equal(await srt({ removed: [[0, 1]] }), '1\n00:00:00,000 --> 00:00:01,000\nmundo\n');
+});
+
+/** Um Google Drive de mentira: guarda nome, tipo e conteúdo de cada arquivo enviado. */
+async function fakeGoogle(t) {
+  const http = require('node:http'), files = []; let n = 0;
+  const srv = http.createServer((req, res) => {
+    let b = []; req.on('data', (c) => b.push(c)); req.on('end', () => {
+      b = Buffer.concat(b); const u = new URL(req.url, 'http://x'), j = (o) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
+      if (req.method === 'GET' && u.pathname === '/drive/v3/files') return j({ files: [] });
+      if (req.method === 'POST' && u.pathname === '/drive/v3/files') return j({ id: 'pasta1' });
+      if (req.method === 'POST' && u.pathname === '/upload/drive/v3/files') { const k = n++; files[k] = { ...JSON.parse(b), mime: req.headers['x-upload-content-type'] }; res.writeHead(200, { location: `http://127.0.0.1:${srv.address().port}/sessao/${k}` }); return res.end(); }
+      if (req.method === 'PUT' && u.pathname.startsWith('/sessao/')) { const k = +u.pathname.split('/').pop(); files[k].body = b.toString('utf8'); return j({ id: 'f' + k, webViewLink: `https://drive.google.com/file/d/f${k}/view` }); }
+      res.writeHead(404); res.end();
+    });
+  });
+  await new Promise((ok) => srv.listen(0, '127.0.0.1', ok)); t.after(() => srv.close());
+  return { base: `http://127.0.0.1:${srv.address().port}`, files };
+}
+const TOKEN = 'ya29.token-de-teste-com-tamanho-suficiente';
+
+test('enviar ao Drive manda o kit: texto, legenda e vídeo, nessa ordem e com o nome do corte', async (t) => {
+  const d = tmp(t); const g = await fakeGoogle(t);
+  const dir = seed(d, 'kkkkkkkkkkk2', { name: 'Culto de domingo.mp4' }, { clips: [clip({ title: 'Deus é fiel', start: 0, end: 2, post: { title: 'Deus é fiel sempre', description: 'Uma palavra.', hashtags: ['#fe'] }, render: { status: 'done', file: 'm111111111111.mp4', srt: 'm111111111111.srt', seconds: 2, at: 1 } })] });
+  fs.mkdirSync(path.join(dir, 'clips')); fs.writeFileSync(path.join(dir, 'clips', 'm111111111111.mp4'), 'video'); fs.writeFileSync(path.join(dir, 'clips', 'm111111111111.srt'), '1\n00:00:00,000 --> 00:00:02,000\nolá mundo\n');
+  const s = await boot(t, d, { env: { DRIVE_CUTS_FOLDER_ID: 'pasta-da-equipe-123', INVB_GOOGLE_API_BASE: g.base } });
+  const r = await s.api('/uploads/kkkkkkkkkkk2/clips/m111111111111/drive', { json: { token: TOKEN } });
+  assert.equal(r.status, 200, JSON.stringify(r.body)); assert.equal(r.body.drive.srt, true);
+  assert.deepEqual(g.files.map((f) => [f.name, f.mime, f.parents[0]]), [['Deus é fiel - texto.txt', 'text/plain', 'pasta1'], ['Deus é fiel.srt', 'application/x-subrip', 'pasta1'], ['Deus é fiel.mp4', 'video/mp4', 'pasta1']]);
+  assert.match(g.files[0].body, /^Deus é fiel sempre\n\nUma palavra\.\n\n#fe\n\n---\n\nPregação: Culto de domingo\nTrecho na pregação: 0:00 a 0:02/);
+  assert.match(g.files[0].body, /Fala do trecho:\nolá mundo\n$/);
+  assert.equal(g.files[1].body, '1\n00:00:00,000 --> 00:00:02,000\nolá mundo\n'); assert.equal(g.files[2].body, 'video');
+  assert.equal((await s.api('/uploads/kkkkkkkkkkk2/clips')).body[0].drive.link, 'https://drive.google.com/file/d/f2/view');
+});
+
+test('corte exportado antes do kit: ganha a legenda se não foi encurtado por dentro; se foi, vai só o texto', async (t) => {
+  const d = tmp(t); const g = await fakeGoogle(t);
+  const dir = seed(d, 'kkkkkkkkkkk3', {}, { clips: [clip({ start: 0, end: 2, render: { status: 'done', file: 'm111111111111.mp4', at: 1 } }), clip({ id: 'm222222222222', title: 'Rápido', start: 0, end: 2, render: { status: 'done', file: 'm222222222222.mp4', speed: 2, at: 1 } })] });
+  fs.mkdirSync(path.join(dir, 'clips')); for (const f of ['m111111111111.mp4', 'm222222222222.mp4']) fs.writeFileSync(path.join(dir, 'clips', f), 'v');
+  const s = await boot(t, d, { env: { DRIVE_CUTS_FOLDER_ID: 'pasta-da-equipe-123', INVB_GOOGLE_API_BASE: g.base } });
+  assert.equal((await s.api('/uploads/kkkkkkkkkkk3/clips/m111111111111/drive', { json: { token: TOKEN } })).body.drive.srt, true);
+  assert.equal(g.files[1].body, '1\n00:00:00,000 --> 00:00:02,000\nolá mundo\n');
+  assert.equal((await s.api('/uploads/kkkkkkkkkkk3/clips/m222222222222/drive', { json: { token: TOKEN } })).body.drive.srt, false);
+  assert.deepEqual(g.files.slice(3).map((f) => f.name), ['Rápido - texto.txt', 'Rápido.mp4']);
+  assert.match(g.files[3].body, /Fala do trecho:\nolá mundo\n$/);
+});
+
+// --- trecho da pregação: só ele fica no computador e é transcrito ---
+const probeDur = (f) => { const m = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(spawnSync('ffmpeg', ['-i', f]).stderr.toString()); return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : 0; };
+const sendVideo = async (s, f, qs) => { const r = await fetch(`${s.url}/api/uploads?name=culto.mp4${qs}`, { method: 'POST', headers: { 'x-invb': '1', cookie: s.cookie }, body: fs.readFileSync(f) }); return { status: r.status, body: await r.json() }; };
+const waitStatus = async (s, id) => { let m; for (let i = 0; i < 200; i++) { m = (await s.api('/uploads/' + id)).body; if (['error', 'done'].includes(m.status)) return m; await new Promise((r) => setTimeout(r, 100)); } return m; };
+
+test('envio com o trecho da pregação: o vídeo guardado fica só com ele, e tentar de novo não corta outra vez', { skip: !HAS_FFMPEG || process.platform === 'win32' }, async (t) => {
+  const d = tmp(t), src = path.join(d, 'culto.mp4');
+  spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=25:duration=60', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=60', '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '25', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', src]);
+  const s = await boot(t, d, { env: { TRANSCRIBE_PROVIDER: 'local' } }); // sem Whisper: a transcrição falha logo depois do recorte
+  const r = await sendVideo(s, src, '&start=0:10&end=0:45');
+  assert.equal(r.status, 201, JSON.stringify(r.body)); assert.deepEqual(r.body.range, { start: 10, end: 45 });
+  let m = await waitStatus(s, r.body.id);
+  assert.equal(m.rangeApplied, true); assert.match(m.error, /faster-whisper/);
+  const f = path.join(d, 'uploads', m.id, m.file), dur = probeDur(f);
+  assert.ok(dur >= 34.5 && dur <= 36.5, `duração ${dur}`);
+  assert.ok(!fs.readdirSync(path.join(d, 'uploads', m.id)).some((x) => x.startsWith('trecho.tmp')));
+  await s.api(`/uploads/${m.id}/retry`, { json: {} }); m = await waitStatus(s, m.id);
+  assert.ok(Math.abs(probeDur(f) - dur) < 0.1, 'o vídeo não pode ser cortado duas vezes');
+  // só o início: vai até o fim do vídeo
+  const r2 = await sendVideo(s, src, '&start=0:20'); const m2 = await waitStatus(s, r2.body.id);
+  assert.ok(Math.abs(probeDur(path.join(d, 'uploads', m2.id, m2.file)) - 40) < 1.5);
+  // início depois do fim do vídeo
+  const r3 = await sendVideo(s, src, '&start=5:00'); const m3 = await waitStatus(s, r3.body.id);
+  assert.equal(m3.status, 'error'); assert.match(m3.error, /passa do fim do vídeo/);
+});
+
+test('trecho inválido é recusado antes de começar, com o motivo', async (t) => {
+  const d = tmp(t); const s = await boot(t, d);
+  const up = await fetch(`${s.url}/api/uploads?name=culto.mp4&start=1:00:00&end=50:00`, { method: 'POST', headers: { 'x-invb': '1', cookie: s.cookie }, body: 'x' });
+  assert.equal(up.status, 400); assert.match((await up.json()).error, /depois do início/);
+  const yt = await s.api('/uploads/youtube', { json: { url: 'https://www.youtube.com/watch?v=abc', range: { start: 'uma hora' } } });
+  assert.equal(yt.status, 400); assert.match(yt.body.error, /início da pregação/);
+  const dr = await s.api('/uploads/drive', { json: { url: 'https://drive.google.com/file/d/abcdefghijk123/view', range: { start: '10:00', end: '10:05' } } });
+  assert.equal(dr.status, 400); assert.match(dr.body.error, /30 segundos/);
+  assert.deepEqual(fs.existsSync(path.join(d, 'uploads')) ? fs.readdirSync(path.join(d, 'uploads')) : [], []);
+});

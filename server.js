@@ -19,6 +19,8 @@ const { ytProgress, ytInfo, ytId } = require('./lib/ytprogress');
 const { needsPreview } = require('./lib/preview');
 const { cleanSpeed, atempo, cleanShift } = require('./lib/speed');
 const { cleanVoice } = require('./lib/voice');
+const { cues, toSrt, kitText } = require('./lib/kit');
+const { cleanRange } = require('./public/range-utils.js');
 const { Readable } = require('stream');
 
 /* ---------- Configuração (.env opcional) ----------
@@ -277,6 +279,33 @@ async function fetchYoutube(id, url, onProgress, opts = {}) {
   return null;
 }
 /**
+ * Trecho da pregação (meta.range): corta o vídeo baixado para ficar só com ele, antes de transcrever e de preparar
+ * a cópia para o navegador. Cópia direta, sem recodificar: leva segundos, e o começo pode recuar até o quadro-chave
+ * anterior (poucos segundos a mais). Não faz nada se não houver trecho ou se ele já foi aplicado a este arquivo.
+ */
+const clockLabel = (t) => { t = Math.floor(t); const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), x = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(x).padStart(2, '0'); };
+async function applyRange(id) {
+  const m = await getMeta(id); if (!m || !m.range || !m.file) return;
+  const { start, end } = m.range, orig = U(id, m.file), ext = path.extname(m.file), tmp = U(id, 'trecho.tmp' + ext);
+  // A marca é gravada antes de trocar o arquivo: se o app fechar no meio, a troca termina aqui e o vídeo nunca é cortado duas vezes.
+  if (m.rangeApplied) { if (fs.existsSync(tmp)) await fsp.rename(tmp, orig); return; }
+  if (!tools.ffmpeg) throw new Error('ffmpeg não encontrado: não dá para separar o trecho da pregação.');
+  const total = await mediaDuration(orig);
+  if (total && start >= total - 1) throw new Error(`O início marcado (${clockLabel(start)}) passa do fim do vídeo, que tem ${clockLabel(total)}. Confira o trecho da pregação e envie de novo.`);
+  await update(id, { stage: 'Separando o trecho da pregação', progress: 0 });
+  const r = await run(tools.ffmpeg, ['-y', '-hide_banner', '-ss', String(start), '-i', orig, ...(end ? ['-t', String(end - start)] : []), '-map', '0:v?', '-map', '0:a?', '-c', 'copy', '-avoid_negative_ts', 'make_zero', tmp]);
+  const dur = r.code === 0 ? await mediaDuration(tmp) : 0;
+  if (!(dur >= 1)) {
+    await fsp.rm(tmp, { force: true });
+    if (r.code === 0) throw new Error('O trecho marcado ficou vazio. Confira o início e o fim da pregação e envie de novo.');
+    log('recorte do trecho falhou', id, (r.err || '').split('\n').filter(Boolean).slice(-2).join(' | ').slice(0, 400));
+    throw new Error('Não consegui separar o trecho da pregação deste vídeo.');
+  }
+  await update(id, { rangeApplied: true, size: (await fsp.stat(tmp)).size });
+  await fsp.rename(tmp, orig);
+  log('trecho da pregação separado', id, `${start}s a ${end || 'fim'} (${Math.round(dur)} s)`);
+}
+/**
  * Se o navegador não toca o vídeo baixado (AV1/VP9 ou áudio Opus dentro de mp4), gera em segundo plano uma cópia
  * H.264 + AAC de até 720p só para assistir na tela. Os cortes continuam sendo exportados do original.
  */
@@ -425,7 +454,10 @@ async function autoClips(id, tr, an) {
 async function pipeline(id) {
   const set = (patch) => update(id, patch);
   try {
-    const m = await getMeta(id); if (!m) return;
+    if (!(await getMeta(id))) return;
+    await set({ status: 'processing', error: null });
+    await applyRange(id);
+    const m = await getMeta(id);
     const orig = U(id, m.file);
     await set({ status: 'processing', stage: 'Extraindo áudio', progress: 0, error: null });
     if (!tools.ffmpeg) throw new Error('ffmpeg não encontrado (defina FFMPEG_PATH ou instale imageio-ffmpeg).');
@@ -576,6 +608,25 @@ function keepIntervals(tr, c, gap = 0.5) {
 }
 const subtractRanges = (iv, cuts) => { let cur = iv; for (const [ca, cb] of cuts) { const nx = []; for (const [a, b] of cur) { if (cb <= a || ca >= b) nx.push([a, b]); else { if (ca > a) nx.push([a, ca]); if (cb < b) nx.push([cb, b]); } } cur = nx; } return cur.filter(([a, b]) => b - a >= 0.08); };
 
+/**
+ * Kit que vai com o corte para a pasta da equipe: a legenda (.srt) gravada na exportação e um texto com título,
+ * descrição, hashtags e a fala do trecho. Exportações antigas, sem .srt, ganham um quando o corte não foi encurtado
+ * por dentro (pausas, palavras removidas ou velocidade); nesses casos o tempo não bateria, então vai só o texto.
+ */
+async function clipKit(id, m, cl) {
+  const dir = U(id, 'clips'), r = cl.render, ed = cl.editor || {};
+  const start = r.start ?? ed.start ?? cl.start, end = r.end ?? ed.end ?? cl.end;
+  let srt = r.srt && fs.existsSync(path.join(dir, r.srt)) ? path.join(dir, r.srt) : null, speech = '';
+  if (srt) speech = (await fsp.readFile(srt, 'utf8')).split(/\r?\n\r?\n/).map((b) => b.split(/\r?\n/).slice(2).join(' ').trim()).filter(Boolean).join(' ');
+  else {
+    const words = clipWords(await readJson(U(id, 'transcript.json'), { segments: [] }), { start, end }, { edits: ed.edits && typeof ed.edits === 'object' ? ed.edits : {} });
+    speech = words.map((w) => w.t).join(' ');
+    if (r.srt === undefined && !r.removePauses && !r.removedWords && (r.speed || 1) === 1 && words.length) { srt = path.join(dir, `${cl.id}.srt`); await fsp.writeFile(srt, toSrt(cues(words))); }
+  }
+  const txt = path.join(dir, `${cl.id}.txt`);
+  await fsp.writeFile(txt, kitText({ sermon: m.name.replace(/\.[^.]+$/, ''), clip: { ...cl, start, end }, seconds: r.seconds, speech }));
+  return { srt, txt };
+}
 const renders = new Map(); // `${id}:${cid}` -> { proc, cancelled }
 async function renderClip(id, cid, rawOpt) {
   const opt = cleanOpts(rawOpt || {});
@@ -664,7 +715,11 @@ async function renderClip(id, cid, rawOpt) {
     if (r.code !== 0 && wantCaps) { captions = false; r = await runP(tools.ffmpeg, await build(false), { cwd: dir }); } // sem libass/fonte: tenta sem legenda
     if (state.cancelled) return void (await setR({ status: 'cancelled' }));
     if (r.code !== 0) { const ls = r.err.split(/[\r\n]+/).filter(Boolean); throw new Error((ls.filter((l) => /error|invalid|no such|unable|not found|failed|unknown/i.test(l) && !/Conversion failed/i.test(l)).slice(-2).join(' ') || ls.slice(-2).join(' ')).slice(0, 300)); }
-    await setR({ status: 'done', file: out, format: audioOnly ? null : opt.format, vertical: opt.format === '9:16', bw: opt.bw, hq: opt.hq, removePauses: opt.removePauses, speed: opt.speed, audioShift: opt.audioShift, voice: opt.voice, removedWords: rm.length, overlays: imgFiles.length + opt.overlays.filter((o) => o.type === 'text').length, captions, audio: audioOnly, seconds: +(total / opt.speed).toFixed(1), at: Date.now() });
+    // Legenda do corte para quem edita: no tempo do vídeo exportado (sem os trechos removidos e na velocidade escolhida).
+    const kc = cues(clipWords(tr, c, opt).map((w) => ({ t: w.t, s: rel(w.s) / opt.speed, e: rel(w.e) / opt.speed })));
+    const srt = kc.length ? `${cid}.srt` : null;
+    if (srt) await fsp.writeFile(path.join(dir, srt), toSrt(kc)); else await fsp.rm(path.join(dir, `${cid}.srt`), { force: true });
+    await setR({ status: 'done', file: out, srt, start: c.start, end: c.end, format: audioOnly ? null : opt.format, vertical: opt.format === '9:16', bw: opt.bw, hq: opt.hq, removePauses: opt.removePauses, speed: opt.speed, audioShift: opt.audioShift, voice: opt.voice, removedWords: rm.length, overlays: imgFiles.length + opt.overlays.filter((o) => o.type === 'text').length, captions, audio: audioOnly, seconds: +(total / opt.speed).toFixed(1), at: Date.now() });
   } catch (e) { await setR(state.cancelled ? { status: 'cancelled' } : { status: 'error', error: e.message }); }
   finally { renders.delete(key); for (const f of [`${cid}.src.wav`, `${cid}.sep`]) await fsp.rm(U(id, 'clips', f), { recursive: true, force: true }).catch(() => {}); }
 }
@@ -747,6 +802,7 @@ async function api(req, res, url, q) {
         const name = (q.get('name') || 'arquivo').replace(/[\\/:*?"<>|]/g, '_').slice(0, 160);
         const ext = path.extname(name).toLowerCase();
         if (!AUDIO.has(ext) && !VIDEO.has(ext)) return send(res, 415, { error: 'Formato não suportado.' });
+        let range; try { range = cleanRange({ start: q.get('start'), end: q.get('end') }); } catch (e) { return send(res, 400, { error: e.message }); }
         const declared = +req.headers['content-length'] || 0;
         if (declared > cfg.maxUploadBytes) return send(res, 413, { error: tooBig(declared) });
         const id = rid(), file = 'original' + ext; await fsp.mkdir(U(id), { recursive: true });
@@ -758,7 +814,7 @@ async function api(req, res, url, q) {
         ws.on('error', () => fail('Falha ao gravar o arquivo.'));
         ws.on('finish', async () => {
           if (!n) return fail('Arquivo vazio.', 400);
-          const m = { id, name, file, size: n, kind: AUDIO.has(ext) ? 'aud' : 'vid', createdAt: Date.now(), status: 'queued', stage: 'Na fila', progress: 0, source: 'upload' };
+          const m = { id, name, file, size: n, kind: AUDIO.has(ext) ? 'aud' : 'vid', createdAt: Date.now(), status: 'queued', stage: 'Na fila', progress: 0, source: 'upload', ...(range ? { range } : {}) };
           await saveMeta(m); enqueue(() => pipeline(id)); send(res, 201, m);
         });
         return;
@@ -768,8 +824,9 @@ async function api(req, res, url, q) {
       const j = await body(req);
       if (!tools.ytdlp) return send(res, 501, { error: 'yt-dlp não está instalado neste computador (pip install yt-dlp). Envie o arquivo diretamente.' });
       if (!/^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be)\//.test(j.url || '')) return send(res, 400, { error: 'Link do YouTube inválido.' });
+      let range; try { range = cleanRange(j.range); } catch (e) { return send(res, 400, { error: e.message }); }
       const id = rid(); await fsp.mkdir(U(id), { recursive: true });
-      const m = { id, name: 'Importando do YouTube…', file: '', size: 0, kind: 'vid', createdAt: Date.now(), status: 'processing', stage: 'Baixando do YouTube', progress: 0, source: 'youtube', url: j.url };
+      const m = { id, name: 'Importando do YouTube…', file: '', size: 0, kind: 'vid', createdAt: Date.now(), status: 'processing', stage: 'Baixando do YouTube', progress: 0, source: 'youtube', url: j.url, ...(range ? { range } : {}) };
       await saveMeta(m);
       download(async () => {
         const [cmd, ...pre] = tools.ytdlp;
@@ -782,6 +839,7 @@ async function api(req, res, url, q) {
         if (!f) return void (await update(id, { status: 'error', stage: 'Erro', error: postLive ? 'Não consegui baixar esta live recém-encerrada. O YouTube ainda está processando a gravação; tente de novo em algumas horas.' : 'Falha ao baixar o vídeo do YouTube.' }));
         const st = await fsp.stat(U(id, f));
         await update(id, { file: f, size: st.size, name: (t.out.trim() || 'video_do_youtube') + path.extname(f) });
+        try { await applyRange(id); } catch (e) { return void (await update(id, { status: 'error', stage: 'Erro', error: e.message })); }
         makePreview(id);
         await update(id, { status: 'queued', stage: 'Na fila para transcrever', progress: 0 });
         enqueue(() => pipeline(id)); // a transcrição e a análise seguem na fila de processamento
@@ -791,12 +849,13 @@ async function api(req, res, url, q) {
     if (b === 'drive' && method === 'POST') {
       const j = await body(req); const ref = parseDriveLink(j.url);
       if (!ref.ok) return send(res, 400, { error: ref.error });
+      let range; try { range = cleanRange(j.range); } catch (e) { return send(res, 400, { error: e.message }); }
       const token = typeof j.token === 'string' && /^[\w.\-]{20,2048}$/.test(j.token) ? j.token : null;
       let dlr; try { dlr = await openDrive(ref, token); } catch (e) { return send(res, e.status || 502, { error: e.message, needsLogin: !!e.needsLogin }); }
       const ext = path.extname(dlr.name).toLowerCase();
       if (dlr.size > cfg.maxUploadBytes) { try { dlr.res.body.cancel(); } catch { /* ok */ } return send(res, 413, { error: tooBig(dlr.size) }); }
       const id = rid(), file = 'original' + ext; await fsp.mkdir(U(id), { recursive: true });
-      const m = { id, name: dlr.name, file, size: dlr.size, kind: AUDIO.has(ext) ? 'aud' : 'vid', createdAt: Date.now(), status: 'processing', stage: 'Baixando do Google Drive', progress: 0, source: 'drive', url: String(j.url).trim().slice(0, 500) };
+      const m = { id, name: dlr.name, file, size: dlr.size, kind: AUDIO.has(ext) ? 'aud' : 'vid', createdAt: Date.now(), status: 'processing', stage: 'Baixando do Google Drive', progress: 0, source: 'drive', url: String(j.url).trim().slice(0, 500), ...(range ? { range } : {}) };
       await saveMeta(m); send(res, 201, m);
       (async () => { // download em segundo plano (fora da fila de CPU)
         try {
@@ -828,7 +887,8 @@ async function api(req, res, url, q) {
       if (m.refetching || refetchBusy.has(b)) return send(res, 202, m);
       if (!isGone(m)) return send(res, 200, m);
       if (!canRefetch(m)) return send(res, 400, { error: 'Não há link salvo para baixar este arquivo de novo.' });
-      const ok = async (file, size) => { await update(b, { file, size, originalGone: false, refetching: false, refetchError: null, lastUsedAt: Date.now() }); makePreview(b); };
+      // O link baixa o vídeo inteiro de novo: o trecho da pregação é separado outra vez antes de liberar o vídeo.
+      const ok = async (file, size) => { await update(b, { file, size, rangeApplied: false }); await applyRange(b); await update(b, { originalGone: false, refetching: false, refetchError: null, lastUsedAt: Date.now() }); makePreview(b); };
       const fail = (msg) => update(b, { refetching: false, refetchError: msg });
       if (m.source === 'youtube') {
         if (!tools.ytdlp || !tools.ffmpeg) return send(res, 501, { error: 'yt-dlp ou ffmpeg não está instalado neste computador.' });
@@ -945,8 +1005,12 @@ async function api(req, res, url, q) {
       const ext = path.extname(cl.render.file), file = U(b, 'clips', cl.render.file);
       try {
         const folder = await ensureFolder(token, cfg.driveCutsFolder, clean(m.name.replace(/\.[^.]+$/, ''), 'Culto'));
-        const up = await uploadFile(token, { folderId: folder, name: clean(cl.title, 'corte') + ext, filePath: file, mime: mime[ext] || 'application/octet-stream' });
-        const drive = { link: up.webViewLink, at: Date.now() };
+        // Primeiro o texto e a legenda (pequenos): se o Google recusar, o vídeo não chega a subir pela metade do kit.
+        const base = clean(cl.title, 'corte'), kit = await clipKit(b, m, cl);
+        await uploadFile(token, { folderId: folder, name: `${base} - texto.txt`, filePath: kit.txt, mime: 'text/plain' });
+        if (kit.srt) await uploadFile(token, { folderId: folder, name: `${base}.srt`, filePath: kit.srt, mime: 'application/x-subrip' });
+        const up = await uploadFile(token, { folderId: folder, name: base + ext, filePath: file, mime: mime[ext] || 'application/octet-stream' });
+        const drive = { link: up.webViewLink, at: Date.now(), srt: !!kit.srt };
         await withLock('clips:' + b, async () => { const l = await readJson(U(b, 'clips.json'), []); const t = l.find((x) => x.id === d); if (t) { t.drive = drive; delete t.driveError; await writeJson(U(b, 'clips.json'), l); } });
         return send(res, 200, { webViewLink: up.webViewLink, drive });
       } catch (e) { log('erro ao enviar ao Drive', b, d, e.message, e.reason || '', e.detail || '');
