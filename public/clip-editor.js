@@ -71,7 +71,7 @@
     const dirty = () => snap() !== savedSnap;
     const saveEdit = async (quiet) => {
       const j = snap();
-      try { await api(`/uploads/${upload.id}/clips/${clip.id}`, { method: 'PATCH', json: { editor: JSON.parse(j) } }); clip.editor = JSON.parse(j); savedSnap = j; if (!quiet) toast('Edição salva. Ao abrir este corte de novo, ela volta como está.'); }
+      try { await api(`/uploads/${upload.id}/clips/${clip.id}`, { method: 'PATCH', json: { editor: JSON.parse(j) } }); clip.editor = JSON.parse(j); savedSnap = j; if (!quiet) { toast('Edição salva. O próximo "Baixar corte" já sai com ela.'); if (onDone) { try { onDone(await api(`/uploads/${upload.id}/clips`)); } catch { /* a lista atualiza depois */ } } } }
       catch (e) { if (!quiet) toast('Não consegui salvar a edição: ' + e.message); }
       refreshBar();
     };
@@ -538,7 +538,7 @@
       if (st.busy) return; st.busy = true; const lab = $('#dx-golab', root), btn = $('#dx-go', root), cancel = $('#dx-cancel', root); btn.disabled = true; cancel.hidden = false; lab.textContent = 'Renderizando…';
       let cancelled = false; cancel.onclick = async () => { cancelled = true; try { await api(`/uploads/${upload.id}/clips/${clip.id}/render/cancel`, { json: {} }); } catch { /* ok */ } };
       try {
-        const opts = o2.raw ? { format: 'orig', captions: { on: false }, start: st.start, end: st.end } : { format: st.format, bw: st.bw, hq: st.hq, removePauses: st.removePauses, voice: st.voice, speed: st.speed, audioShift: st.sync, audio, start: st.start, end: st.end, removed: st.removed, edits: st.edits, captions: { ...st.cap }, overlays: st.overlays.filter((o) => !o.hidden).map(({ tpl, hidden, ...o }) => o) };
+        const opts = o2.raw ? { format: 'orig', captions: { on: false }, start: st.start, end: st.end } : renderOpts(st, audio);
         if (st.title && st.title !== clip.title) api(`/uploads/${upload.id}/clips/${clip.id}`, { method: 'PATCH', json: { title: st.title } }).catch(() => {});
         if (!o2.raw) await saveEdit(true); // exportou: a edição usada fica guardada no corte
         await api(`/uploads/${upload.id}/clips/${clip.id}/render`, { json: opts });
@@ -580,5 +580,9 @@
     $('#dx-note', root).textContent = isAud ? 'O arquivo final é gerado com ffmpeg no servidor.' : 'Prévia aproximada (recorte central, fontes do navegador). O arquivo final é gerado com ffmpeg no servidor.';
     drawLeft(); drawDrawer(); refreshBar(); layoutStage(); tickUI();
   }
-  window.ClipEditor = { open };
+  // Opções de exportação a partir de uma edição (a do editor aberto ou a que ficou salva no corte).
+  function renderOpts(e, audio) {
+    return { format: e.format || 'orig', bw: !!e.bw, hq: !!e.hq, removePauses: false, voice: e.voice || 'off', speed: e.speed || 1, audioShift: e.sync || 0, audio: !!audio, start: e.start, end: e.end, removed: e.removed || [], edits: e.edits || {}, captions: { ...(e.cap || { on: false }) }, overlays: (e.overlays || []).filter((o) => !o.hidden).map(({ tpl, hidden, ...o }) => o) };
+  }
+  window.ClipEditor = { open, renderOpts };
 })();

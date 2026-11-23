@@ -359,11 +359,11 @@
         else if (a === 'hid') { await api(`/uploads/${c.id}/clips/${k.id}`, { method: 'PATCH', json: { hid: !k.hid } }); k.hid = !k.hid; draw(); }
         else if (a === 'post') { if (!k.post) { b.disabled = true; b.textContent = 'Escrevendo…'; try { k.post = (await api(`/uploads/${c.id}/clips/${k.id}/ai/post`, { json: {} })).post; } finally { draw(); } } if (k.post) postModal(k); }
         else if (a === 'drive') { b.disabled = true; b.textContent = 'Enviando…'; try { await sendDrive(k); delete k.driveError; } catch (e) { k.driveError = { msg: e.message }; throw e; } finally { draw(); } }
-        else if (a === 'dl') { // baixa direto: exporta sem legenda, no formato do vídeo, e salva o arquivo
+        else if (a === 'dl') { // baixa direto: exporta com a edição salva do corte (ou, sem edição, no formato do vídeo e sem legenda) e salva o arquivo
           if (k.render && k.render.status === 'rendering') return toast('Este corte já está sendo exportado.');
           if (k.render && k.render.status === 'done') return fileDl(k);
-          await api(`/uploads/${c.id}/clips/${k.id}/render`, { json: { captions: false } });
-          k.render = { status: 'rendering' }; draw(); toast('Exportando o corte… O download começa quando terminar.'); pollRender(k.id);
+          await api(`/uploads/${c.id}/clips/${k.id}/render`, { json: k.editor ? ClipEditor.renderOpts({ ...k.editor, start: k.editor.start ?? k.start, end: k.editor.end ?? k.end }, false) : { captions: false } });
+          k.render = { status: 'rendering' }; draw(); toast(k.editor ? 'Exportando o corte com a edição salva… O download começa quando terminar.' : 'Exportando o corte… O download começa quando terminar.'); pollRender(k.id);
         } else if (a === 'open') { // tesoura: abre o editor (formato, legenda, textos, ajustes finos)
           if (k.render && k.render.status === 'rendering') return toast('Este corte já está sendo exportado.');
           ClipEditor.open({ upload: c, clip: k, segs: S.segs, api, toast, tm, esc, dl, drive: driveOn ? { token: driveToken, send: sendDrive } : null, voiceAI: !!(S.status && S.status.voiceAI), onDone: (list) => { clips = list; draw(); } });

@@ -904,7 +904,9 @@ async function api(req, res, url, q) {
       const cl = clips.find((x) => x.id === d); if (!cl) return send(res, 404, { error: 'Corte não encontrado' });
       if (!parts[4] && method === 'PATCH') { const j = await body(req); for (const k of ['fav', 'hid']) if (typeof j[k] === 'boolean') cl[k] = j[k]; if (typeof j.title === 'string' && j.title.trim()) cl.title = j.title.trim().slice(0, 120); if (+j.start >= 0 && +j.end > +j.start) { cl.start = +j.start; cl.end = +j.end; cl.render = null; delete cl.drive; delete cl.post; if (cl.editor) { delete cl.editor.start; delete cl.editor.end; cl.editor.removed = []; } }
         // Edição salva do corte (formato, legenda, velocidade, trechos removidos...): o editor reabre do jeito que ficou.
-        if (j.editor === null) delete cl.editor; else if (j.editor && typeof j.editor === 'object' && !Array.isArray(j.editor) && JSON.stringify(j.editor).length <= 400000) cl.editor = { ...j.editor, at: Date.now() };
+        // Edição diferente da anterior: a exportação antiga deixa de valer (o próximo download sai com a edição nova).
+        const sameEdit = (x, y) => { const f = (o) => JSON.stringify({ ...(o || {}), at: 0 }); return f(x) === f(y); };
+        if (j.editor === null) delete cl.editor; else if (j.editor && typeof j.editor === 'object' && !Array.isArray(j.editor) && JSON.stringify(j.editor).length <= 400000) { if (!sameEdit(cl.editor, j.editor) && !(cl.render && cl.render.status === 'rendering')) { cl.render = null; delete cl.drive; } cl.editor = { ...j.editor, at: Date.now() }; }
         if (j.post && typeof j.post === 'object') cl.post = cleanPost(j.post); await writeJson(U(b, 'clips.json'), clips); return send(res, 200, cl); }
       if (!parts[4] && method === 'DELETE') { await writeJson(U(b, 'clips.json'), clips.filter((x) => x.id !== d)); return send(res, 200, { ok: true }); }
       if (parts[4] === 'render' && parts[5] === 'cancel' && method === 'POST') {
