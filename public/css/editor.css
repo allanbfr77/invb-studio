@@ -38,6 +38,8 @@
 .dlx-stage.aud{width:260px!important;height:260px!important;display:grid;place-items:center;background:linear-gradient(150deg,var(--video-a),var(--video-b));color:var(--on-video);font-size:56px}
 .dlx-audio small{display:block;font-size:13px;text-align:center;opacity:.7}
 .dlx-cap{position:absolute;left:6%;right:6%;text-align:center;line-height:1.2;pointer-events:none;display:none}
+.dlx-cap>*{pointer-events:auto;cursor:grab;touch-action:none}
+.dlx-cap>*:hover{outline:1.5px dashed rgba(255,255,255,.7);outline-offset:4px;border-radius:4px}
 .dlx-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:50%;background:rgba(0,0,0,.6);display:grid;place-items:center;transition:opacity .2s}
 .dlx-prog{display:flex;align-items:center;gap:10px;width:min(100%,520px);font:12px var(--mono);color:var(--muted)}
 .dlx-prog input{flex:1;accent-color:var(--primary)}
@@ -87,8 +89,16 @@
 .dlx-guides i{position:absolute;background:#ff3b9a}
 .dlx-guides .gv{top:0;bottom:0;width:1px}
 .dlx-guides .gh{left:0;right:0;height:1px}
-.dlx-stage.axes::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:3;background:linear-gradient(#ff3b9a,#ff3b9a) center/1px 100% no-repeat,linear-gradient(#ff3b9a,#ff3b9a) center/100% 1px no-repeat;opacity:.7}
-.dlx-stage.ruler::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:3;background:repeating-linear-gradient(90deg,rgba(255,255,255,.35) 0 1px,transparent 1px 10%),repeating-linear-gradient(0deg,rgba(255,255,255,.35) 0 1px,transparent 1px 10%)}
+/* guias: área segura das redes no vertical, centro e terços */
+.dlx-safe{position:absolute;inset:0;pointer-events:none;z-index:2}
+.dlx-safe .sz{position:absolute;background:repeating-linear-gradient(135deg,rgba(255,59,154,.22) 0 6px,rgba(255,59,154,.1) 6px 12px);display:flex;align-items:center;justify-content:center}
+.dlx-safe .sz em{font:600 10px/1.2 system-ui,sans-serif;font-style:normal;color:#fff;background:rgba(0,0,0,.55);padding:2px 6px;border-radius:4px;text-align:center}
+.dlx-safe .sm{position:absolute;border:1px dashed rgba(255,59,154,.8)}
+.dlx-safe i{position:absolute;background:#ff3b9a}
+.dlx-safe .v{top:0;bottom:0;width:1px}
+.dlx-safe .h{left:0;right:0;height:1px}
+.dlx-safe .th{opacity:.45}
+.dlx-tools button.dim{opacity:.55}
 .dlx-chip{background:none;cursor:pointer}
 .dlx-chip:hover{background:var(--hover)}
 .dlx-search{width:100%;border:1px solid var(--border);border-radius:var(--r);padding:9px 12px;background:var(--surface);color:var(--fg);font:inherit;font-size:13px;margin-bottom:10px}

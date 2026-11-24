@@ -277,7 +277,7 @@
         mv =
           (st.cap.margin === null || st.cap.margin === undefined ? (st.format === '9:16' ? 14 : 8) : st.cap.margin) +
           '%';
-      capEl.style.cssText = `display:block;font-size:${fs}px;${st.cap.pos === 'top' ? 'top:7%;bottom:auto' : st.cap.pos === 'middle' ? 'top:50%;transform:translateY(-50%);bottom:auto' : 'bottom:' + mv}`;
+      capEl.style.cssText = `display:block;font-size:${fs}px;${st.tools.xray ? 'opacity:.35;' : ''}${st.cap.pos === 'top' ? 'top:' + mv + ';bottom:auto' : st.cap.pos === 'middle' ? 'top:50%;transform:translateY(-50%);bottom:auto' : 'bottom:' + mv}`;
       capEl.innerHTML = html;
     }
     const goStart = () => {
@@ -482,11 +482,100 @@
           return `<div class="dlx-ov dlx-ovt ${sel ? 'sel' : ''}" data-id="${o.id}" style="${pos};${o.hidden ? 'display:none;' : ''}opacity:${st.tools.xray ? 0.35 : 1}"><span style="${sty}">${esc(o.upper ? o.text.toUpperCase() : o.text)}</span><i class="dlx-h" data-h="1"></i></div>`;
         })
         .join('');
-      stage.classList.toggle('axes', st.tools.axes);
-      stage.classList.toggle('ruler', st.tools.ruler);
+      drawSafe();
       refreshBar();
       updateOvVisibility();
     }
+    // Área segura: no vertical, o Instagram, o TikTok e o YouTube cobrem o topo, a base e a lateral direita com
+    // botões e textos. As guias mostram essas faixas, o centro e os terços. Os números valem para o 9:16.
+    const SAFE = { top: 0.12, bottom: 0.22, right: 0.14, left: 0.04 };
+    const safeOn = () => st.format === '9:16';
+    function drawSafe() {
+      let el = $('.dlx-safe', stage);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'dlx-safe';
+        stage.insertBefore(el, guides);
+      }
+      if (!st.tools.guides || isAud) {
+        el.innerHTML = '';
+        return;
+      }
+      const z = safeOn()
+        ? `<b class="sz" style="top:0;left:0;right:0;height:${SAFE.top * 100}%"><em>Coberto pelo nome do perfil</em></b>
+           <b class="sz" style="bottom:0;left:0;right:0;height:${SAFE.bottom * 100}%"><em>Coberto pela descrição e pelo áudio</em></b>
+           <b class="sz" style="top:${SAFE.top * 100}%;bottom:${SAFE.bottom * 100}%;right:0;width:${SAFE.right * 100}%"><em>Botões</em></b>`
+        : `<b class="sm" style="inset:5%"></b>`;
+      el.innerHTML = `${z}<i class="ax v" style="left:50%"></i><i class="ax h" style="top:50%"></i><i class="th v" style="left:33.33%"></i><i class="th v" style="left:66.67%"></i><i class="th h" style="top:33.33%"></i><i class="th h" style="top:66.67%"></i>`;
+    }
+    // pontos onde o ímã encaixa: centro, bordas de 10% e, no vertical, a beira da área segura
+    const snapX = () => [0.5, 0.1, 0.9, ...(safeOn() ? [SAFE.left, 1 - SAFE.right] : [])];
+    const snapY = () => [0.5, 0.1, 0.9, ...(safeOn() ? [SAFE.top, 1 - SAFE.bottom] : [])];
+
+    /* ----- arrastar a legenda na prévia: muda a posição (topo, meio, base) e a distância da borda ----- */
+    capEl.addEventListener('pointerdown', (e) => {
+      if (!st.cap.on) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const r = stage.getBoundingClientRect(),
+        c = capEl.getBoundingClientRect();
+      const cd = { r, y0: e.clientY, top: (c.top - r.top) / r.height, h: c.height / r.height, moved: false };
+      capEl.setPointerCapture(e.pointerId);
+      const move = (ev) => {
+        const dy = (ev.clientY - cd.y0) / r.height;
+        if (!cd.moved && Math.abs(dy) < 0.01) return;
+        cd.moved = true;
+        let top = clamp(cd.top + dy, 0, 1 - cd.h);
+        const mid = top + cd.h / 2,
+          gs = [];
+        let pos, margin;
+        if (st.tools.snap && Math.abs(mid - 0.5) < 0.03) {
+          pos = 'middle';
+          margin = st.cap.margin;
+          gs.push(0.5);
+        } else if (mid < 0.5) {
+          pos = 'top';
+          margin = top * 100;
+        } else {
+          pos = 'bottom';
+          margin = (1 - top - cd.h) * 100;
+        }
+        if (pos !== 'middle') {
+          if (st.tools.snap)
+            for (const g of [
+              ...new Set([...snapY().map((y) => (y < 0.5 ? y : 1 - y)), st.format === '9:16' ? 0.14 : 0.08]),
+            ])
+              if (Math.abs(margin / 100 - g) < 0.012) {
+                margin = g * 100;
+                gs.push(pos === 'top' ? g : 1 - g);
+              }
+          margin = clamp(Math.round(margin), 0, 40);
+        }
+        st.cap.pos = pos;
+        st.cap.margin = pos === 'middle' ? st.cap.margin : margin;
+        paintCap();
+        guides.innerHTML = gs.map((g) => `<i class="gh" style="top:${g * 100}%"></i>`).join('');
+      };
+      const up = () => {
+        capEl.removeEventListener('pointermove', move);
+        capEl.removeEventListener('pointerup', up);
+        capEl.removeEventListener('pointercancel', up);
+        guides.innerHTML = '';
+        if (cd.moved) {
+          commit();
+          if (st.panel === 'legendas') drawDrawer();
+        } else {
+          // um clique na legenda abre a gaveta Legendas, já em Personalizar
+          st.panel = 'legendas';
+          st.tab = 'personalizar';
+          drawDrawer();
+          layoutStage();
+        }
+      };
+      capEl.addEventListener('pointermove', move);
+      capEl.addEventListener('pointerup', up);
+      capEl.addEventListener('pointercancel', up);
+    });
     function updateOvVisibility() {
       const t = relT();
       $$('.dlx-ov', ovsEl).forEach((e) => {
@@ -543,16 +632,16 @@
         ny = clamp(drag.oy + dy, 0, 1);
       const gs = [];
       if (st.tools.snap) {
-        for (const g of [0.5, 0.1, 0.9]) {
+        for (const g of snapX())
           if (Math.abs(nx - g) < 0.015) {
             nx = g;
             gs.push(['v', g]);
           }
+        for (const g of snapY())
           if (Math.abs(ny - g) < 0.015) {
             ny = g;
             gs.push(['h', g]);
           }
-        }
       }
       o.x = nx;
       o.y = ny;
@@ -605,9 +694,16 @@
         'Raio-X: ver o que está embaixo (X)',
         '<circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/>',
       ],
-      ['axes', 'Eixos centrais', '<path d="M12 3v18M3 12h18"/>'],
-      ['ruler', 'Régua', '<path d="M3 17L17 3l4 4L7 21zM8 12l2 2M11 9l2 2M14 6l2 2"/>'],
-      ['center', 'Centralizar no quadro', '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/>'],
+      [
+        'guides',
+        'Guias: centro, terços e a área que o Instagram/TikTok cobre no vertical (G)',
+        '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 7h16M4 16h16M12 3v18"/>',
+      ],
+      [
+        'center',
+        'Centralizar o texto ou a imagem selecionada (1º clique: na horizontal; 2º: no meio do quadro)',
+        '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/>',
+      ],
       [
         'keys',
         'Atalhos do teclado',
@@ -630,8 +726,11 @@
       if (!b('undo')) return;
       b('undo').disabled = st.hist.length < 2;
       b('redo').disabled = !st.fut.length;
-      ['snap', 'xray', 'axes', 'ruler'].forEach((k) => b(k).classList.toggle('on', st.tools[k]));
-      b('center').disabled = !st.sel;
+      ['snap', 'xray', 'guides'].forEach((k) => {
+        b(k).classList.toggle('on', !!st.tools[k]);
+        b(k).setAttribute('aria-pressed', !!st.tools[k]);
+      });
+      b('center').classList.toggle('dim', !st.sel);
       const n = st.overlays.filter((o) => o.type === 'image').length;
       $('#dx-media', root).textContent = `Mídia: ${n}`;
       $('#dx-chip', root).textContent = isAud ? 'só áudio' : st.cap.on ? 'com legendas' : 'sem legendas';
@@ -645,7 +744,7 @@
       const m = document.createElement('div');
       m.className = 'modal-bg';
       m.style.zIndex = 130;
-      m.innerHTML = `<div class="modal"><h3>Atalhos do teclado</h3><p>Valem com o editor aberto.</p><table class="tbl"><tr><td><b>Espaço</b></td><td>Reproduzir / pausar</td></tr><tr><td><b>Ctrl+Z</b> · <b>Ctrl+Y</b></td><td>Desfazer · refazer</td></tr><tr><td><b>Setas</b></td><td>Mover o item selecionado (Shift = passo maior)</td></tr><tr><td><b>Delete</b></td><td>Excluir o item selecionado</td></tr><tr><td><b>X</b></td><td>Raio-X (ver o que está embaixo)</td></tr><tr><td><b>Esc</b></td><td>Desmarcar · fechar</td></tr></table><div class="ft"><button class="ap-btn pri" data-x>Fechar</button></div></div>`;
+      m.innerHTML = `<div class="modal"><h3>Atalhos do teclado</h3><p>Valem com o editor aberto.</p><table class="tbl"><tr><td><b>Espaço</b></td><td>Reproduzir / pausar</td></tr><tr><td><b>Ctrl+Z</b> · <b>Ctrl+Y</b></td><td>Desfazer · refazer</td></tr><tr><td><b>Setas</b></td><td>Mover o item selecionado (Shift = passo maior)</td></tr><tr><td><b>Delete</b></td><td>Excluir o item selecionado</td></tr><tr><td><b>X</b></td><td>Raio-X (clareia textos e legenda para ver o vídeo embaixo)</td></tr><tr><td><b>G</b></td><td>Guias (centro, terços e a área coberta pelas redes no vertical)</td></tr><tr><td><b>Arrastar a legenda</b></td><td>Muda a posição dela. Um clique abre o estilo</td></tr><tr><td><b>Esc</b></td><td>Desmarcar · fechar</td></tr></table><div class="ft"><button class="ap-btn pri" data-x>Fechar</button></div></div>`;
       document.body.appendChild(m);
       m.onclick = (e) => {
         if (e.target === m || e.target.dataset.x !== undefined) m.remove();
@@ -660,15 +759,17 @@
       else if (k === 'keys') shortcuts();
       else if (k === 'center') {
         const o = ovById(st.sel);
-        if (o) {
-          o.x = 0.5;
-          o.y = 0.5;
-          commit();
-          renderOverlays();
-        }
+        if (!o) return toast('Clique num texto ou numa imagem no vídeo e depois em Centralizar.');
+        if (Math.abs(o.x - 0.5) > 0.001) o.x = 0.5;
+        else o.y = 0.5;
+        commit();
+        renderOverlays();
       } else {
         st.tools[k] = !st.tools[k];
         renderOverlays();
+        paintCap();
+        if (k === 'snap')
+          toast(st.tools.snap ? 'Ímã ligado: textos e legenda encaixam no centro e nas guias.' : 'Ímã desligado.');
       }
     };
 

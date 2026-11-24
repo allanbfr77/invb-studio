@@ -150,7 +150,7 @@
       tq: '',
       lib: null,
       templates: null,
-      tools: { snap: true, xray: false, axes: false, ruler: false },
+      tools: { snap: true, xray: false, guides: false },
       busy: false,
       hist: [],
       fut: [],
@@ -566,8 +566,12 @@
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         redo();
-      } else if (e.key.toLowerCase() === 'x' && !e.ctrlKey) {
+      } else if (e.key.toLowerCase() === 'x' && !e.ctrlKey && !e.metaKey) {
         st.tools.xray = !st.tools.xray;
+        renderOverlays();
+        paintCap();
+      } else if (e.key.toLowerCase() === 'g' && !e.ctrlKey && !e.metaKey) {
+        st.tools.guides = !st.tools.guides;
         renderOverlays();
       } else if (e.key === ' ') {
         e.preventDefault();
