@@ -176,6 +176,12 @@ app. Cada análise leva de 25 a 45 segundos. Detalhes, testes e limitações em 
   - `lib/transcribe.js`: transcrição local ou na nuvem e o passo a passo de uma pregação nova.
   - `lib/render.js`: exportação do corte com o ffmpeg.
   - `lib/routes.js` e `lib/routes-clips.js`: as rotas da API (as de cortes e IA ficam no segundo).
+- Onde fica cada tela (`public/app/`, carregadas nessa ordem pelo `index.html`; conversam pelo objeto `window.INVB`):
+  - `core.js`: atalhos de DOM, ícones, estado, chamadas ao servidor, avisos, janelas e menus.
+  - `shell.js`: o vídeo e o player de baixo, o menu lateral e os atalhos I/O.
+  - `home.js`: início, lista de pregações, envio do link ou arquivo, resumo e a tela de entrada.
+  - `transcript.js`: transcrição. `clips.js`: cortes. `extras.js`: capítulos, emoções e diagramas.
+  - `public/app.js`: o roteador (qual endereço abre qual tela).
 - Lógica testável em `lib/`: `lines.js` (linhas curtas), `cutlist.js` (ida e volta com o Claude),
   `drive.js` (importar e enviar), `kit.js` (legenda e texto do corte), `cleanup.js` (limpeza do original), `claude.js` (IA), `autosync.js` (sincronia automática), `analyze.js`.
 - O projeto e o plano desta mudança estão em `docs/superpowers/`.
