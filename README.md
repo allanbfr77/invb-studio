@@ -167,6 +167,15 @@ app. Cada análise leva de 25 a 45 segundos. Detalhes, testes e limitações em 
 
 - Uma única dependência npm, o SDK oficial da Anthropic, carregada só quando há chave. `npm start` sobe o servidor; `npm test` roda os testes (`node --test`).
 - Variáveis de ambiente: veja `.env.example`.
+- Onde fica cada coisa no servidor:
+  - `server.js`: só liga o app (telas de `public/`, encaminha `/api`, preparação ao abrir).
+  - `lib/config.js`: configuração, chaves, serviços de transcrição e de IA, versão.
+  - `lib/store.js`: dados das pregações em disco, execução de programas (ffmpeg, yt-dlp) e a fila de trabalhos.
+  - `lib/http.js`: login e respostas (JSON, corpo do pedido, envio de arquivos).
+  - `lib/media.js`: o vídeo original (YouTube, Drive, cópia de prévia, capa, limpeza).
+  - `lib/transcribe.js`: transcrição local ou na nuvem e o passo a passo de uma pregação nova.
+  - `lib/render.js`: exportação do corte com o ffmpeg.
+  - `lib/routes.js` e `lib/routes-clips.js`: as rotas da API (as de cortes e IA ficam no segundo).
 - Lógica testável em `lib/`: `lines.js` (linhas curtas), `cutlist.js` (ida e volta com o Claude),
   `drive.js` (importar e enviar), `kit.js` (legenda e texto do corte), `cleanup.js` (limpeza do original), `claude.js` (IA), `autosync.js` (sincronia automática), `analyze.js`.
 - O projeto e o plano desta mudança estão em `docs/superpowers/`.
