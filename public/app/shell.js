@@ -303,7 +303,14 @@
   const link = (href, ico, label, path) =>
     `<a class="ap-link ${path === href || (href !== '/app' && path.startsWith(href + '/') && !/uploads\/[^/]+/.test(href)) ? 'on' : ''}" href="${href}">${ico}${label}</a>`;
   // Versão do app: a data da última atualização e o código dela (ex.: 23/11/2026 · 38abb15).
+  // "24/11/2026 12:00 · 0940d56": data e hora da última atualização (no fuso deste computador) e o código dela
   const verLabel = (v) => {
+    const at = v.at ? new Date(v.at) : null;
+    if (at && !isNaN(at)) {
+      const p = (n) => String(n).padStart(2, '0');
+      const when = `${p(at.getDate())}/${p(at.getMonth() + 1)}/${at.getFullYear()} ${p(at.getHours())}:${p(at.getMinutes())}`;
+      return [when, v.commit].filter(Boolean).join(' · ');
+    }
     const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.date || '');
     return [d ? `${d[3]}/${d[2]}/${d[1]}` : v.name, v.commit].filter(Boolean).join(' · ');
   };

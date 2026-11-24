@@ -10,4 +10,5 @@ test('a versão do app traz o código e a data da última atualização quando a
   if (!fs.existsSync(path.join(ROOT, '.git'))) return; // pasta baixada em ZIP: fica só a versão do package.json
   assert.match(VERSION.commit, /^[0-9a-f]{6,12}$/);
   assert.match(VERSION.date, /^\d{4}-\d{2}-\d{2}$/);
+  assert.match(VERSION.at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/); // com a hora: duas atualizações no mesmo dia se distinguem
 });
