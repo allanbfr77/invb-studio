@@ -168,3 +168,41 @@ test('formato padrão dos cortes novos: guardar e limpar', async (t) => {
   assert.equal((await s.api('/editor-prefs')).body.format, '9:16');
   assert.equal((await s.api('/editor-prefs', { method: 'PATCH', json: { format: 'quadrado' } })).body.format, null);
 });
+
+test(
+  'legenda com efeitos: surgindo, palavras-chave, cresce e entrada vão para o arquivo da legenda',
+  { skip: !HAS_FFMPEG || process.platform === 'win32' },
+  async (t) => {
+    const d = tmp(t);
+    const dir = seedTone(d, 'kkkkkkkkkkk6');
+    const words = ['Deus', 'é', 'fiel', 'sempre'].map((w, i) => ({ w, s: i, e: i + 0.9 }));
+    fs.writeFileSync(
+      path.join(dir, 'transcript.json'),
+      JSON.stringify({ language: 'pt', segments: [{ id: 0, start: 0, end: 4, text: 'Deus é fiel sempre', words }] }),
+    );
+    const s = await boot(t, d);
+    const ass = async (captions) => {
+      await s.api('/uploads/kkkkkkkkkkk6/clips/m111111111111/render', { json: { format: '9:16', captions } });
+      const r = await waitRender(s, 'kkkkkkkkkkk6');
+      assert.equal(r.status, 'done', r.error);
+      return fs
+        .readFileSync(path.join(dir, 'clips', 'm111111111111.ass'), 'utf8')
+        .split('\n')
+        .filter((l) => l.startsWith('Dialogue: 1,'));
+    };
+    // surgindo + palavras-chave: "Deus" no dourado; as palavras ainda não ditas ficam invisíveis
+    const rv = await ass({ on: true, style: 'Destaque/Surgindo' });
+    assert.equal(rv.length, 4);
+    assert.match(rv[0], /\{\\1c&H3AB9F0&\}DEUS|\{\\1c&H3AB9F0&\}Deus/);
+    assert.match(rv[0], /\{\\alpha&HFF&\}é fiel sempre$/);
+    assert.ok(!/alpha/.test(rv[3])); // na última, a frase toda aparece
+    // palavra que cresce + entrada "sobe" só na primeira palavra da frase
+    const hl = await ass({ on: true, style: 'Destaque/Destaque dourado', grow: true, anim: 'slide', words: 4 });
+    assert.match(hl[0], /\\move\(/);
+    assert.ok(!/\\move\(/.test(hl[1]));
+    assert.match(hl[1], /\\fscx118\\fscy118/);
+    // edição antiga com "pop" continua pulando a cada palavra
+    const pp = await ass({ on: true, style: 'Destaque/Destaque dourado', pop: true, words: 4 });
+    assert.ok(pp.every((l) => /\\fscx85/.test(l)));
+  },
+);

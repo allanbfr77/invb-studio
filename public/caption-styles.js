@@ -46,8 +46,32 @@
     ['boxhl', 'Palavra falada com marca'],
     ['karaoke', 'Karaokê'],
     ['words1', 'Uma palavra por vez'],
+    ['reveal', 'Surgindo palavra por palavra'],
   ];
   const MODE_IDS = MODES.map((m) => m[0]);
+  // Como a frase entra na tela. "pop" dá um pulinho a cada palavra; os outros valem só quando a frase aparece.
+  const ANIMS = [
+    ['none', 'Sem animação'],
+    ['pop', 'Pulo a cada palavra'],
+    ['fade', 'Aparece suave'],
+    ['slide', 'Sobe'],
+    ['zoom', 'Zoom'],
+  ];
+  const ANIM_IDS = ANIMS.map((a) => a[0]);
+  // Palavras-chave da fé: com "Palavras-chave" ligado, aparecem sempre na cor escolhida.
+  const KEYWORDS = new Set(
+    (
+      'deus jesus cristo senhor espírito santo pai filho fé amor graça glória palavra oração orar vida salvação ' +
+      'salvo cruz céu céus perdão esperança paz aleluia amém bíblia igreja coração milagre milagres propósito ' +
+      'família reino adoração louvor promessa promessas cura libertação verdade luz eterna eterno sangue ressurreição'
+    ).split(' '),
+  );
+  const isKeyword = (t) =>
+    KEYWORDS.has(
+      String(t || '')
+        .toLowerCase()
+        .replace(/[^\p{L}]/gu, ''),
+    );
 
   /* ----- cores sugeridas: dourado da igreja, neutros e algumas de destaque ----- */
   const PAL = [
@@ -76,7 +100,10 @@
     shadow: 0,
     box: null, // fundo atrás do texto: { color, alpha } (alpha = transparência, de 0 a 1)
     glow: false, // brilho na cor do destaque
-    pop: false, // a legenda "pula" ao entrar
+    anim: 'none', // como a frase entra (ANIMS)
+    grow: false, // a palavra falada fica maior
+    kw: false, // palavras-chave da fé coloridas
+    kc: '#f0b93a', // cor das palavras-chave
     mode: 'plain',
     chunk: 4, // palavras de cada vez
   };
@@ -92,6 +119,13 @@
     ['Destaque', 'Destaque verde', { upper: true, mode: 'highlight', chunk: 3, ow: 4, hi: '#22c55e' }],
     ['Destaque', 'Marca-texto', { mode: 'boxhl', chunk: 3, hi: '#231c47', ow: 3 }],
     ['Destaque', 'Karaokê', { font: 'Montserrat ExtraBold', upper: true, mode: 'karaoke', chunk: 3, ow: 4 }],
+    [
+      'Destaque',
+      'Palavra que cresce',
+      { upper: true, mode: 'highlight', chunk: 3, ow: 4, grow: true, anim: 'pop', hi: '#facc15' },
+    ],
+    ['Destaque', 'Palavras-chave', { font: 'Poppins ExtraBold', chunk: 4, ow: 3, kw: true, anim: 'fade' }],
+    ['Destaque', 'Surgindo', { mode: 'reveal', chunk: 5, ow: 3, shadow: 2, kw: true }],
     [
       'Com fundo',
       'Faixa escura',
@@ -115,7 +149,22 @@
       },
     ],
     ['Impacto', 'Impacto', { font: 'Anton', upper: true, scale: 1.3, mode: 'highlight', chunk: 2, ow: 5 }],
-    ['Impacto', 'Uma palavra', { font: 'Anton', upper: true, scale: 1.5, mode: 'words1', ow: 5, pop: true }],
+    ['Impacto', 'Uma palavra', { font: 'Anton', upper: true, scale: 1.5, mode: 'words1', ow: 5, anim: 'pop' }],
+    [
+      'Impacto',
+      'Viral',
+      {
+        font: 'Anton',
+        upper: true,
+        scale: 1.35,
+        mode: 'highlight',
+        chunk: 2,
+        ow: 6,
+        hi: '#facc15',
+        grow: true,
+        anim: 'zoom',
+      },
+    ],
     ['Impacto', 'Título', { font: 'Bebas Neue', scale: 1.4, chunk: 3, ow: 3 }],
     ['Impacto', 'Pesada', { font: 'Archivo Black', upper: true, mode: 'highlight', chunk: 3, ow: 4 }],
     ['Elegante', 'Versículo', { font: 'DM Serif Display', scale: 1.1, mode: 'block', ow: 0, shadow: 3 }],
@@ -130,6 +179,16 @@
       { font: 'Montserrat ExtraBold', upper: true, mode: 'highlight', chunk: 3, ow: 0, shadow: 3, glow: true },
     ],
     ['Elegante', 'Manuscrito', { font: 'Permanent Marker', chunk: 3, ow: 2 }],
+    [
+      'Elegante',
+      'Versículo surgindo',
+      { font: 'DM Serif Display', scale: 1.1, mode: 'reveal', chunk: 6, ow: 0, shadow: 3, kw: true, kc: '#f6d27a' },
+    ],
+    [
+      'Elegante',
+      'Sobe suave',
+      { font: 'Poppins SemiBold', chunk: 4, ow: 0, shadow: 3, anim: 'slide', box: { color: '#231c47', alpha: 0.15 } },
+    ],
   ];
   const STYLES = DEF.map(([cat, name, o]) => ({ ...BASE, ...o, id: `${cat}/${name}`, name, cat }));
   const CATEGORIES = [...new Set(DEF.map((d) => d[0]))].map((id) => ({
@@ -163,8 +222,10 @@
       const v = num(o[k], a, b);
       if (v !== null) out[k] = k === 'chunk' ? Math.round(v) : v;
     }
-    for (const k of ['upper', 'italic', 'glow', 'pop']) if (typeof o[k] === 'boolean') out[k] = o[k];
-    for (const k of ['color', 'hi', 'outline']) if (isHex(o[k])) out[k] = o[k].toLowerCase();
+    for (const k of ['upper', 'italic', 'glow', 'grow', 'kw']) if (typeof o[k] === 'boolean') out[k] = o[k];
+    for (const k of ['color', 'hi', 'outline', 'kc']) if (isHex(o[k])) out[k] = o[k].toLowerCase();
+    if (ANIM_IDS.includes(o.anim)) out.anim = o.anim;
+    else if (typeof o.pop === 'boolean') out.anim = o.pop ? 'pop' : 'none'; // edições e estilos de antes: "pop" ligado ou não
     if (o.box === false) out.box = false;
     else if (o.box && isHex(o.box.color))
       out.box = { color: o.box.color.toLowerCase(), alpha: num(o.box.alpha, 0, 0.95) || 0 };
@@ -265,6 +326,8 @@
     setCustomFonts,
     customFonts,
     MODES,
+    ANIMS,
+    isKeyword,
     KEYS,
     PAL,
   };

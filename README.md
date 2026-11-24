@@ -48,9 +48,11 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
 
 ### Legenda e visual do corte (gavetas do editor)
 
-- **Legendas**: a aba **Estilos** tem 18 estilos prontos, por categoria (Essenciais, Destaque, Com fundo, Impacto,
-  Elegante). Em **Personalizar** dá para mudar tudo: fonte, tamanho, maiúsculas, itálico, como a palavra falada aparece,
-  quantas palavras por vez, cores, contorno, sombra, brilho, fundo, animação, posição e distância da borda.
+- **Legendas**: a aba **Estilos** tem 24 estilos prontos, por categoria (Essenciais, Destaque, Com fundo, Impacto,
+  Elegante). Em **Personalizar** dá para mudar tudo: fonte, tamanho, maiúsculas, itálico, como a palavra falada aparece
+  (inclusive **surgindo palavra por palavra**), quantas palavras por vez, cores, contorno, sombra, brilho, fundo,
+  posição e distância da borda. Em **Efeitos**: como a frase entra (pulo a cada palavra, aparece suave, sobe, zoom),
+  **palavra falada cresce** e **palavras-chave da fé** (Deus, Jesus, fé, graça…) sempre numa cor à parte.
   **Salvar como meu estilo** guarda o visual com um nome (em `data/caption-styles.json`). A ★ (ou a caixa “Usar como
   padrão”) faz os cortes novos já começarem com aquele estilo.
 - **Fontes**: as fontes do app ficam em `public/fonts/` (com as licenças). A prévia e o vídeo exportado usam os mesmos

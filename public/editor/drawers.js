@@ -157,7 +157,7 @@
         ci = S.mode === 'block' ? 0 : chunks.findIndex((c) => c.some((w) => w.t === 'precisa')),
         ch = chunks[Math.max(0, ci)];
       const act = S.mode === 'block' ? -1 : tick % ch.length,
-        ws = S.mode === 'block' ? [{ t: 'Você não precisa de mais tempo,' }] : ch;
+        ws = S.mode === 'block' ? 'Você não precisa de mais tempo,'.split(' ').map((t) => ({ t })) : ch;
       return `<span style="font-size:${14 * Math.min(S.scale || 1, 1.3)}px;line-height:1.15;text-align:center;display:block">${capHTML(S, E, 0.012, ws, act, S.mode === 'karaoke' ? ((tick % 5) + 1) * 20 : 55)}</span>`;
     };
     const tplHTML = (t) =>
@@ -288,8 +288,11 @@
             <h4>Fundo</h4>
             <div class="dlx-row"><div><b>Fundo atrás do texto</b><small>Uma faixa que deixa a legenda legível em qualquer imagem</small></div>${sw('cx-box', !!S.box)}</div>
             ${S.box ? color('box', 'Cor do fundo', S.box.color) + range('cx-ba', 'Transparência', Math.round(S.box.alpha * 100), 0, 95, Math.round(S.box.alpha * 100) + '%') : ''}
-            <h4>Entrada</h4>
-            <div class="dlx-row"><div><b>Animação ao entrar</b><small>A legenda “pula” ao aparecer</small></div>${sw('cx-pop', S.pop)}</div>
+            <h4>Efeitos</h4>
+            <label class="dlx-lab" style="margin-top:0">Como a frase entra</label>
+            <div class="dlx-chips">${CSx.ANIMS.map((a) => `<button data-anim="${a[0]}" aria-pressed="${S.anim === a[0]}">${a[1]}</button>`).join('')}</div>
+            ${['highlight', 'boxhl', 'words1', 'reveal'].includes(S.mode) ? `<div class="dlx-row" style="margin-top:14px"><div><b>Palavra falada cresce</b><small>A palavra do momento fica um pouco maior</small></div>${sw('cx-grow', S.grow)}</div>` : ''}
+            ${S.mode === 'karaoke' ? '' : `<div class="dlx-row"><div><b>Palavras-chave em destaque</b><small>Deus, Jesus, fé, graça, amor, oração… sempre em outra cor</small></div>${sw('cx-kw', S.kw)}</div>${S.kw ? color('kc', 'Cor das palavras-chave', S.kc) : ''}`}
             <h4>Posição</h4>
             <div class="dlx-chips">${[
               ['top', 'Topo'],
@@ -709,7 +712,13 @@
           st.cap.margin = null;
           redraw();
         });
-        for (const k of ['upper', 'italic', 'glow', 'pop'])
+        onAll('[data-anim]', 'click', (b) => {
+          setP('anim', b.dataset.anim);
+          shared.capKey = null; // mostra a entrada nova na prévia
+          paintCap();
+          drawDrawer();
+        });
+        for (const k of ['upper', 'italic', 'glow', 'grow', 'kw'])
           on('cx-' + k, 'click', () => {
             setP(k, !eff()[k]);
             drawDrawer();

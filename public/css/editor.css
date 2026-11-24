@@ -39,8 +39,8 @@
 .dlx-stage.aud{width:260px!important;height:260px!important;display:grid;place-items:center;background:linear-gradient(150deg,var(--video-a),var(--video-b));color:var(--on-video);font-size:56px}
 .dlx-audio small{display:block;font-size:13px;text-align:center;opacity:.7}
 .dlx-cap{position:absolute;left:6%;right:6%;text-align:center;line-height:1.2;pointer-events:none;display:none}
-.dlx-cap>*{pointer-events:auto;cursor:grab;touch-action:none}
-.dlx-cap>*:hover{outline:1.5px dashed rgba(255,255,255,.7);outline-offset:4px;border-radius:4px}
+.dlx-cap .capin>*{pointer-events:auto;cursor:grab;touch-action:none}
+.dlx-cap .capin>*:hover{outline:1.5px dashed rgba(255,255,255,.7);outline-offset:4px;border-radius:4px}
 .dlx-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:50%;background:rgba(0,0,0,.6);display:grid;place-items:center;transition:opacity .2s}
 .dlx-prog{display:flex;align-items:center;gap:10px;width:min(100%,520px);font:12px var(--mono);color:var(--muted)}
 .dlx-prog input{flex:1;accent-color:var(--primary)}
@@ -286,3 +286,14 @@
 .dlx-sect{flex:1 1 calc(100% - 30px);white-space:normal}
 .dlx-secv{flex-basis:100%;max-width:none;padding-left:21px;text-align:left}
 }
+
+/* entrada da legenda na prévia (igual à exportação: lib/render.js) */
+.capin{display:block}
+.capin.a-pop{animation:capPop .09s ease-out}
+.capin.a-fade{animation:capFade .16s ease-out}
+.capin.a-slide{animation:capSlide .18s ease-out}
+.capin.a-zoom{animation:capZoom .17s ease-out}
+@keyframes capPop{from{transform:scale(.85)}to{transform:none}}
+@keyframes capFade{from{opacity:0}to{opacity:1}}
+@keyframes capSlide{from{transform:translateY(.7em);opacity:0}to{transform:none;opacity:1}}
+@keyframes capZoom{from{transform:scale(.55)}to{transform:none}}

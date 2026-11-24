@@ -87,3 +87,17 @@ test('estilo salvo: guarda só o que mudou e volta igual', () => {
     box: false,
   });
 });
+
+test('efeitos novos: entrada, palavra que cresce, palavras-chave e surgindo', () => {
+  assert.equal(CS.resolve({ pop: true }).anim, 'pop'); // edições antigas com "pop" ligado
+  assert.equal(CS.resolve({ pop: false, style: 'Impacto/Uma palavra' }).anim, 'none');
+  assert.equal(CS.resolve({ anim: 'dança' }).anim, 'none'); // valor desconhecido fica de fora
+  assert.equal(CS.resolve({ anim: 'slide' }).anim, 'slide');
+  assert.ok(CS.isKeyword('Deus,') && CS.isKeyword('FÉ!') && CS.isKeyword('graça'));
+  assert.ok(!CS.isKeyword('casa'));
+  const s = CS.resolve({ style: 'Destaque/Surgindo' });
+  assert.equal(s.mode, 'reveal');
+  assert.equal(s.kw, true);
+  assert.equal(CS.cleanProps({ kc: '#ABCDEF', grow: 'sim' }).kc, '#abcdef');
+  assert.equal(CS.cleanProps({ grow: 'sim' }).grow, undefined); // só true/false
+});

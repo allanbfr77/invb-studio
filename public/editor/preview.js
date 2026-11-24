@@ -233,7 +233,8 @@
         H = stage.clientHeight || 1,
         scale = H / 1080,
         ws = relWords();
-      let html = '';
+      let html = '',
+        capK = '';
       if (S.mode === 'block') {
         const by = new Map();
         ws.forEach((w) => {
@@ -251,7 +252,10 @@
                     Math.min(Math.abs(t - p[0]), Math.abs(t - p[1])) - Math.min(Math.abs(t - q[0]), Math.abs(t - q[1])),
                 )[0]
             : null);
-        if (hit) html = capHTML(S, E, scale, [{ t: hit[2].map((w) => w.t).join(' ') }], -1, 0);
+        if (hit) {
+          html = capHTML(S, E, scale, hit[2], -1, 0);
+          capK = String(hit[0]);
+        }
       } else {
         const chunks = CSx.chunkWords(ws, S).map((ch) => [ch[0].s, ch[ch.length - 1].e + 0.12, ch]);
         const hit =
@@ -271,10 +275,12 @@
             if (w.s <= t) act = i;
           });
           html = capHTML(S, E, scale, ch, act, clamp(((t - a) / Math.max(0.1, b - a)) * 100, 0, 100));
+          capK = S.anim === 'pop' ? a + '|' + act : String(a);
         }
       }
       if (!html) {
         capEl.style.display = 'none';
+        shared.capKey = null; // a próxima frase entra com a animação
         return;
       }
       const fs = H * (st.cap.size / 288) * S.scale,
@@ -282,7 +288,19 @@
           (st.cap.margin === null || st.cap.margin === undefined ? (st.format === '9:16' ? 14 : 8) : st.cap.margin) +
           '%';
       capEl.style.cssText = `display:block;font-size:${fs}px;${st.tools.xray ? 'opacity:.35;' : ''}${st.cap.pos === 'top' ? 'top:' + mv + ';bottom:auto' : st.cap.pos === 'middle' ? 'top:50%;transform:translateY(-50%);bottom:auto' : 'bottom:' + mv}`;
-      capEl.innerHTML = html;
+      // a frase fica num bloco que não é recriado, para a animação de entrada não recomeçar a cada quadro
+      let inner = capEl.firstElementChild;
+      if (!inner || !inner.classList.contains('capin')) {
+        capEl.innerHTML = '<div class="capin"></div>';
+        inner = capEl.firstElementChild;
+      }
+      if (inner.innerHTML !== html) inner.innerHTML = html;
+      if (S.anim && S.anim !== 'none' && capK !== shared.capKey) {
+        inner.className = 'capin';
+        void inner.offsetWidth; // reinicia a animação
+        inner.className = 'capin a-' + S.anim;
+      }
+      shared.capKey = capK;
     }
     const goStart = () => {
       v.currentTime = st.start;
