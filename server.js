@@ -110,6 +110,9 @@ server.headersTimeout = 60000;
     () => sweepOriginals().catch((e) => log('falha na limpeza de originais', e.message)),
     6 * 3600000,
   ).unref();
+  await require('./lib/fonts')
+    .sync()
+    .catch((e) => log('falha ao ler as fontes da equipe', e.message));
   server.listen(cfg.port, cfg.host, () => {
     console.log(`INVB Studio em http://${cfg.host === '0.0.0.0' ? 'localhost' : cfg.host}:${cfg.port}`);
     console.log(

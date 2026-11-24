@@ -41,7 +41,7 @@
       if (o.type === 'image')
         return `<div class="dlx-props"><h4>Imagem selecionada</h4><label>Largura <b>${Math.round(o.w * 100)}%</b></label><input type="range" id="pp-w" min="4" max="100" value="${Math.round(o.w * 100)}"><label>Opacidade <b>${Math.round(o.op * 100)}%</b></label><input type="range" id="pp-op" min="5" max="100" value="${Math.round(o.op * 100)}">${timing}<button class="ap-btn" id="pp-del" style="margin-top:10px">Excluir do quadro</button></div>`;
       return `<div class="dlx-props"><h4>Texto selecionado</h4><label>Conteúdo</label><textarea id="pp-text" rows="2" maxlength="200">${esc(o.text)}</textarea>
-        <label>Fonte</label><select id="pp-font">${CSx.FONTS.map((f) => `<option ${f === o.font ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select>
+        <label>Fonte</label>${shared.fontPicker('pp-font', o.font, false)}
         <label>Tamanho <b>${Math.round(o.size * 100)}</b></label><input type="range" id="pp-size" min="2" max="30" value="${Math.round(o.size * 100)}">
         <div class="dlx-two"><label>Cor<input type="color" id="pp-color" value="${o.color}"></label><label>Contorno<input type="color" id="pp-oc" value="${o.outline ? o.outline.color : '#000000'}"></label></div>
         <div class="dlx-chips" style="margin-top:8px"><button id="pp-ital" aria-pressed="${o.italic}">Itálico</button><button id="pp-up" aria-pressed="${o.upper}">MAIÚSCULAS</button><button id="pp-box" aria-pressed="${!!o.box}">Tarja</button></div>
@@ -69,6 +69,12 @@
         o.font = e.target.value;
         commit();
         live();
+      });
+      shared.bindFontPicker(D2, (name) => {
+        o.font = name;
+        commit();
+        live();
+        drawDrawer();
       });
       on('pp-size', 'input', (e) => {
         o.size = +e.target.value / 100;
@@ -192,10 +198,15 @@
       templates: () => {
         const mine = (st.templates || []).filter((t) => t.config);
         const card = (id, name, inner, own) =>
-          `<div class="dlx-card" data-tpl="${id}" role="button" tabindex="0">${own ? `<button class="x" data-tpl-del="${id}" aria-label="Excluir o template ${esc(name)}" title="Excluir">✕</button>` : ''}<div class="pv">${inner}</div><span>${esc(name)}</span></div>`;
-        return `<p class="dlx-sub" style="margin-top:0">Um template aplica de uma vez o estilo da legenda e uma faixa de título no alto do corte. Depois dá para mudar tudo.</p>
-          <h4>Meus templates</h4><div class="dlx-grid">${mine.map((t) => card(t.id, t.name, `<span class="mini">${esc(CSx.byName(t.config.style).name)}</span>`, true)).join('') || '<p class="dlx-sub" style="grid-column:1/-1;margin:0">Nenhum ainda. Monte o visual (legenda, textos, imagens) e salve aqui.</p>'}</div>
-          <button class="ap-btn" id="tp-save" style="width:100%;justify-content:center;margin:10px 0 4px">Salvar o visual atual como template</button>
+          `<div class="dlx-card" data-tpl="${id}" role="button" tabindex="0">${own ? `<button class="x" data-tpl-del="${id}" aria-label="Excluir o template ${esc(name)}" title="Excluir">✕</button><button class="star" data-tpl-upd="${id}" aria-label="Atualizar o template ${esc(name)} com o visual atual" title="Atualizar com o visual atual">⟳</button>` : ''}<div class="pv">${inner}</div><span>${esc(name)}</span></div>`;
+        const mini = (t) => {
+          const n = (t.config.overlays || []).length;
+          return `<span class="mini">${esc(CSx.byName(t.config.style).name)}${n ? ` + ${n} ${n === 1 ? 'item' : 'itens'}` : ''}</span>`;
+        };
+        return `<p class="dlx-sub" style="margin-top:0">Um template aplica de uma vez o estilo da legenda e o que vai por cima do vídeo (faixa de título, textos, imagens e artes). Depois dá para mudar tudo.</p>
+          <button class="ap-btn pri" id="tp-save" style="width:100%;justify-content:center;margin:4px 0 6px">+ Criar template com o visual deste corte</button>
+          <p class="dlx-hint" style="margin-top:0">Monte o corte do jeito que quer (legenda, textos, artes) e clique acima. Para mudar um template seu depois, ajuste o corte e clique em ⟳ nele.</p>
+          <h4>Meus templates</h4><div class="dlx-grid">${mine.map((t) => card(t.id, t.name, mini(t), true)).join('') || '<p class="dlx-sub" style="grid-column:1/-1;margin:0">Nenhum ainda.</p>'}</div>
           ${EP.TEMPLATE_CATS.map(
             (c) =>
               `<h4>${esc(c.id)}</h4><div class="dlx-grid">${EP.TEMPLATES.filter((t) => t.cat === c.id)
@@ -260,7 +271,7 @@
             <p class="dlx-sub" style="margin-top:0">Partindo de <b>${esc(mine1 ? mine1.name : CSx.byName(st.cap.style).name)}</b>${changed && !mine1 ? ', com mudanças' : ''}. <button class="dlx-link" id="cx-reset">Voltar ao estilo original</button></p>
             <div class="dlx-fx">
             <h4>Texto</h4>
-            <label class="dlx-lab" for="cx-font">Fonte</label><select id="cx-font" class="dlx-select">${CSx.FONT_LIST.map((f) => `<option value="${esc(f.name)}" ${f.name === S.font ? 'selected' : ''}>${esc(f.name)} · ${esc(f.note)}</option>`).join('')}</select>
+            <label class="dlx-lab" for="cx-font">Fonte</label>${shared.fontPicker('cx-font', S.font, true)}
             <div class="dlx-fontpv" style="font-family:'${esc(S.font)}';${S.italic ? 'font-style:italic;' : ''}${S.upper ? 'text-transform:uppercase' : ''}">Você não precisa de mais tempo</div>
             ${range('cx-size', 'Tamanho', st.cap.size, 10, 32)}
             <div class="dlx-row" style="margin-top:14px"><div><b>Maiúsculas</b></div>${sw('cx-upper', S.upper)}</div>
@@ -302,7 +313,19 @@
         const imgs = st.overlays.filter((o) => o.type === 'image'),
           sel = ovById(st.sel);
         return `<h3>Mídia</h3><p class="dlx-sub" style="margin-top:0">Adicione imagens sobre o corte. Arraste para posicionar, redimensione e defina quando aparecem.</p><h4>Sua biblioteca</h4><p class="dlx-sub" style="margin:0 0 10px">PNG, JPEG ou WebP, até 8 MB. Só imagem parada.</p>
-          <div class="dlx-lib">${(st.lib || []).map((l) => `<div class="li"><button data-add="${l.id}" title="${esc(l.name)}"><img src="/api/library/${l.id}/file" alt="${esc(l.name)}"></button><button class="x" data-lib-del="${l.id}" aria-label="Excluir da biblioteca">✕</button></div>`).join('') || (st.lib === null ? '<p class="dlx-sub">Carregando…</p>' : '<p class="dlx-sub" style="grid-column:1/-1">Biblioteca vazia.</p>')}</div>
+          <div class="dlx-lib">${
+            (st.lib || [])
+              .filter((l) => l.kind !== 'art')
+              .map(
+                (l) =>
+                  `<div class="li"><button data-add="${l.id}" title="${esc(l.name)}"><img src="/api/library/${l.id}/file" alt="${esc(l.name)}"></button><button class="x" data-lib-del="${l.id}" aria-label="Excluir da biblioteca">✕</button></div>`,
+              )
+              .join('') ||
+            (st.lib === null
+              ? '<p class="dlx-sub">Carregando…</p>'
+              : '<p class="dlx-sub" style="grid-column:1/-1">Biblioteca vazia.</p>')
+          }</div>
+          <p class="dlx-sub">Quer desenhar uma faixa, selo ou moldura? Use a gaveta <b>Arte</b>.</p>
           <button class="ap-btn pri" id="lib-up" style="width:100%;justify-content:center;margin:12px 0">Adicionar imagem</button><input type="file" id="lib-file" hidden accept="image/png,image/jpeg,image/webp">
           ${imgs.length ? `<h4>No quadro (${imgs.length})</h4>` : ''}${sel && sel.type === 'image' ? propsEditor(sel) : imgs.length ? '<p class="dlx-sub">Clique numa imagem no quadro para editar.</p>' : ''}`;
       },
@@ -315,6 +338,7 @@
       ganchos:
         () => `<h3>Ganchos</h3><p class="dlx-sub" style="margin-top:0">Adicione um gancho de texto no começo do corte para aumentar a retenção.</p><h4>Ganchos de texto</h4><div class="dlx-hooks">${EP.HOOKS.map((h, i) => `<button data-hook="${i}" style="background:${EP.COLORS[i % EP.COLORS.length]};color:${EP.COLORS[i % EP.COLORS.length] === '#f0b93a' ? '#111' : '#fff'}">${esc(h)}</button>`).join('')}</div>
         <h4>Formato</h4><div class="dlx-chips"><button data-hf="box" aria-pressed="${st.hookFmt !== 'plain'}">Com tarja</button><button data-hf="plain" aria-pressed="${st.hookFmt === 'plain'}">Só texto</button></div>`,
+      arte: () => shared.artePanel(),
       camadas: () => {
         const list = st.overlays.slice().reverse();
         return `<h3>Camadas</h3><p class="dlx-sub" style="margin-top:0">O topo da lista fica na frente. Arraste para mudar a ordem.</p>${list.length ? `<div class="dlx-layers" id="lay">${list.map((o) => `<div class="lr ${st.sel === o.id ? 'on' : ''}" draggable="true" data-lid="${o.id}"><button data-sel="${o.id}" class="nm">${o.type === 'image' ? '🖼' : 'T'} <span>${esc(o.type === 'image' ? ((st.lib || []).find((l) => l.id === o.imgId) || { name: 'Imagem' }).name : o.text.slice(0, 26))}</span></button><button data-eye="${o.id}" aria-label="${o.hidden ? 'Mostrar' : 'Ocultar'}">${o.hidden ? '🙈' : '👁'}</button><button data-rm="${o.id}" aria-label="Excluir">✕</button></div>`).join('')}</div>` : '<p class="dlx-sub">Nada no quadro ainda. Adicione um texto, uma imagem ou um gancho.</p>'}`;
@@ -499,7 +523,25 @@
             toast(e.message);
           }
         });
+        onAll('[data-tpl-upd]', 'click', async (b) => {
+          const ev = window.event;
+          if (ev) ev.stopPropagation();
+          const t = (st.templates || []).find((x) => x.id === b.dataset.tplUpd);
+          if (!t || !window.confirm(`Trocar o visual do template “${t.name}” pelo visual atual deste corte?`)) return;
+          try {
+            const r = await api('/templates/' + t.id, {
+              method: 'PATCH',
+              json: { config: { ...st.cap, overlays: st.overlays.filter((o) => !o.hidden) } },
+            });
+            Object.assign(t, r);
+            toast(`Template “${t.name}” atualizado.`);
+            drawDrawer();
+          } catch (e) {
+            toast(e.message);
+          }
+        });
         onAll('.dlx-card', 'click', (c) => {
+          if (window.event && window.event.target.closest('button')) return;
           const id = c.dataset.tpl;
           const t = EP.TEMPLATES.find((x) => x.id === id) || (st.templates || []).find((x) => x.id === id);
           if (!t) return;
@@ -618,6 +660,10 @@
         });
         on('cx-font', 'change', (e) => {
           setP('font', e.target.value);
+          drawDrawer();
+        });
+        shared.bindFontPicker(dr, (name) => {
+          setP('font', name);
           drawDrawer();
         });
         const rng = (id, fn, fmt = (v) => v) => {
@@ -878,6 +924,7 @@
           toast('Gancho adicionado nos 3 primeiros segundos.');
         });
       }
+      if (st.panel === 'arte') shared.arteBind(dr);
       if (st.panel === 'camadas') {
         if (st.lib === null) loadLib();
         onAll('[data-sel]', 'click', (b) => {

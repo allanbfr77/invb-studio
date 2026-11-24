@@ -333,6 +333,7 @@
                 if (k.render && k.render.status === 'rendering') return toast('Este corte já está sendo exportado.');
                 // estilos de legenda salvos (e o padrão), para o editor já abrir com eles
                 const capStyles = await api('/caption-styles').catch(() => ({ styles: [], defaultId: null }));
+                if (window.INVBFonts) await window.INVBFonts.load(); // fontes enviadas pela equipe
                 ClipEditor.open({
                   capStyles,
                   upload: c,

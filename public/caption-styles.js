@@ -28,8 +28,16 @@
   ];
   const FONTS = FONT_LIST.map((f) => f.name);
   const DEFAULT_FONT = 'Poppins ExtraBold';
-  /** Fonte conhecida, ou a padrão (estilos e textos antigos usavam Arial, DejaVu e Liberation). */
-  const cleanFont = (f) => (FONTS.includes(f) ? f : DEFAULT_FONT);
+  // fontes enviadas pela equipe (data/fonts): o servidor e o editor avisam quais existem
+  let CUSTOM = [];
+  const setCustomFonts = (l) => {
+    CUSTOM = (Array.isArray(l) ? l : [])
+      .filter((f) => f && typeof f.name === 'string' && f.name)
+      .map((f) => ({ id: f.id, name: f.name, custom: true, note: 'enviada pela equipe' }));
+  };
+  const customFonts = () => CUSTOM.slice();
+  /** Fonte conhecida (do app ou enviada pela equipe), ou a padrão (estilos e textos antigos usavam Arial, DejaVu e Liberation). */
+  const cleanFont = (f) => (FONTS.includes(f) || CUSTOM.some((c) => c.name === f) ? f : DEFAULT_FONT);
 
   const MODES = [
     ['block', 'Frase inteira'],
@@ -254,6 +262,8 @@
     FONT_LIST,
     DEFAULT_FONT,
     cleanFont,
+    setCustomFonts,
+    customFonts,
     MODES,
     KEYS,
     PAL,

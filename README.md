@@ -53,12 +53,21 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   quantas palavras por vez, cores, contorno, sombra, brilho, fundo, animação, posição e distância da borda.
   **Salvar como meu estilo** guarda o visual com um nome (em `data/caption-styles.json`). A ★ (ou a caixa “Usar como
   padrão”) faz os cortes novos já começarem com aquele estilo.
-- **Fontes**: as fontes ficam em `public/fonts/` (com as licenças). A prévia e o vídeo exportado usam os mesmos arquivos,
-  então o que aparece no editor é o que sai no vídeo, em qualquer computador.
+- **Fontes**: as fontes do app ficam em `public/fonts/` (com as licenças). A prévia e o vídeo exportado usam os mesmos
+  arquivos, então o que aparece no editor é o que sai no vídeo, em qualquer computador.
+  **+ Adicionar fonte** (em Legendas > Personalizar e em Texto) envia um arquivo `.ttf` ou `.otf`. Ele fica em
+  `data/fonts/` e passa a valer para a legenda, os textos e as artes. O nome é o que vem dentro do arquivo.
 - **Templates**: 13 modelos de igreja (Pregação, Versículo, Reflexão, Impacto, Igreja), cada um com legenda e faixa de
-  título. **Salvar o visual atual como template** guarda a legenda e os textos por cima.
+  título. **+ Criar template com o visual deste corte** guarda a legenda e tudo o que está por cima (textos, imagens e
+  artes). O ⟳ num template seu troca o visual dele pelo do corte aberto.
+- **Arte**: desenhos feitos com HTML e CSS (faixas, selos, molduras, setas), com prévia ao vivo e modelos para começar.
+  Ao salvar, a arte vira uma imagem PNG transparente (gerada no navegador) que vai para o vídeo como as imagens da Mídia.
+  O código fica em `data/arts.json`; dá para editar depois, e o corte que já usa a arte recebe a versão nova.
+  Não vão para o vídeo: animações e imagens de links externos.
 - **Ganchos**: frases curtas para o começo do corte (“OUÇA ATÉ O FIM”, “UMA PALAVRA PARA VOCÊ”…), nas cores da igreja.
 - **Texto**, **Mídia** e **Camadas**: texto livre por cima, imagens enviadas e a lista do que está no quadro.
+- **Barra da prévia**: Ímã, Raio-X (X), Guias (G: centro, terços e, no 9:16, a área que o Instagram/TikTok cobre) e
+  Centralizar. A legenda se arrasta direto no vídeo.
 
 ### A pregação inteira não fica guardada
 
@@ -205,7 +214,8 @@ app. Cada análise leva de 25 a 45 segundos. Detalhes, testes e limitações em 
 - Estilos (`public/css/`, nessa ordem): `base.css` (variáveis e o básico), `app.css` (as telas), `editor.css` (o editor do
   corte) e `theme.css` (identidade da igreja e os modos claro e noturno).
 - Legenda: `public/caption-styles.js` é a fonte única dos estilos e das fontes, usada pela prévia (navegador) e pela
-  exportação (`lib/render.js`). `public/css/fonts.css` carrega as fontes de `public/fonts/`.
+  exportação (`lib/render.js`). `public/css/fonts.css` carrega as fontes de `public/fonts/`; as da equipe estão em `lib/fonts.js` (servidor) e em
+  `public/editor/arte.js` (editor, junto com a gaveta Arte).
 - Lógica testável em `lib/`: `lines.js` (linhas curtas), `cutlist.js` (ida e volta com o Claude),
   `drive.js` (importar e enviar), `kit.js` (legenda e texto do corte), `cleanup.js` (limpeza do original), `claude.js` (IA), `autosync.js` (sincronia automática), `analyze.js`.
 - O projeto e o plano desta mudança estão em `docs/superpowers/`.

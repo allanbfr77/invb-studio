@@ -37,6 +37,12 @@
       '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
     ],
     ['texto', 'Texto', true, '<path d="M5 5h14M12 5v14M9 19h6"/>'],
+    [
+      'arte',
+      'Arte',
+      true,
+      '<path d="M12 3a9 9 0 100 18c1.7 0 2-1.2 1.4-2.2-.6-1-.1-2.3 1.2-2.3H17a4 4 0 004-4c0-5-4-9.5-9-9.5z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/>',
+    ],
     ['ganchos', 'Ganchos', true, '<path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/>'],
     ['camadas', 'Camadas', true, '<path d="M12 4l9 5-9 5-9-5zM3 14l9 5 9-5"/>'],
   ];
@@ -375,6 +381,7 @@
     Parts.preview(shared);
     Parts.left(shared);
     Parts.drawers(shared);
+    if (Parts.arte) Parts.arte(shared);
 
     $$('.dlx-rail button', root).forEach(
       (b) =>
