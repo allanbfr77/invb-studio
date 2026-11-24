@@ -336,8 +336,9 @@ code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:v
 .cut .bt1 .ap-btn.pri{flex:1.6}
 .cut .bt2 .ap-btn{flex:none;height:34px;padding:0 10px;font-size:13px}
 .cut .bt2 .sp{flex:1}
-.cut .bt2 .ap-btn:not([data-a="fav"]):not([data-a="hid"]){flex:1 1 0;min-width:0;justify-content:center;padding:0 8px;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cut .bt2 .ap-btn:not([data-a="fav"]):not([data-a="hid"]):not([data-a="del"]){flex:1 1 0;min-width:0;justify-content:center;padding:0 8px;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cut .bt2 .sp{display:none}
+.cut .bt2 .ap-btn.del:hover{color:#e11d48;border-color:#e11d48}
 .pctl .mid button.pskip{filter:none!important;font-size:12.5px;font-weight:600;color:var(--muted);min-width:48px;font-variant-numeric:tabular-nums}
 .pctl .mid button.pskip:hover{color:var(--fg)}
 

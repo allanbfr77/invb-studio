@@ -143,7 +143,7 @@
           'Sincronia da pregação',
           `<label for="sy-ms">Ajuste do som (milissegundos)</label><input id="sy-ms" type="number" step="10" min="-5000" max="5000" value="${Math.round((c.audioShift || 0) * 1000)}">
         <p class="sub2" style="margin:6px 0 14px">Positivo atrasa o som (use quando o som vem antes da boca). Negativo adianta (quando o som vem depois). Vale para todos os cortes desta pregação; o ajuste do editor de cada corte soma a este.</p>
-        ${autoOn ? '<button class="ap-btn" id="sy-auto" type="button">✨ Detectar no vídeo inteiro</button><p class="sub2" id="sy-msg" role="status" style="margin:10px 0 0"></p>' : '<p class="sub2">Para detectar sozinho, rode uma vez o arquivo <code>install/instalar-autosync</code> e abra o app de novo.</p>'}`,
+        ${autoOn ? '<button class="ap-btn" id="sy-auto" type="button">✨ Detectar no vídeo inteiro</button><p class="sub2" id="sy-msg" role="status" style="margin:10px 0 0"></p>' : '<p class="sub2">Para detectar sozinho, rode uma vez <code>install/instalar-autosync.command</code> (Mac) ou <code>install\\instalar-autosync.bat</code> (Windows) e abra o app de novo.</p>'}`,
           guard(async (mm) => {
             const v = Math.max(-5000, Math.min(5000, Math.round(+$('#sy-ms', mm).value || 0))) / 1000;
             const r = await api(`/uploads/${c.id}/sync`, { json: { audioShift: v, auto } });

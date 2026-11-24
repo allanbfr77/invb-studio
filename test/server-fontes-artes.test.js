@@ -206,3 +206,20 @@ test(
     assert.ok(pp.every((l) => /\\fscx85/.test(l)));
   },
 );
+
+test(
+  'excluir um corte apaga também o vídeo exportado dele',
+  { skip: !HAS_FFMPEG || process.platform === 'win32' },
+  async (t) => {
+    const d = tmp(t);
+    const dir = seedTone(d, 'kkkkkkkkkkk7');
+    const s = await boot(t, d);
+    await s.api('/uploads/kkkkkkkkkkk7/clips/m111111111111/render', { json: { captions: false } });
+    assert.equal((await waitRender(s, 'kkkkkkkkkkk7')).status, 'done');
+    const has = () => fs.readdirSync(path.join(dir, 'clips')).filter((f) => f.startsWith('m111111111111'));
+    assert.ok(has().length > 0);
+    assert.equal((await s.api('/uploads/kkkkkkkkkkk7/clips/m111111111111', { method: 'DELETE' })).status, 200);
+    assert.deepEqual((await s.api('/uploads/kkkkkkkkkkk7/clips')).body, []);
+    assert.deepEqual(has(), []);
+  },
+);

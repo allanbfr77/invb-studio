@@ -130,7 +130,7 @@
             )
             .join('')}</div>
           <button class="dlx-sytgo" id="dx-syt">▶ Testar o ajuste (8 s)</button>
-          ${ctx.autosync ? `<button class="dlx-sytgo" id="dx-asy"${asy.busy ? ' disabled' : ''}>${asy.busy ? 'Medindo boca e som… (1 a 2 min)' : '✨ Detectar automaticamente'}</button>${asy.msg ? `<p class="dlx-hint dlx-asr ${asy.kind}" id="dx-asr" role="status">${esc(asy.msg)}</p>` : ''}` : '<p class="dlx-hint">Para detectar o atraso sozinho, rode uma vez o arquivo <code>install/instalar-autosync</code> e abra o app de novo.</p>'}
+          ${ctx.autosync ? `<button class="dlx-sytgo" id="dx-asy"${asy.busy ? ' disabled' : ''}>${asy.busy ? 'Medindo boca e som… (1 a 2 min)' : '✨ Detectar automaticamente'}</button>${asy.msg ? `<p class="dlx-hint dlx-asr ${asy.kind}" id="dx-asr" role="status">${esc(asy.msg)}</p>` : ''}` : '<p class="dlx-hint">Para detectar o atraso sozinho, rode uma vez <code>install/instalar-autosync.command</code> (Mac) ou <code>install\\instalar-autosync.bat</code> (Windows) e abra o app de novo.</p>'}
           <p class="dlx-hint">Som depois da boca: vá para a esquerda. Som antes: para a direita. A prévia ao lado não muda; use Testar.${upload.audioShift ? ` A pregação já tem ajuste de ${syLabel(upload.audioShift)} (botão Sincronia, em Cortes); este controle soma a ele.` : ''}</p>`,
               'dx-syv',
             ),
@@ -160,7 +160,7 @@
           !ctx.voiceAI ? 'Não instalado' : st.voice === 'ia' ? 'Ligado' : 'Desligado',
           `
           <div class="dlx-row"><div><b>Deixar só a voz</b><small>Tira a música de fundo com IA, no seu computador. A exportação demora mais e o efeito não aparece na prévia.</small></div><button class="dlx-sw" role="switch" aria-checked="${st.voice === 'ia'}" id="dx-mu"${ctx.voiceAI ? '' : ' disabled title="Precisa instalar a remoção de música neste computador"'}></button></div>
-          ${ctx.voiceAI ? '' : '<p class="dlx-hint">Para liberar, rode uma vez o arquivo <code>install/instalar-voz-ia</code> e abra o app de novo.</p>'}`,
+          ${ctx.voiceAI ? '' : '<p class="dlx-hint">Para liberar, rode uma vez <code>install/instalar-voz-ia.command</code> (Mac) ou <code>install\\instalar-voz-ia.bat</code> (Windows) e abra o app de novo.</p>'}`,
         ),
       ].join('');
       $$('details[data-sec]', L).forEach((d) =>
