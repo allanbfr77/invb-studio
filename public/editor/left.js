@@ -86,7 +86,7 @@
               'Formato',
               esc(fmtObj()[1]),
               `<div class="dlx-fmts">${FORMATS.map((f) => `<button class="dlx-fmt" data-f="${f[0]}" aria-pressed="${st.format === f[0]}"><span class="ic"><i style="width:${FORMAT_ICON[f[0]][0]}px;height:${FORMAT_ICON[f[0]][1]}px"></i></span>${f[1]}</button>`).join('')}</div>
-          <p class="dlx-sub">${st.format === 'orig' ? 'Sai no tamanho original do vídeo' : 'Recorta o vídeo'} · ${outSize()}</p>
+          <p class="dlx-sub">${st.format === 'orig' ? 'Sai no tamanho original do vídeo' : 'Recorta o vídeo · ' + outSize()}</p>
           ${frame}
           <label class="dlx-check" style="margin-top:10px"><input type="checkbox" id="dx-fdef" ${isDef ? 'checked' : ''}> Usar ${esc(fmtObj()[1])} nos cortes novos</label>`,
             ),
@@ -94,7 +94,7 @@
           ? ''
           : sec(
               'img',
-              'Imagem e qualidade',
+              'Imagem',
               [st.bw ? 'P&B' : 'Colorido', st.hq ? 'alta' : ''].filter(Boolean).join(' · '),
               `
           <div class="dlx-row"><div><b>Preto e branco</b><small>Deixa o vídeo em tons de cinza.</small></div>${sw('dx-bw', st.bw)}</div>
@@ -106,7 +106,7 @@
           spLabel(st.speed),
           `<small id="dx-spd" class="dlx-spd">${durTxt()}</small>
           <input type="range" id="dx-sp" class="dlx-sp" min="0.5" max="2" step="0.05" value="${st.speed}" aria-label="Velocidade">
-          <div class="dlx-spb">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((x) => `<button data-sp="${x}" aria-pressed="${st.speed === x}">${spLabel(x)}</button>`).join('')}</div>
+          <div class="dlx-spb g3">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((x) => `<button data-sp="${x}" aria-pressed="${st.speed === x}">${spLabel(x)}</button>`).join('')}</div>
           <p class="dlx-hint">O tom da voz não muda. A prévia acompanha.</p>`,
           'dx-spv',
         ),
@@ -117,16 +117,16 @@
               'Sincronia do áudio',
               syLabel(st.sync),
               `<input type="range" id="dx-sy" class="dlx-sp" min="-2" max="2" step="0.01" value="${st.sync}" aria-label="Sincronia do áudio">
-          <div class="dlx-spb">${[
+          <div class="dlx-spb sy">${[
             [-0.1, '−0,1 s'],
-            [-0.01, '−0,01 s'],
-            [0, 'Zerar'],
-            [0.01, '+0,01 s'],
             [0.1, '+0,1 s'],
+            [-0.01, '−0,01 s'],
+            [0.01, '+0,01 s'],
+            [0, 'Zerar'],
           ]
             .map(
               (x) =>
-                `<button style="min-width:36px" title="${x[0] ? (x[0] > 0 ? 'Atrasar o som em ' : 'Adiantar o som em ') + x[1].slice(1) : 'Voltar ao áudio original'}" data-sy="${x[0]}">${x[1]}</button>`,
+                `<button title="${x[0] ? (x[0] > 0 ? 'Atrasar o som em ' : 'Adiantar o som em ') + x[1].slice(1) : 'Voltar ao áudio original'}" data-sy="${x[0]}">${x[1]}</button>`,
             )
             .join('')}</div>
           <button class="dlx-sytgo" id="dx-syt">▶ Testar o ajuste (8 s)</button>

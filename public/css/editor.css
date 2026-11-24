@@ -17,8 +17,8 @@
 .dlx-left{border-right:1px solid var(--border);padding:22px 20px;overflow-y:auto}
 .dlx-left h4{margin:0 0 12px;font:500 12px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .dlx-left hr{border:0;border-top:1px solid var(--border);margin:22px 0}
-.dlx-fmts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
-.dlx-fmt{height:58px;border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:11px;color:var(--muted);padding:0}
+.dlx-fmts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.dlx-fmt{height:58px;border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:10.5px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;color:var(--muted);padding:0}
 .dlx-fmt .ic{height:24px;display:flex;align-items:center;justify-content:center}
 .dlx-fmt:hover{background:var(--hover)}
 .dlx-fmt i{display:block;border:1.5px solid var(--border-strong);border-radius:3px}
@@ -166,7 +166,7 @@
 /* Editor: velocidade do corte */
 .dlx-sp{width:100%;accent-color:var(--primary);margin:0 0 10px}
 .dlx-spb{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
-.dlx-spb button{flex:1;min-width:48px;height:30px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer}
+.dlx-spb button{flex:1;min-width:0;height:30px;padding:0 4px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font:inherit;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .dlx-spb button:hover{color:var(--fg);border-color:var(--border-strong)}
 .dlx-spb button[aria-pressed="true"]{background:var(--soft);color:var(--soft-fg);border-color:var(--primary)}
 
@@ -207,7 +207,7 @@
 .dlx-sec>summary::-webkit-details-marker{display:none}
 .dlx-sec>summary::before{content:'';width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s;flex:none;margin-left:2px}
 .dlx-sec[open]>summary::before{transform:rotate(45deg)}
-.dlx-sect{font-weight:650;font-size:14px;color:var(--fg);flex:1}
+.dlx-sect{font-weight:650;font-size:14px;color:var(--fg);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dlx-secv{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55%}
 .dlx-sec[open] .dlx-secv{color:var(--fg);font-weight:600}
 .dlx-secb{padding:2px 0 16px}
@@ -276,3 +276,13 @@
 .dlx-stage.pan{cursor:grab}
 .dlx-stage.panning{cursor:grabbing}
 .dlx-stage.panning .dlx-play{opacity:0}
+/* botões em grade: velocidade 3 por linha; sincronia em colunas (− à esquerda, + à direita) e Zerar embaixo */
+.dlx-spb.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.dlx-spb.sy{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.dlx-spb.sy [data-sy="0"]{grid-column:1/-1}
+/* painel estreito: o valor da seção vai para a linha de baixo, sem cortar o título */
+@media (max-width:1100px){
+.dlx-sec>summary{flex-wrap:wrap;row-gap:2px}
+.dlx-sect{flex:1 1 calc(100% - 30px);white-space:normal}
+.dlx-secv{flex-basis:100%;max-width:none;padding-left:21px;text-align:left}
+}

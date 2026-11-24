@@ -184,7 +184,7 @@ b { font-family: 'Montserrat ExtraBold'; font-size: 34px; color: #c48a12; letter
     return rules.join('\n');
   }
   const frameDoc = (a, fontCss) =>
-    `<style>${fontCss}\nhtml,body{margin:0;background:transparent}#arte{position:relative;overflow:hidden;width:${a.w}px;height:${a.h}px;font-family:'Poppins ExtraBold',sans-serif;color:#fff}#arte *{box-sizing:border-box}\n${a.css}</style><div id="arte">${clean(a.html)}</div>`;
+    `<style>${fontCss}\nhtml{color-scheme:light}html,body{margin:0;background:transparent}#arte{position:relative;overflow:hidden;width:${a.w}px;height:${a.h}px;font-family:'Poppins ExtraBold',sans-serif;color:#fff}#arte *{box-sizing:border-box}\n${a.css}</style><div id="arte">${clean(a.html)}</div>`;
   /** Desenha a arte num canvas do tamanho dela e devolve um PNG transparente. */
   async function rasterize(a) {
     const fontCss = await embeddedFonts(a.css + ' ' + a.html);
@@ -306,7 +306,8 @@ b { font-family: 'Montserrat ExtraBold'; font-size: 34px; color: #c48a12; letter
         box.appendChild(fr);
       }
       box.style.height = Math.round(a.h * k) + 'px';
-      fr.style.cssText = `width:${a.w}px;height:${a.h}px;transform:scale(${k});transform-origin:0 0;border:0;background:transparent`;
+      // color-scheme igual dos dois lados: senão, com o app no modo escuro, o navegador pinta o fundo da prévia de branco
+      fr.style.cssText = `width:${a.w}px;height:${a.h}px;transform:scale(${k});transform-origin:0 0;border:0;background:transparent;color-scheme:light`;
       fr.srcdoc = frameDoc(a, fonts);
     }
 
