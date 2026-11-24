@@ -37,7 +37,10 @@ for (const [nome, linha] of [
 
 test('sem título, numera pela posição', () => {
   const r = parseCutList('00:10 - 00:40\n01:00 - 01:30 Com nome\n02:00 - 02:30', DUR);
-  assert.deepEqual(r.cuts.map((c) => c.title), ['Corte 1', 'Com nome', 'Corte 3']);
+  assert.deepEqual(
+    r.cuts.map((c) => c.title),
+    ['Corte 1', 'Com nome', 'Corte 3'],
+  );
 });
 
 test('linha de texto sem dois tempos é devolvida como rejeitada; linhas em branco são ignoradas', () => {
@@ -50,7 +53,10 @@ test('linha de texto sem dois tempos é devolvida como rejeitada; linhas em bran
 });
 
 test('rejeita fim antes do início, corte curto e início depois do fim do vídeo, mantendo os válidos', () => {
-  const r = parseCutList('14:05 - 12:40 Invertido\n00:10 - 00:12 Curto\n1:40:00 - 1:41:00 Fora\n00:10 - 00:40 Bom', DUR);
+  const r = parseCutList(
+    '14:05 - 12:40 Invertido\n00:10 - 00:12 Curto\n1:40:00 - 1:41:00 Fora\n00:10 - 00:40 Bom',
+    DUR,
+  );
   assert.deepEqual(r.cuts, [{ start: 10, end: 40, title: 'Bom' }]);
   assert.deepEqual(r.rejected, [
     { line: '14:05 - 12:40 Invertido', reason: 'O fim vem antes do início.' },
@@ -89,34 +95,52 @@ test('buildPrompt traz a instrução, o formato da resposta e cada linha com o t
 });
 
 test('o que buildPrompt escreve nos tempos é lido de volta por parseCutList', () => {
-  const p = buildPrompt('x', [{ start: 3723, text: 'a' }, { start: 3790, text: 'b' }]);
-  const [t1, t2] = p.split('\n').slice(-2).map((l) => l.match(/\[(.+?)\]/)[1]);
+  const p = buildPrompt('x', [
+    { start: 3723, text: 'a' },
+    { start: 3790, text: 'b' },
+  ]);
+  const [t1, t2] = p
+    .split('\n')
+    .slice(-2)
+    .map((l) => l.match(/\[(.+?)\]/)[1]);
   assert.deepEqual(parseCutList(`${t1} - ${t2} Volta`, DUR).cuts, [{ start: 3723, end: 3790, title: 'Volta' }]);
 });
 
 // --- achados da revisão final ---
 test('aceita um rótulo antes dos tempos, como "Corte 2: 10:00 - 11:00 Título"', () => {
-  assert.deepEqual(parseCutList('Corte 2: 10:00 - 11:00 A graça', DUR).cuts, [{ start: 600, end: 660, title: 'A graça' }]);
+  assert.deepEqual(parseCutList('Corte 2: 10:00 - 11:00 A graça', DUR).cuts, [
+    { start: 600, end: 660, title: 'A graça' },
+  ]);
 });
 
 test('sem título depois dos tempos, usa o texto que veio antes deles', () => {
-  assert.deepEqual(parseCutList('O amor de Deus: 10:00 - 11:00', DUR).cuts, [{ start: 600, end: 660, title: 'O amor de Deus' }]);
+  assert.deepEqual(parseCutList('O amor de Deus: 10:00 - 11:00', DUR).cuts, [
+    { start: 600, end: 660, title: 'O amor de Deus' },
+  ]);
   assert.deepEqual(parseCutList('2. 10:00 - 11:00', DUR).cuts, [{ start: 600, end: 660, title: 'Corte 1' }]);
 });
 
 test('frase longa antes dos tempos não vira corte', () => {
   const linha = 'Na minha opinião o melhor trecho de toda a pregação fica mais ou menos entre 10:00 - 11:00';
-  assert.deepEqual(parseCutList(linha, DUR), { cuts: [], rejected: [{ line: linha, reason: 'Não encontrei início e fim.' }], adjusted: [] });
+  assert.deepEqual(parseCutList(linha, DUR), {
+    cuts: [],
+    rejected: [{ line: linha, reason: 'Não encontrei início e fim.' }],
+    adjusted: [],
+  });
 });
 
 test('rejeita segundos ou minutos acima de 59', () => {
-  assert.deepEqual(parseCutList('12:75 - 14:05 Errado', DUR).rejected, [{ line: '12:75 - 14:05 Errado', reason: 'Tempo inválido.' }]);
+  assert.deepEqual(parseCutList('12:75 - 14:05 Errado', DUR).rejected, [
+    { line: '12:75 - 14:05 Errado', reason: 'Tempo inválido.' },
+  ]);
 });
 
 // --- pontos menores da revisão ---
 test('avisa quando o fim do corte foi ajustado para o fim do vídeo', () => {
   const r = parseCutList('1:29:00 - 1:35:00 Final\n00:10 - 00:40 Normal', DUR);
-  assert.deepEqual(r.adjusted, [{ line: '1:29:00 - 1:35:00 Final', note: 'O fim passava do vídeo e foi ajustado para 1:30:00.' }]);
+  assert.deepEqual(r.adjusted, [
+    { line: '1:29:00 - 1:35:00 Final', note: 'O fim passava do vídeo e foi ajustado para 1:30:00.' },
+  ]);
 });
 
 test('título que começa com parêntese é preservado', () => {

@@ -9,8 +9,29 @@ const lines = [
   { start: 3723, end: 3727, text: 'Amém.' },
 ];
 // Cliente de mentira no lugar do SDK: guarda o pedido e devolve a resposta combinada.
-const fake = (reply) => { const calls = []; return { calls, beta: { messages: { create: async (req) => { calls.push(req); if (reply instanceof Error) throw reply; return reply; } } } }; };
-const answer = (cuts, extra = {}) => ({ stop_reason: 'end_turn', content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: JSON.stringify({ cuts }) }], ...extra });
+const fake = (reply) => {
+  const calls = [];
+  return {
+    calls,
+    beta: {
+      messages: {
+        create: async (req) => {
+          calls.push(req);
+          if (reply instanceof Error) throw reply;
+          return reply;
+        },
+      },
+    },
+  };
+};
+const answer = (cuts, extra = {}) => ({
+  stop_reason: 'end_turn',
+  content: [
+    { type: 'thinking', thinking: '' },
+    { type: 'text', text: JSON.stringify({ cuts }) },
+  ],
+  ...extra,
+});
 
 test('pede os cortes ao Claude com o modelo, a transcrição com tempos e saída estruturada', async () => {
   const c = fake(answer([{ start_seconds: 60, end_seconds: 120, title: 'O amor de Deus', reason: 'Trecho central.' }]));
@@ -31,31 +52,47 @@ test('pede os cortes ao Claude com o modelo, a transcrição com tempos e saída
 });
 
 test('devolve os cortes com tempos em segundos, título e motivo', async () => {
-  const c = fake(answer([{ start_seconds: 60, end_seconds: 120, title: 'O amor de Deus', reason: 'Trecho central.', score: 88 }]));
+  const c = fake(
+    answer([{ start_seconds: 60, end_seconds: 120, title: 'O amor de Deus', reason: 'Trecho central.', score: 88 }]),
+  );
   const r = await suggestCuts({ client: c, name: 'x', lines, duration: 5400 });
   assert.deepEqual(r, [{ start: 60, end: 120, title: 'O amor de Deus', reason: 'Trecho central.', score: 88 }]);
 });
 
 test('descarta sugestões impossíveis e ajusta o fim ao tamanho do vídeo', async () => {
-  const c = fake(answer([
-    { start_seconds: 100, end_seconds: 90, title: 'Invertido', reason: '' },
-    { start_seconds: 10, end_seconds: 11, title: 'Curto', reason: '' },
-    { start_seconds: 6000, end_seconds: 6060, title: 'Fora', reason: '' },
-    { start_seconds: 5380, end_seconds: 5500, title: 'Final', reason: '' },
-    { start_seconds: 60.4, end_seconds: 119.6, title: '', reason: '' },
-  ]));
+  const c = fake(
+    answer([
+      { start_seconds: 100, end_seconds: 90, title: 'Invertido', reason: '' },
+      { start_seconds: 10, end_seconds: 11, title: 'Curto', reason: '' },
+      { start_seconds: 6000, end_seconds: 6060, title: 'Fora', reason: '' },
+      { start_seconds: 5380, end_seconds: 5500, title: 'Final', reason: '' },
+      { start_seconds: 60.4, end_seconds: 119.6, title: '', reason: '' },
+    ]),
+  );
   const r = await suggestCuts({ client: c, name: 'x', lines, duration: 5400 });
-  assert.deepEqual(r.map((k) => [k.start, k.end, k.title]), [[5380, 5400, 'Final'], [60.4, 119.6, 'Corte 2']]);
+  assert.deepEqual(
+    r.map((k) => [k.start, k.end, k.title]),
+    [
+      [5380, 5400, 'Final'],
+      [60.4, 119.6, 'Corte 2'],
+    ],
+  );
 });
 
 test('recusa do modelo vira erro claro, sem tentar ler a resposta', async () => {
   const c = fake({ stop_reason: 'refusal', content: [], stop_details: { category: null } });
-  await assert.rejects(() => suggestCuts({ client: c, name: 'x', lines, duration: 5400 }), (e) => /recusou/i.test(e.message) && e.status === 502);
+  await assert.rejects(
+    () => suggestCuts({ client: c, name: 'x', lines, duration: 5400 }),
+    (e) => /recusou/i.test(e.message) && e.status === 502,
+  );
 });
 
 test('resposta cortada por limite de tamanho vira erro claro', async () => {
   const c = fake({ stop_reason: 'max_tokens', content: [{ type: 'text', text: '{"cuts":[' }] });
-  await assert.rejects(() => suggestCuts({ client: c, name: 'x', lines, duration: 5400 }), (e) => /incompleta/i.test(e.message));
+  await assert.rejects(
+    () => suggestCuts({ client: c, name: 'x', lines, duration: 5400 }),
+    (e) => /incompleta/i.test(e.message),
+  );
 });
 
 test('transcrição vazia nem chama a API', async () => {
@@ -66,10 +103,19 @@ test('transcrição vazia nem chama a API', async () => {
 
 test('erros da API viram mensagens em português com o status certo', async () => {
   const Anthropic = require('@anthropic-ai/sdk');
-  const mk = (Cls, status) => new Cls(status, { type: 'error', error: { type: 'x', message: 'detalhe' } }, 'detalhe', new Headers());
-  const cases = [[mk(Anthropic.AuthenticationError, 401), 401, /chave/i], [mk(Anthropic.RateLimitError, 429), 429, /limite/i], [mk(Anthropic.BadRequestError, 400), 502, /recusada|inválid/i]];
+  const mk = (Cls, status) =>
+    new Cls(status, { type: 'error', error: { type: 'x', message: 'detalhe' } }, 'detalhe', new Headers());
+  const cases = [
+    [mk(Anthropic.AuthenticationError, 401), 401, /chave/i],
+    [mk(Anthropic.RateLimitError, 429), 429, /limite/i],
+    [mk(Anthropic.BadRequestError, 400), 502, /recusada|inválid/i],
+  ];
   for (const [err, status, re] of cases) {
-    await assert.rejects(() => suggestCuts({ client: fake(err), name: 'x', lines, duration: 5400 }), (e) => e.status === status && re.test(e.message), err.constructor.name);
+    await assert.rejects(
+      () => suggestCuts({ client: fake(err), name: 'x', lines, duration: 5400 }),
+      (e) => e.status === status && re.test(e.message),
+      err.constructor.name,
+    );
   }
 });
 
@@ -84,8 +130,19 @@ const { describeCut } = require('../lib/claude');
 const post = (o) => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(o) }] });
 
 test('describeCut envia o texto do corte e o nome da pregação, e pede saída estruturada', async () => {
-  const c = fake(post({ title: 'Deus não desiste de você', description: 'Uma palavra para quem está cansado.', hashtags: ['#fé', '#pregação'] }));
-  await describeCut({ client: c, name: 'Na oficina do oleiro', text: 'O barro se quebrou na mão do oleiro, e ele fez de novo.', seconds: 45 });
+  const c = fake(
+    post({
+      title: 'Deus não desiste de você',
+      description: 'Uma palavra para quem está cansado.',
+      hashtags: ['#fé', '#pregação'],
+    }),
+  );
+  await describeCut({
+    client: c,
+    name: 'Na oficina do oleiro',
+    text: 'O barro se quebrou na mão do oleiro, e ele fez de novo.',
+    seconds: 45,
+  });
   const req = c.calls[0];
   assert.equal(req.model, MODEL);
   assert.equal(req.fallbacks, 'default');
@@ -97,15 +154,28 @@ test('describeCut envia o texto do corte e o nome da pregação, e pede saída e
 });
 
 test('describeCut devolve título, descrição e hashtags normalizadas', async () => {
-  const c = fake(post({ title: '  Deus não desiste de você  ', description: 'Uma palavra para quem está cansado.\n\nAssista até o fim.', hashtags: ['fé', '#Pregação', '# igreja nova vida', '#fé', '', '#a b!c'] }));
+  const c = fake(
+    post({
+      title: '  Deus não desiste de você  ',
+      description: 'Uma palavra para quem está cansado.\n\nAssista até o fim.',
+      hashtags: ['fé', '#Pregação', '# igreja nova vida', '#fé', '', '#a b!c'],
+    }),
+  );
   const r = await describeCut({ client: c, name: 'x', text: 'texto do corte', seconds: 30 });
-  assert.deepEqual(r, { title: 'Deus não desiste de você', description: 'Uma palavra para quem está cansado.\n\nAssista até o fim.', hashtags: ['#fé', '#Pregação', '#igrejanovavida', '#abc'] });
+  assert.deepEqual(r, {
+    title: 'Deus não desiste de você',
+    description: 'Uma palavra para quem está cansado.\n\nAssista até o fim.',
+    hashtags: ['#fé', '#Pregação', '#igrejanovavida', '#abc'],
+  });
 });
 
 test('describeCut limita a 12 hashtags e corta título longo', async () => {
-  const c = fake(post({ title: 'x'.repeat(300), description: 'd', hashtags: Array.from({ length: 30 }, (_, i) => '#tag' + i) }));
+  const c = fake(
+    post({ title: 'x'.repeat(300), description: 'd', hashtags: Array.from({ length: 30 }, (_, i) => '#tag' + i) }),
+  );
   const r = await describeCut({ client: c, name: 'x', text: 'texto', seconds: 30 });
-  assert.equal(r.title.length, 120); assert.equal(r.hashtags.length, 12);
+  assert.equal(r.title.length, 120);
+  assert.equal(r.hashtags.length, 12);
 });
 
 test('describeCut sem texto do corte nem chama a API', async () => {
@@ -115,10 +185,21 @@ test('describeCut sem texto do corte nem chama a API', async () => {
 });
 
 test('describeCut: recusa e erro da API viram mensagens claras', async () => {
-  await assert.rejects(() => describeCut({ client: fake({ stop_reason: 'refusal', content: [] }), name: 'x', text: 't', seconds: 9 }), /recusou/i);
+  await assert.rejects(
+    () => describeCut({ client: fake({ stop_reason: 'refusal', content: [] }), name: 'x', text: 't', seconds: 9 }),
+    /recusou/i,
+  );
   const Anthropic = require('@anthropic-ai/sdk');
-  const err = new Anthropic.RateLimitError(429, { type: 'error', error: { type: 'x', message: 'm' } }, 'm', new Headers());
-  await assert.rejects(() => describeCut({ client: fake(err), name: 'x', text: 't', seconds: 9 }), (e) => e.status === 429);
+  const err = new Anthropic.RateLimitError(
+    429,
+    { type: 'error', error: { type: 'x', message: 'm' } },
+    'm',
+    new Headers(),
+  );
+  await assert.rejects(
+    () => describeCut({ client: fake(err), name: 'x', text: 't', seconds: 9 }),
+    (e) => e.status === 429,
+  );
 });
 
 // --- cortes automáticos pela IA, logo depois da transcrição ---
@@ -132,8 +213,17 @@ test('suggestCuts pede os cortes em ordem, do melhor para o mais fraco', async (
 });
 
 test('toAutoClips monta os cortes automáticos com nota decrescente, etiqueta IA e o motivo na descrição', () => {
-  const r = toAutoClips([{ start: 60, end: 120, title: 'Primeiro', reason: 'Ideia completa.', score: 92 }, { start: 300, end: 350, title: 'Segundo', reason: '', score: 71 }]);
-  assert.deepEqual(r.map((k) => [k.id, k.title, k.start, k.end, k.score, k.type, k.manual]), [['a0', 'Primeiro', 60, 120, 92, 'IA', false], ['a1', 'Segundo', 300, 350, 71, 'IA', false]]);
+  const r = toAutoClips([
+    { start: 60, end: 120, title: 'Primeiro', reason: 'Ideia completa.', score: 92 },
+    { start: 300, end: 350, title: 'Segundo', reason: '', score: 71 },
+  ]);
+  assert.deepEqual(
+    r.map((k) => [k.id, k.title, k.start, k.end, k.score, k.type, k.manual]),
+    [
+      ['a0', 'Primeiro', 60, 120, 92, 'IA', false],
+      ['a1', 'Segundo', 300, 350, 71, 'IA', false],
+    ],
+  );
   assert.equal(r[0].description, 'Ideia completa.');
   assert.equal(r[1].description, 'Sugerido pela IA.');
   assert.deepEqual(r[0].tags, ['IA']);
@@ -143,8 +233,11 @@ test('toAutoClips monta os cortes automáticos com nota decrescente, etiqueta IA
 test('toAutoClips: a nota nunca fica abaixo de 60 nem lista vazia quebra', () => {
   assert.deepEqual(toAutoClips([]), []);
   // sem nota da IA (resposta antiga), a ordem vira a nota, sem cair abaixo de 60
-  const many = toAutoClips(Array.from({ length: 12 }, (_, i) => ({ start: i * 100, end: i * 100 + 40, title: 't' + i, reason: '' })));
-  assert.equal(many[0].score, 95); assert.equal(Math.min(...many.map((k) => k.score)), 60);
+  const many = toAutoClips(
+    Array.from({ length: 12 }, (_, i) => ({ start: i * 100, end: i * 100 + 40, title: 't' + i, reason: '' })),
+  );
+  assert.equal(many[0].score, 95);
+  assert.equal(Math.min(...many.map((k) => k.score)), 60);
   // com prefixo, os ids não colidem com os cortes automáticos que já existem
   const extra = toAutoClips([{ start: 1, end: 40, title: 't', reason: '', score: 80 }], 'i');
   assert.match(extra[0].id, /^i[0-9a-f]{12}$/);
@@ -152,14 +245,24 @@ test('toAutoClips: a nota nunca fica abaixo de 60 nem lista vazia quebra', () =>
 
 // --- nota dada pela IA e o que ela deve evitar ---
 test('a IA dá uma nota de 0 a 100 a cada corte e eles voltam do mais forte para o mais fraco', async () => {
-  const c = fake(answer([
-    { start_seconds: 100, end_seconds: 160, title: 'Médio', reason: '', score: 64 },
-    { start_seconds: 300, end_seconds: 360, title: 'Forte', reason: '', score: 93.6 },
-    { start_seconds: 500, end_seconds: 560, title: 'Fora da escala', reason: '', score: 250 },
-    { start_seconds: 700, end_seconds: 760, title: 'Sem nota', reason: '' },
-  ]));
+  const c = fake(
+    answer([
+      { start_seconds: 100, end_seconds: 160, title: 'Médio', reason: '', score: 64 },
+      { start_seconds: 300, end_seconds: 360, title: 'Forte', reason: '', score: 93.6 },
+      { start_seconds: 500, end_seconds: 560, title: 'Fora da escala', reason: '', score: 250 },
+      { start_seconds: 700, end_seconds: 760, title: 'Sem nota', reason: '' },
+    ]),
+  );
   const r = await suggestCuts({ client: c, name: 'x', lines, duration: 5400 });
-  assert.deepEqual(r.map((k) => [k.title, k.score]), [['Fora da escala', 100], ['Forte', 94], ['Médio', 64], ['Sem nota', 0]]);
+  assert.deepEqual(
+    r.map((k) => [k.title, k.score]),
+    [
+      ['Fora da escala', 100],
+      ['Forte', 94],
+      ['Médio', 64],
+      ['Sem nota', 0],
+    ],
+  );
   assert.ok(c.calls[0].output_config.format.schema.properties.cuts.items.required.includes('score'));
 });
 
@@ -179,25 +282,73 @@ test('as instruções pedem pregação forte sobre a Palavra e proíbem oração
 const { altTitles, shortenCut } = require('../lib/claude');
 
 test('outros títulos: três no máximo, sem repetir o atual nem duplicar', async () => {
-  const r = await altTitles({ ask: async () => ({ titles: ['O amor de Deus', '"Deus amou o mundo"', 'deus amou o mundo', 'Você já recebeu esse amor?', 'Quarto título'] }), name: 'x', text: 'Porque Deus amou o mundo', current: 'O amor de Deus' });
+  const r = await altTitles({
+    ask: async () => ({
+      titles: [
+        'O amor de Deus',
+        '"Deus amou o mundo"',
+        'deus amou o mundo',
+        'Você já recebeu esse amor?',
+        'Quarto título',
+      ],
+    }),
+    name: 'x',
+    text: 'Porque Deus amou o mundo',
+    current: 'O amor de Deus',
+  });
   assert.deepEqual(r, ['Deus amou o mundo', 'Você já recebeu esse amor?', 'Quarto título']);
 });
 
 test('outros títulos: sem texto no trecho, nem chama a IA', async () => {
   let called = false;
-  await assert.rejects(() => altTitles({ ask: async () => { called = true; return {}; }, name: 'x', text: '  ', current: 'a' }), (e) => e.status === 409);
+  await assert.rejects(
+    () =>
+      altTitles({
+        ask: async () => {
+          called = true;
+          return {};
+        },
+        name: 'x',
+        text: '  ',
+        current: 'a',
+      }),
+    (e) => e.status === 409,
+  );
   assert.equal(called, false);
 });
 
 test('mais curto: o novo trecho fica dentro do corte e manda só as linhas dele', async () => {
   let sent = '';
-  const r = await shortenCut({ ask: async ({ user }) => { sent = user; return { start_seconds: 50, end_seconds: 90, reason: 'Fica a ideia central.' }; }, name: 'x', lines, start: 60, end: 120 });
+  const r = await shortenCut({
+    ask: async ({ user }) => {
+      sent = user;
+      return { start_seconds: 50, end_seconds: 90, reason: 'Fica a ideia central.' };
+    },
+    name: 'x',
+    lines,
+    start: 60,
+    end: 120,
+  });
   assert.deepEqual(r, { start: 60, end: 90, reason: 'Fica a ideia central.' }); // o início pedido (50) é puxado para dentro do corte
   assert.match(sent, /\[01:00\] Porque Deus amou/);
   assert.doesNotMatch(sent, /Bom dia, igreja|Amém/);
 });
 
 test('mais curto: resposta que não encurta de verdade vira erro e o corte fica como estava', async () => {
-  await assert.rejects(() => shortenCut({ ask: async () => ({ start_seconds: 60, end_seconds: 119, reason: '' }), name: 'x', lines, start: 60, end: 120 }), (e) => e.status === 502 && /mais curta/.test(e.message));
-  await assert.rejects(() => shortenCut({ ask: async () => ({}), name: 'x', lines: [{ start: 60, end: 64, text: 'a' }], start: 60, end: 70 }), (e) => e.status === 409);
+  await assert.rejects(
+    () =>
+      shortenCut({
+        ask: async () => ({ start_seconds: 60, end_seconds: 119, reason: '' }),
+        name: 'x',
+        lines,
+        start: 60,
+        end: 120,
+      }),
+    (e) => e.status === 502 && /mais curta/.test(e.message),
+  );
+  await assert.rejects(
+    () =>
+      shortenCut({ ask: async () => ({}), name: 'x', lines: [{ start: 60, end: 64, text: 'a' }], start: 60, end: 70 }),
+    (e) => e.status === 409,
+  );
 });

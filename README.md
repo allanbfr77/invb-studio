@@ -186,6 +186,8 @@ app. Cada análise leva de 25 a 45 segundos. Detalhes, testes e limitações em 
   sincronia, linha do tempo e imagens por cima), `left.js` (painel da esquerda) e `drawers.js` (gavetas da direita). As
   partes dividem o objeto `shared`.
 - Testes do servidor: `test/server-*.test.js`, por assunto, com os ajudantes em `test/helpers.js`.
+- Formato do código: o JavaScript segue o Prettier, com as regras de `.prettierrc.json`. Para reformatar depois de mexer:
+  `npx prettier --write .` (o CSS e os arquivos de texto ficam de fora, pelo `.prettierignore`).
 - Estilos (`public/css/`, nessa ordem): `base.css` (variáveis e o básico), `app.css` (as telas), `editor.css` (o editor do
   corte) e `theme.css` (identidade da igreja e os modos claro e noturno).
 - Lógica testável em `lib/`: `lines.js` (linhas curtas), `cutlist.js` (ida e volta com o Claude),

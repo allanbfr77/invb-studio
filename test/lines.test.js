@@ -35,7 +35,9 @@ test('não quebra na pontuação quando ela está na primeira metade da linha', 
 
 test('segmento sem palavras vira uma linha só', () => {
   const lines = splitLines([{ start: 3, end: 20, text: 'texto sem tempos por palavra', speaker: 'A' }]);
-  assert.deepEqual(lines, [{ seg: 0, start: 3, end: 20, text: 'texto sem tempos por palavra', speaker: 'A', words: [] }]);
+  assert.deepEqual(lines, [
+    { seg: 0, start: 3, end: 20, text: 'texto sem tempos por palavra', speaker: 'A', words: [] },
+  ]);
 });
 
 test('segmento com texto editado à mão vira uma linha só, com o texto editado', () => {
@@ -56,20 +58,43 @@ test('diferenças só de espaço, caixa e pontuação não contam como edição'
 });
 
 test('uma palavra mais longa que o limite ainda gera uma linha', () => {
-  const s = { start: 0, end: 9, text: 'aaaaaah fim', speaker: 'A', words: [{ w: 'aaaaaah', s: 0, e: 8 }, { w: 'fim', s: 8, e: 9 }] };
+  const s = {
+    start: 0,
+    end: 9,
+    text: 'aaaaaah fim',
+    speaker: 'A',
+    words: [
+      { w: 'aaaaaah', s: 0, e: 8 },
+      { w: 'fim', s: 8, e: 9 },
+    ],
+  };
   const lines = splitLines([s]);
-  assert.deepEqual(lines.map((l) => l.text), ['aaaaaah', 'fim']);
+  assert.deepEqual(
+    lines.map((l) => l.text),
+    ['aaaaaah', 'fim'],
+  );
   assert.ok(lines.every((l) => l.words.length === 1));
 });
 
 test('as palavras da linha saem no formato { t, s, e }', () => {
   const lines = splitLines([seg('um dois', 10)]);
-  assert.deepEqual(lines[0].words, [{ t: 'um', s: 10, e: 10.5 }, { t: 'dois', s: 10.5, e: 11 }]);
+  assert.deepEqual(lines[0].words, [
+    { t: 'um', s: 10, e: 10.5 },
+    { t: 'dois', s: 10.5, e: 11 },
+  ]);
 });
 
 test('respeita maxSec e mantém o índice do segmento de origem', () => {
   const lines = splitLines([seg('a b c d', 0, 1), seg('e f g h', 10, 1)], { maxSec: 2 });
-  assert.deepEqual(lines.map((l) => [l.seg, l.text]), [[0, 'a b'], [0, 'c d'], [1, 'e f'], [1, 'g h']]);
+  assert.deepEqual(
+    lines.map((l) => [l.seg, l.text]),
+    [
+      [0, 'a b'],
+      [0, 'c d'],
+      [1, 'e f'],
+      [1, 'g h'],
+    ],
+  );
 });
 
 test('entrada vazia devolve lista vazia', () => {
@@ -78,14 +103,23 @@ test('entrada vazia devolve lista vazia', () => {
 });
 
 // --- achados da revisão final ---
-const bare = (text, start, per = 0.5) => { const s = seg(text, start, per); s.words.forEach((w) => { w.w = w.w.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase(); }); return s; };
+const bare = (text, start, per = 0.5) => {
+  const s = seg(text, start, per);
+  s.words.forEach((w) => {
+    w.w = w.w.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
+  });
+  return s;
+};
 
 test('correção só de pontuação e maiúsculas aparece na linha, não as palavras antigas', () => {
   const s = seg('jesus disse vinde', 0);
   s.text = 'Jesus disse: vinde!';
   const lines = splitLines([s]);
   assert.equal(lines.map((l) => l.text).join(' '), 'Jesus disse: vinde!');
-  assert.deepEqual(lines[0].words.map((w) => w.t), ['Jesus', 'disse:', 'vinde!']);
+  assert.deepEqual(
+    lines[0].words.map((w) => w.t),
+    ['Jesus', 'disse:', 'vinde!'],
+  );
   assert.equal(lines[0].words[1].s, 0.5);
 });
 
@@ -97,6 +131,19 @@ test('quando o serviço devolve palavras sem pontuação, a linha usa a pontuaç
 });
 
 test('se a divisão em palavras do texto não bate com a do serviço, usa as palavras do serviço', () => {
-  const s = { start: 0, end: 2, text: 'Bem-vindo, irmãos', speaker: 'A', words: [{ w: 'Bem', s: 0, e: 0.5 }, { w: 'vindo', s: 0.5, e: 1 }, { w: 'irmãos', s: 1, e: 2 }] };
-  assert.deepEqual(splitLines([s])[0].words.map((w) => w.t), ['Bem', 'vindo', 'irmãos']);
+  const s = {
+    start: 0,
+    end: 2,
+    text: 'Bem-vindo, irmãos',
+    speaker: 'A',
+    words: [
+      { w: 'Bem', s: 0, e: 0.5 },
+      { w: 'vindo', s: 0.5, e: 1 },
+      { w: 'irmãos', s: 1, e: 2 },
+    ],
+  };
+  assert.deepEqual(
+    splitLines([s])[0].words.map((w) => w.t),
+    ['Bem', 'vindo', 'irmãos'],
+  );
 });

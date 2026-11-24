@@ -1,0 +1,10 @@
+node_modules
+data
+docs
+.venv-voz
+.venv-autosync
+package-lock.json
+public/css
+*.md
+*.html
+*.json

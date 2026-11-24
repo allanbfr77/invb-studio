@@ -5,8 +5,34 @@
 
   window.ClipEditorParts.preview = function (shared) {
     const {
-      st, v, upload, tm, root, commit, toast, api, segs, clip, fmtObj, isAud, stage, capEl, style, eff,
-      dur, outD, D, removedIn, ovsEl, esc, guides, dirty, segsIn, spTxt, undo, redo,
+      st,
+      v,
+      upload,
+      tm,
+      root,
+      commit,
+      toast,
+      api,
+      segs,
+      clip,
+      fmtObj,
+      isAud,
+      stage,
+      capEl,
+      style,
+      eff,
+      dur,
+      outD,
+      D,
+      removedIn,
+      ovsEl,
+      esc,
+      guides,
+      dirty,
+      segsIn,
+      spTxt,
+      undo,
+      redo,
     } = shared;
     // definidas em outra parte, mais adiante: chamadas pelo objeto comum na hora do uso
     const drawLeft = (...a) => shared.drawLeft(...a);
@@ -17,202 +43,648 @@
     /* Sincronia do áudio: a conferência é feita num trecho curto renderizado pelo servidor, do mesmo jeito que o arquivo final.
        (Tocar o som deslocado ao vivo no navegador não é confiável: cada navegador e cada saída de som atrasam de um jeito.) */
     let syTest = null; // janela do teste aberta
-    const closeSyTest = () => { if (!syTest) return; const vd = $('video', syTest); if (vd) { vd.pause(); if (vd.src) URL.revokeObjectURL(vd.src); } syTest.remove(); syTest = null; };
+    const closeSyTest = () => {
+      if (!syTest) return;
+      const vd = $('video', syTest);
+      if (vd) {
+        vd.pause();
+        if (vd.src) URL.revokeObjectURL(vd.src);
+      }
+      syTest.remove();
+      syTest = null;
+    };
     const runSyTest = async (btn) => {
-      const LEN = 8, at = Math.max(st.start, Math.min(Math.max(st.start, st.end - LEN), v.currentTime || st.start)), len = Math.min(LEN, st.end - at);
-      v.pause(); closeSyTest();
-      const old = btn.textContent; btn.disabled = true; btn.textContent = 'Preparando o teste…';
+      const LEN = 8,
+        at = Math.max(st.start, Math.min(Math.max(st.start, st.end - LEN), v.currentTime || st.start)),
+        len = Math.min(LEN, st.end - at);
+      v.pause();
+      closeSyTest();
+      const old = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Preparando o teste…';
       try {
-        const r = await fetch(`/api/uploads/${upload.id}/synctest?at=${at.toFixed(2)}&len=${len.toFixed(2)}&shift=${st.sync}`, { headers: { 'x-invb': '1' } });
-        if (!r.ok) { let m = 'Não consegui preparar o teste.'; try { m = (await r.json()).error || m; } catch { /* sem detalhe */ } throw new Error(m); }
+        const r = await fetch(
+          `/api/uploads/${upload.id}/synctest?at=${at.toFixed(2)}&len=${len.toFixed(2)}&shift=${st.sync}`,
+          { headers: { 'x-invb': '1' } },
+        );
+        if (!r.ok) {
+          let m = 'Não consegui preparar o teste.';
+          try {
+            m = (await r.json()).error || m;
+          } catch {
+            /* sem detalhe */
+          }
+          throw new Error(m);
+        }
         const url = URL.createObjectURL(await r.blob());
-        syTest = document.createElement('div'); syTest.className = 'dlx-syt';
+        syTest = document.createElement('div');
+        syTest.className = 'dlx-syt';
         syTest.innerHTML = `<div class="dlx-sytb" role="dialog" aria-label="Teste da sincronia"><h3>Teste da sincronia · ${syLabel(st.sync)}</h3><p>Trecho de ${Math.round(len)} s a partir de ${tm(at - st.start)}, igual ao que sai no arquivo. Olhe a boca e o som.</p><video controls autoplay loop playsinline></video><div class="dlx-syta"><button data-k="-0.05">Som 50 ms antes</button><button data-k="0.05">Som 50 ms depois</button><button data-k="x" class="pri">Fechar</button></div></div>`;
-        $('video', syTest).src = url; root.appendChild(syTest);
-        syTest.onclick = (e) => { if (e.target === syTest) closeSyTest(); };
-        $$('[data-k]', syTest).forEach((bt) => bt.onclick = () => { if (bt.dataset.k === 'x') return closeSyTest(); const sy = $('#dx-sy', root); st.sync = Math.max(-2, Math.min(2, Math.round((st.sync + +bt.dataset.k) * 100) / 100)); if (sy) sy.value = st.sync; const o = $('#dx-syv', root); if (o) o.textContent = syLabel(st.sync); commit(); const t = $('#dx-syt', root); if (t) runSyTest(t); });
-        $('video', syTest).play().catch(() => {});
-      } catch (e) { toast(e.message); }
-      btn.disabled = false; btn.textContent = old;
+        $('video', syTest).src = url;
+        root.appendChild(syTest);
+        syTest.onclick = (e) => {
+          if (e.target === syTest) closeSyTest();
+        };
+        $$('[data-k]', syTest).forEach(
+          (bt) =>
+            (bt.onclick = () => {
+              if (bt.dataset.k === 'x') return closeSyTest();
+              const sy = $('#dx-sy', root);
+              st.sync = Math.max(-2, Math.min(2, Math.round((st.sync + +bt.dataset.k) * 100) / 100));
+              if (sy) sy.value = st.sync;
+              const o = $('#dx-syv', root);
+              if (o) o.textContent = syLabel(st.sync);
+              commit();
+              const t = $('#dx-syt', root);
+              if (t) runSyTest(t);
+            }),
+        );
+        $('video', syTest)
+          .play()
+          .catch(() => {});
+      } catch (e) {
+        toast(e.message);
+      }
+      btn.disabled = false;
+      btn.textContent = old;
     };
     /* Sincronia automática: o servidor compara a boca com o som neste corte. Só mexe no ajuste quando a medida é segura;
        nos outros casos explica por que não deu e deixa o ajuste como estava. */
     const asy = { busy: false, msg: '', kind: '' };
     const runAutoSync = async (L) => {
-      if (asy.busy) return; asy.busy = true; asy.msg = ''; drawLeft();
+      if (asy.busy) return;
+      asy.busy = true;
+      asy.msg = '';
+      drawLeft();
       try {
         const r = await api(`/uploads/${upload.id}/autosync`, { json: { start: st.start, end: st.end } });
         if (r.needsCorrection) {
           // A sincronia da pregação já é aplicada na exportação: aqui fica só o que falta além dela.
           const x = Math.max(-2, Math.min(2, Math.round((r.shiftSec - (upload.audioShift || 0)) * 100) / 100));
-          st.sync = x; commit(); asy.kind = 'ok'; asy.msg = `${r.message} Ajuste aplicado: ${syLabel(x)}. Confira com Testar.`;
-        } else if (r.status === 'sincronizado' && upload.audioShift) { st.sync = Math.max(-2, Math.min(2, Math.round(-upload.audioShift * 100) / 100)); commit(); asy.kind = 'ok'; asy.msg = `${r.message} Como a pregação tem ajuste próprio, este corte recebe ${syLabel(st.sync)} para anular.`; }
-        else { asy.kind = r.status === 'sincronizado' ? 'ok' : 'warn'; asy.msg = r.message; }
-      } catch (e) { asy.kind = 'warn'; asy.msg = e.message; }
-      asy.busy = false; drawLeft();
+          st.sync = x;
+          commit();
+          asy.kind = 'ok';
+          asy.msg = `${r.message} Ajuste aplicado: ${syLabel(x)}. Confira com Testar.`;
+        } else if (r.status === 'sincronizado' && upload.audioShift) {
+          st.sync = Math.max(-2, Math.min(2, Math.round(-upload.audioShift * 100) / 100));
+          commit();
+          asy.kind = 'ok';
+          asy.msg = `${r.message} Como a pregação tem ajuste próprio, este corte recebe ${syLabel(st.sync)} para anular.`;
+        } else {
+          asy.kind = r.status === 'sincronizado' ? 'ok' : 'warn';
+          asy.msg = r.message;
+        }
+      } catch (e) {
+        asy.kind = 'warn';
+        asy.msg = e.message;
+      }
+      asy.busy = false;
+      drawLeft();
     };
-    const syLabel = (x) => { const ms = Math.round(x * 1000); return ms === 0 ? 'Sem ajuste' : (ms > 0 ? '+' : '−') + Math.abs(ms) + ' ms'; };
+    const syLabel = (x) => {
+      const ms = Math.round(x * 1000);
+      return ms === 0 ? 'Sem ajuste' : (ms > 0 ? '+' : '−') + Math.abs(ms) + ' ms';
+    };
 
     /* ----- palavras ----- */
-    const approx = (sg, text) => { const parts = text.split(/\s+/).filter(Boolean), tot = parts.reduce((a, x) => a + x.length, 0) || 1; let t0 = sg.t; return parts.map((x) => { const d = ((sg.end - sg.t) * x.length) / tot; const w = { t: x, s: t0, e: t0 + d, seg: sg.id }; t0 += d; return w; }); };
+    const approx = (sg, text) => {
+      const parts = text.split(/\s+/).filter(Boolean),
+        tot = parts.reduce((a, x) => a + x.length, 0) || 1;
+      let t0 = sg.t;
+      return parts.map((x) => {
+        const d = ((sg.end - sg.t) * x.length) / tot;
+        const w = { t: x, s: t0, e: t0 + d, seg: sg.id };
+        t0 += d;
+        return w;
+      });
+    };
     const gone = (w) => st.removed.some(([a, b]) => (w.s + w.e) / 2 >= a && (w.s + w.e) / 2 <= b);
-    shared.wordsDirty = true; let relCache = [];
-    const relWords = () => { // palavras do corte atual (tempo relativo), com edição/tradução e remoções
-      if (!shared.wordsDirty) return relCache; const out = [];
+    shared.wordsDirty = true;
+    let relCache = [];
+    const relWords = () => {
+      // palavras do corte atual (tempo relativo), com edição/tradução e remoções
+      if (!shared.wordsDirty) return relCache;
+      const out = [];
       for (const sg of segs) {
         if (sg.end <= st.start || sg.t >= st.end) continue;
         const ed = st.edits[sg.id];
-        const ws = ed !== undefined ? approx(sg, ed) : (shared.words.filter((w) => w.seg === sg.id).length ? shared.words.filter((w) => w.seg === sg.id) : approx(sg, sg.text));
-        for (const w of ws) if (w.t && w.e > st.start && w.s < st.end && !gone(w)) out.push({ t: w.t, s: Math.max(w.s, st.start) - st.start, e: Math.min(w.e, st.end) - st.start, seg: sg.id });
+        const ws =
+          ed !== undefined
+            ? approx(sg, ed)
+            : shared.words.filter((w) => w.seg === sg.id).length
+              ? shared.words.filter((w) => w.seg === sg.id)
+              : approx(sg, sg.text);
+        for (const w of ws)
+          if (w.t && w.e > st.start && w.s < st.end && !gone(w))
+            out.push({
+              t: w.t,
+              s: Math.max(w.s, st.start) - st.start,
+              e: Math.min(w.e, st.end) - st.start,
+              seg: sg.id,
+            });
       }
-      relCache = out; shared.wordsDirty = false; return out;
+      relCache = out;
+      shared.wordsDirty = false;
+      return out;
     };
-    api(`/uploads/${upload.id}/words?start=${Math.max(0, clip.start - 120).toFixed(2)}&end=${(clip.end + 120).toFixed(2)}&abs=1`).then((w) => { shared.words = w; shared.wordsDirty = true; paintCap(); if (st.panel === 'transcricao') drawDrawer(); })
-      .catch(() => toast('O servidor está desatualizado: reinicie-o (node server.js) para usar todas as funções do editor.'));
+    api(
+      `/uploads/${upload.id}/words?start=${Math.max(0, clip.start - 120).toFixed(2)}&end=${(clip.end + 120).toFixed(2)}&abs=1`,
+    )
+      .then((w) => {
+        shared.words = w;
+        shared.wordsDirty = true;
+        paintCap();
+        if (st.panel === 'transcricao') drawDrawer();
+      })
+      .catch(() =>
+        toast('O servidor está desatualizado: reinicie-o (node server.js) para usar todas as funções do editor.'),
+      );
 
     /* ----- prévia ----- */
-    const ratio = () => { const f = fmtObj(); return f[2] ? f[2] / f[3] : (v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 16 / 9); };
+    const ratio = () => {
+      const f = fmtObj();
+      return f[2] ? f[2] / f[3] : v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 16 / 9;
+    };
     const layoutStage = () => {
-      if (isAud) return; const r = ratio(), drawerW = st.panel ? 372 : 0, H = Math.min(window.innerHeight - 350, 560), W = Math.min(H * r, window.innerWidth - 283 - 83 - drawerW - 60);
-      stage.style.width = Math.max(160, W) + 'px'; stage.style.height = Math.max(100, W / r) + 'px'; v.style.filter = st.bw ? 'grayscale(1)' : ''; paintCap(); renderOverlays();
+      if (isAud) return;
+      const r = ratio(),
+        drawerW = st.panel ? 372 : 0,
+        H = Math.min(window.innerHeight - 350, 560),
+        W = Math.min(H * r, window.innerWidth - 283 - 83 - drawerW - 60);
+      stage.style.width = Math.max(160, W) + 'px';
+      stage.style.height = Math.max(100, W / r) + 'px';
+      v.style.filter = st.bw ? 'grayscale(1)' : '';
+      paintCap();
+      renderOverlays();
     };
     const relT = () => Math.max(0, (v.currentTime || 0) - st.start);
     function paintCap() {
-      if (isAud || !st.cap.on) { capEl.style.display = 'none'; return; }
-      const t = relT(), S = CSx.withWords(style(), st.cap.words), E = eff(), H = stage.clientHeight || 1, scale = H / 1080, ws = relWords(); let html = '';
+      if (isAud || !st.cap.on) {
+        capEl.style.display = 'none';
+        return;
+      }
+      const t = relT(),
+        S = CSx.withWords(style(), st.cap.words),
+        E = eff(),
+        H = stage.clientHeight || 1,
+        scale = H / 1080,
+        ws = relWords();
+      let html = '';
       if (S.mode === 'block') {
-        const by = new Map(); ws.forEach((w) => { if (!by.has(w.seg)) by.set(w.seg, []); by.get(w.seg).push(w); });
+        const by = new Map();
+        ws.forEach((w) => {
+          if (!by.has(w.seg)) by.set(w.seg, []);
+          by.get(w.seg).push(w);
+        });
         const rng = [...by.values()].map((a) => [a[0].s, a[a.length - 1].e + 0.05, a]);
-        const hit = rng.find((r) => r[0] <= t && t <= r[1]) || (v.paused ? rng.slice().sort((p, q) => Math.min(Math.abs(t - p[0]), Math.abs(t - p[1])) - Math.min(Math.abs(t - q[0]), Math.abs(t - q[1])))[0] : null);
+        const hit =
+          rng.find((r) => r[0] <= t && t <= r[1]) ||
+          (v.paused
+            ? rng
+                .slice()
+                .sort(
+                  (p, q) =>
+                    Math.min(Math.abs(t - p[0]), Math.abs(t - p[1])) - Math.min(Math.abs(t - q[0]), Math.abs(t - q[1])),
+                )[0]
+            : null);
         if (hit) html = capHTML(S, E, scale, [{ t: hit[2].map((w) => w.t).join(' ') }], -1, 0);
       } else {
         const chunks = CSx.chunkWords(ws, S).map((ch) => [ch[0].s, ch[ch.length - 1].e + 0.12, ch]);
-        const hit = chunks.find((r) => t >= r[0] && t <= r[1]) || (v.paused ? chunks.slice().sort((p, q) => Math.min(Math.abs(t - p[0]), Math.abs(t - p[1])) - Math.min(Math.abs(t - q[0]), Math.abs(t - q[1])))[0] : null);
-        if (hit) { const [a, b, ch] = hit; let act = 0; ch.forEach((w, i) => { if (w.s <= t) act = i; }); html = capHTML(S, E, scale, ch, act, clamp(((t - a) / Math.max(0.1, b - a)) * 100, 0, 100)); }
+        const hit =
+          chunks.find((r) => t >= r[0] && t <= r[1]) ||
+          (v.paused
+            ? chunks
+                .slice()
+                .sort(
+                  (p, q) =>
+                    Math.min(Math.abs(t - p[0]), Math.abs(t - p[1])) - Math.min(Math.abs(t - q[0]), Math.abs(t - q[1])),
+                )[0]
+            : null);
+        if (hit) {
+          const [a, b, ch] = hit;
+          let act = 0;
+          ch.forEach((w, i) => {
+            if (w.s <= t) act = i;
+          });
+          html = capHTML(S, E, scale, ch, act, clamp(((t - a) / Math.max(0.1, b - a)) * 100, 0, 100));
+        }
       }
-      if (!html) { capEl.style.display = 'none'; return; }
-      const fs = H * (st.cap.size / 288) * S.size, mv = st.format === '9:16' ? '14%' : '8%';
+      if (!html) {
+        capEl.style.display = 'none';
+        return;
+      }
+      const fs = H * (st.cap.size / 288) * S.size,
+        mv = st.format === '9:16' ? '14%' : '8%';
       capEl.style.cssText = `display:block;font-size:${fs}px;${st.cap.pos === 'top' ? 'top:7%;bottom:auto' : st.cap.pos === 'middle' ? 'top:50%;transform:translateY(-50%);bottom:auto' : 'bottom:' + mv}`;
       capEl.innerHTML = html;
     }
-    const goStart = () => { v.currentTime = st.start; };
-    v.addEventListener('loadedmetadata', () => { goStart(); layoutStage(); });
+    const goStart = () => {
+      v.currentTime = st.start;
+    };
+    v.addEventListener('loadedmetadata', () => {
+      goStart();
+      layoutStage();
+    });
 
     /* ----- linha do tempo: forma de onda do trecho, com sobra dos dois lados, e pontas para ajustar o começo e o fim ----- */
     const TPAD = 15; // segundos de sobra antes e depois do corte
     const trim = { a: 0, b: 1, peaks: null, key: '', drag: null };
     const trimX = (t) => clamp(((t - trim.a) / Math.max(0.01, trim.b - trim.a)) * 100, 0, 100);
-    function trimHead() { const ph = $('#dx-trph', root); if (ph) ph.style.left = trimX(v.currentTime || st.start) + '%'; }
+    function trimHead() {
+      const ph = $('#dx-trph', root);
+      if (ph) ph.style.left = trimX(v.currentTime || st.start) + '%';
+    }
     function drawTrim() {
-      const sel = $('#dx-trsel', root), cv = $('#dx-wave', root); if (!sel || !cv) return;
-      sel.style.left = trimX(st.start) + '%'; sel.style.width = Math.max(0, trimX(st.end) - trimX(st.start)) + '%';
-      $('#dx-trl', root).textContent = 'Começo ' + tmAbs(st.start); $('#dx-trr', root).textContent = 'Fim ' + tmAbs(st.end);
-      const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight; if (!W || !H) return;
-      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, W, H);
-      const css = getComputedStyle(root), inC = css.getPropertyValue('--primary').trim() || '#3d63ff', outC = css.getPropertyValue('--border-strong').trim() || '#666';
-      const pk = trim.peaks; if (!pk) return; const bw = W / pk.length, x0 = (trimX(st.start) / 100) * W, x1 = (trimX(st.end) / 100) * W;
-      for (let i = 0; i < pk.length; i++) { const x = i * bw, h = Math.max(2, pk[i] * (H - 6)); g.fillStyle = x + bw / 2 >= x0 && x + bw / 2 <= x1 ? inC : outC; g.fillRect(x, (H - h) / 2, Math.max(1, bw - 1), h); }
+      const sel = $('#dx-trsel', root),
+        cv = $('#dx-wave', root);
+      if (!sel || !cv) return;
+      sel.style.left = trimX(st.start) + '%';
+      sel.style.width = Math.max(0, trimX(st.end) - trimX(st.start)) + '%';
+      $('#dx-trl', root).textContent = 'Começo ' + tmAbs(st.start);
+      $('#dx-trr', root).textContent = 'Fim ' + tmAbs(st.end);
+      const dpr = window.devicePixelRatio || 1,
+        W = cv.clientWidth,
+        H = cv.clientHeight;
+      if (!W || !H) return;
+      cv.width = Math.round(W * dpr);
+      cv.height = Math.round(H * dpr);
+      const g = cv.getContext('2d');
+      g.scale(dpr, dpr);
+      g.clearRect(0, 0, W, H);
+      const css = getComputedStyle(root),
+        inC = css.getPropertyValue('--primary').trim() || '#3d63ff',
+        outC = css.getPropertyValue('--border-strong').trim() || '#666';
+      const pk = trim.peaks;
+      if (!pk) return;
+      const bw = W / pk.length,
+        x0 = (trimX(st.start) / 100) * W,
+        x1 = (trimX(st.end) / 100) * W;
+      for (let i = 0; i < pk.length; i++) {
+        const x = i * bw,
+          h = Math.max(2, pk[i] * (H - 6));
+        g.fillStyle = x + bw / 2 >= x0 && x + bw / 2 <= x1 ? inC : outC;
+        g.fillRect(x, (H - h) / 2, Math.max(1, bw - 1), h);
+      }
       trimHead();
     }
     // horas:minutos:segundos com décimo, no tempo da pregação inteira (é o que a equipe anota na minutagem)
-    const tmAbs = (s) => { s = Math.max(0, Math.round(s * 10) / 10); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s - h * 3600 - m * 60; return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + (x < 10 ? '0' : '') + x.toFixed(1).replace('.', ','); };
+    const tmAbs = (s) => {
+      s = Math.max(0, Math.round(s * 10) / 10);
+      const h = Math.floor(s / 3600),
+        m = Math.floor((s % 3600) / 60),
+        x = s - h * 3600 - m * 60;
+      return (
+        (h ? h + ':' + String(m).padStart(2, '0') : String(m)) +
+        ':' +
+        (x < 10 ? '0' : '') +
+        x.toFixed(1).replace('.', ',')
+      );
+    };
     async function loadTrim() {
       if (trim.drag) return drawTrim();
-      trim.a = Math.max(0, st.start - TPAD); trim.b = Math.min(dur, st.end + TPAD);
-      const key = trim.a.toFixed(1) + '-' + trim.b.toFixed(1); if (key === trim.key) return drawTrim();
-      trim.key = key; trim.peaks = null; drawTrim();
-      try { const r = await api(`/uploads/${upload.id}/peaks?start=${trim.a.toFixed(2)}&end=${trim.b.toFixed(2)}&n=300`); if (trim.key === key) { trim.peaks = r.peaks; drawTrim(); } } catch { /* sem a onda, as pontas continuam funcionando */ }
+      trim.a = Math.max(0, st.start - TPAD);
+      trim.b = Math.min(dur, st.end + TPAD);
+      const key = trim.a.toFixed(1) + '-' + trim.b.toFixed(1);
+      if (key === trim.key) return drawTrim();
+      trim.key = key;
+      trim.peaks = null;
+      drawTrim();
+      try {
+        const r = await api(`/uploads/${upload.id}/peaks?start=${trim.a.toFixed(2)}&end=${trim.b.toFixed(2)}&n=300`);
+        if (trim.key === key) {
+          trim.peaks = r.peaks;
+          drawTrim();
+        }
+      } catch {
+        /* sem a onda, as pontas continuam funcionando */
+      }
     }
-    const trimSet = (h, t) => { if (h === 's') st.start = +clamp(t, 0, st.end - 1).toFixed(2); else st.end = +clamp(t, st.start + 1, dur).toFixed(2); v.currentTime = h === 's' ? st.start : st.end; drawTrim(); const t0 = $('#dx-t1', root); if (t0) t0.textContent = tm(outD()); };
-    const trimDone = (h) => { trim.drag = null; shared.wordsDirty = true; commit(); reloadAll(); if (h === 'e') v.currentTime = Math.max(st.start, st.end - 2); }; // depois de mexer no fim, volta 2 s para ouvir como termina
+    const trimSet = (h, t) => {
+      if (h === 's') st.start = +clamp(t, 0, st.end - 1).toFixed(2);
+      else st.end = +clamp(t, st.start + 1, dur).toFixed(2);
+      v.currentTime = h === 's' ? st.start : st.end;
+      drawTrim();
+      const t0 = $('#dx-t1', root);
+      if (t0) t0.textContent = tm(outD());
+    };
+    const trimDone = (h) => {
+      trim.drag = null;
+      shared.wordsDirty = true;
+      commit();
+      reloadAll();
+      if (h === 'e') v.currentTime = Math.max(st.start, st.end - 2);
+    }; // depois de mexer no fim, volta 2 s para ouvir como termina
     {
-      const box = $('#dx-trim', root), at = (e) => { const r = box.getBoundingClientRect(); return trim.a + clamp((e.clientX - r.left) / Math.max(1, r.width), 0, 1) * (trim.b - trim.a); };
+      const box = $('#dx-trim', root),
+        at = (e) => {
+          const r = box.getBoundingClientRect();
+          return trim.a + clamp((e.clientX - r.left) / Math.max(1, r.width), 0, 1) * (trim.b - trim.a);
+        };
       $$('.h', box).forEach((hd) => {
         const h = hd.dataset.h;
-        hd.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); v.pause(); trim.drag = h; hd.setPointerCapture(e.pointerId); });
-        hd.addEventListener('pointermove', (e) => { if (trim.drag === h) trimSet(h, at(e)); });
-        const end = () => { if (trim.drag === h) trimDone(h); };
-        hd.addEventListener('pointerup', end); hd.addEventListener('pointercancel', end);
-        hd.addEventListener('keydown', (e) => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; e.preventDefault(); e.stopPropagation(); v.pause(); trimSet(h, (h === 's' ? st.start : st.end) + (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 1 : 0.1)); clearTimeout(trim.kt); trim.kt = setTimeout(() => trimDone(h), 600); });
+        hd.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          v.pause();
+          trim.drag = h;
+          hd.setPointerCapture(e.pointerId);
+        });
+        hd.addEventListener('pointermove', (e) => {
+          if (trim.drag === h) trimSet(h, at(e));
+        });
+        const end = () => {
+          if (trim.drag === h) trimDone(h);
+        };
+        hd.addEventListener('pointerup', end);
+        hd.addEventListener('pointercancel', end);
+        hd.addEventListener('keydown', (e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+          e.preventDefault();
+          e.stopPropagation();
+          v.pause();
+          trimSet(h, (h === 's' ? st.start : st.end) + (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 1 : 0.1));
+          clearTimeout(trim.kt);
+          trim.kt = setTimeout(() => trimDone(h), 600);
+        });
       });
-      box.addEventListener('pointerdown', (e) => { if (e.target.closest('.h')) return; const t = at(e); if (t >= st.start && t <= st.end) v.currentTime = t; });
+      box.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.h')) return;
+        const t = at(e);
+        if (t >= st.start && t <= st.end) v.currentTime = t;
+      });
       window.addEventListener('resize', drawTrim);
     }
-    const tickUI = () => { trimHead(); const t = relT(); $('#dx-seek', root).max = D().toFixed(2); $('#dx-seek', root).value = t; $('#dx-t0', root).textContent = tm(Math.max(0, t - removedIn(st.start, st.start + t)) / (st.speed || 1)); $('#dx-t1', root).textContent = tm(outD()); };
+    const tickUI = () => {
+      trimHead();
+      const t = relT();
+      $('#dx-seek', root).max = D().toFixed(2);
+      $('#dx-seek', root).value = t;
+      $('#dx-t0', root).textContent = tm(Math.max(0, t - removedIn(st.start, st.start + t)) / (st.speed || 1));
+      $('#dx-t1', root).textContent = tm(outD());
+    };
     v.addEventListener('timeupdate', () => {
-      if (v.currentTime >= st.end - 0.05 && !v.paused) { v.pause(); goStart(); }
+      if (v.currentTime >= st.end - 0.05 && !v.paused) {
+        v.pause();
+        goStart();
+      }
       if (v.currentTime < st.start - 0.3) goStart();
       // A prévia pula os trechos removidos (os marcados à mão; palavras soltas são curtas demais para pular com precisão).
-      if (!v.paused) { const r = st.removed.find((x) => x[2] && v.currentTime >= x[0] && v.currentTime < x[1] - 0.05); if (r) v.currentTime = Math.min(r[1], st.end); }
-      tickUI(); paintCap(); updateOvVisibility(); $('#dx-play', root).style.opacity = v.paused ? 1 : 0;
+      if (!v.paused) {
+        const r = st.removed.find((x) => x[2] && v.currentTime >= x[0] && v.currentTime < x[1] - 0.05);
+        if (r) v.currentTime = Math.min(r[1], st.end);
+      }
+      tickUI();
+      paintCap();
+      updateOvVisibility();
+      $('#dx-play', root).style.opacity = v.paused ? 1 : 0;
     });
-    v.addEventListener('pause', () => ($('#dx-play', root).style.opacity = 1)); v.addEventListener('play', () => ($('#dx-play', root).style.opacity = 0));
+    v.addEventListener('pause', () => ($('#dx-play', root).style.opacity = 1));
+    v.addEventListener('play', () => ($('#dx-play', root).style.opacity = 0));
     const toggle = () => (v.paused ? v.play().catch(() => {}) : v.pause());
     $('#dx-play', root).onclick = toggle;
-    $('#dx-seek', root).oninput = (e) => { v.currentTime = st.start + +e.target.value; };
+    $('#dx-seek', root).oninput = (e) => {
+      v.currentTime = st.start + +e.target.value;
+    };
     window.addEventListener('resize', layoutStage);
 
     /* ----- overlays (texto/imagem) sobre o quadro ----- */
     const ovById = (id) => st.overlays.find((o) => o.id === id);
-    const visibleAt = (o, t) => !o.hidden && (v.paused || ((o.start === null || t >= o.start) && (o.end === null || t <= o.end)));
+    const visibleAt = (o, t) =>
+      !o.hidden && (v.paused || ((o.start === null || t >= o.start) && (o.end === null || t <= o.end)));
     function renderOverlays() {
-      const H = stage.clientHeight || 1, W = stage.clientWidth || 1;
-      ovsEl.innerHTML = st.overlays.map((o) => {
-        const sel = st.sel === o.id, pos = `left:${o.x * 100}%;top:${o.y * 100}%`;
-        if (o.type === 'image') return `<div class="dlx-ov ${sel ? 'sel' : ''}" data-id="${o.id}" style="${pos};width:${o.w * 100}%;opacity:${st.tools.xray ? 0.35 : o.op};${o.hidden ? 'display:none' : ''}"><img src="/api/library/${o.imgId}/file" alt="" draggable="false"><i class="dlx-h" data-h="1"></i></div>`;
-        const sty = [`font-size:${o.size * H}px`, `color:${o.color}`, `font-family:'${o.font}',Arial,sans-serif`, `font-weight:${o.bold ? 800 : 500}`, o.italic ? 'font-style:italic' : '', o.box ? `background:${o.box.color}${Math.round((1 - o.box.alpha) * 255).toString(16).padStart(2, '0')};padding:.15em .45em;border-radius:6px` : '', o.outline && !o.box ? `-webkit-text-stroke:${o.outline.w * 2 * (H / 1080)}px ${o.outline.color};paint-order:stroke fill` : ''].filter(Boolean).join(';');
-        return `<div class="dlx-ov dlx-ovt ${sel ? 'sel' : ''}" data-id="${o.id}" style="${pos};${o.hidden ? 'display:none;' : ''}opacity:${st.tools.xray ? 0.35 : 1}"><span style="${sty}">${esc(o.upper ? o.text.toUpperCase() : o.text)}</span><i class="dlx-h" data-h="1"></i></div>`;
-      }).join('');
-      stage.classList.toggle('axes', st.tools.axes); stage.classList.toggle('ruler', st.tools.ruler);
-      refreshBar(); updateOvVisibility();
+      const H = stage.clientHeight || 1,
+        W = stage.clientWidth || 1;
+      ovsEl.innerHTML = st.overlays
+        .map((o) => {
+          const sel = st.sel === o.id,
+            pos = `left:${o.x * 100}%;top:${o.y * 100}%`;
+          if (o.type === 'image')
+            return `<div class="dlx-ov ${sel ? 'sel' : ''}" data-id="${o.id}" style="${pos};width:${o.w * 100}%;opacity:${st.tools.xray ? 0.35 : o.op};${o.hidden ? 'display:none' : ''}"><img src="/api/library/${o.imgId}/file" alt="" draggable="false"><i class="dlx-h" data-h="1"></i></div>`;
+          const sty = [
+            `font-size:${o.size * H}px`,
+            `color:${o.color}`,
+            `font-family:'${o.font}',Arial,sans-serif`,
+            `font-weight:${o.bold ? 800 : 500}`,
+            o.italic ? 'font-style:italic' : '',
+            o.box
+              ? `background:${o.box.color}${Math.round((1 - o.box.alpha) * 255)
+                  .toString(16)
+                  .padStart(2, '0')};padding:.15em .45em;border-radius:6px`
+              : '',
+            o.outline && !o.box
+              ? `-webkit-text-stroke:${o.outline.w * 2 * (H / 1080)}px ${o.outline.color};paint-order:stroke fill`
+              : '',
+          ]
+            .filter(Boolean)
+            .join(';');
+          return `<div class="dlx-ov dlx-ovt ${sel ? 'sel' : ''}" data-id="${o.id}" style="${pos};${o.hidden ? 'display:none;' : ''}opacity:${st.tools.xray ? 0.35 : 1}"><span style="${sty}">${esc(o.upper ? o.text.toUpperCase() : o.text)}</span><i class="dlx-h" data-h="1"></i></div>`;
+        })
+        .join('');
+      stage.classList.toggle('axes', st.tools.axes);
+      stage.classList.toggle('ruler', st.tools.ruler);
+      refreshBar();
+      updateOvVisibility();
     }
-    function updateOvVisibility() { const t = relT(); $$('.dlx-ov', ovsEl).forEach((e) => { const o = ovById(e.dataset.id); if (o) e.style.display = visibleAt(o, t) ? '' : 'none'; }); }
+    function updateOvVisibility() {
+      const t = relT();
+      $$('.dlx-ov', ovsEl).forEach((e) => {
+        const o = ovById(e.dataset.id);
+        if (o) e.style.display = visibleAt(o, t) ? '' : 'none';
+      });
+    }
     // arrastar / redimensionar
     let drag = null;
     ovsEl.addEventListener('pointerdown', (e) => {
-      const el = e.target.closest('.dlx-ov'); if (!el) return; const o = ovById(el.dataset.id); st.sel = o.id; e.preventDefault(); e.stopPropagation();
+      const el = e.target.closest('.dlx-ov');
+      if (!el) return;
+      const o = ovById(el.dataset.id);
+      st.sel = o.id;
+      e.preventDefault();
+      e.stopPropagation();
       $$('.dlx-ov', ovsEl).forEach((x) => x.classList.toggle('sel', x === el));
-      const r = stage.getBoundingClientRect(); drag = { o, el, resize: !!e.target.dataset.h, r, x0: e.clientX, y0: e.clientY, ox: o.x, oy: o.y, ow: o.w, os: o.size, moved: false };
-      el.setPointerCapture(e.pointerId); if (st.panel === 'midia' || st.panel === 'texto' || st.panel === 'camadas') drawDrawer();
+      const r = stage.getBoundingClientRect();
+      drag = {
+        o,
+        el,
+        resize: !!e.target.dataset.h,
+        r,
+        x0: e.clientX,
+        y0: e.clientY,
+        ox: o.x,
+        oy: o.y,
+        ow: o.w,
+        os: o.size,
+        moved: false,
+      };
+      el.setPointerCapture(e.pointerId);
+      if (st.panel === 'midia' || st.panel === 'texto' || st.panel === 'camadas') drawDrawer();
     });
     ovsEl.addEventListener('pointermove', (e) => {
-      if (!drag) return; const { o, el, r } = drag, dx = (e.clientX - drag.x0) / r.width, dy = (e.clientY - drag.y0) / r.height; drag.moved = true; guides.innerHTML = '';
-      if (drag.resize) { if (o.type === 'image') { o.w = clamp(drag.ow + dx * 2, 0.04, 1); el.style.width = o.w * 100 + '%'; } else { o.size = clamp(drag.os + dy * 0.6, 0.02, 0.3); const sp = $('span', el); if (sp) sp.style.fontSize = o.size * (stage.clientHeight || 1) + 'px'; } return; }
-      let nx = clamp(drag.ox + dx, 0, 1), ny = clamp(drag.oy + dy, 0, 1); const gs = [];
-      if (st.tools.snap) { for (const g of [0.5, 0.1, 0.9]) { if (Math.abs(nx - g) < 0.015) { nx = g; gs.push(['v', g]); } if (Math.abs(ny - g) < 0.015) { ny = g; gs.push(['h', g]); } } }
-      o.x = nx; o.y = ny; el.style.left = nx * 100 + '%'; el.style.top = ny * 100 + '%';
-      guides.innerHTML = gs.map(([k, g]) => `<i class="${k === 'v' ? 'gv' : 'gh'}" style="${k === 'v' ? 'left' : 'top'}:${g * 100}%"></i>`).join('');
+      if (!drag) return;
+      const { o, el, r } = drag,
+        dx = (e.clientX - drag.x0) / r.width,
+        dy = (e.clientY - drag.y0) / r.height;
+      drag.moved = true;
+      guides.innerHTML = '';
+      if (drag.resize) {
+        if (o.type === 'image') {
+          o.w = clamp(drag.ow + dx * 2, 0.04, 1);
+          el.style.width = o.w * 100 + '%';
+        } else {
+          o.size = clamp(drag.os + dy * 0.6, 0.02, 0.3);
+          const sp = $('span', el);
+          if (sp) sp.style.fontSize = o.size * (stage.clientHeight || 1) + 'px';
+        }
+        return;
+      }
+      let nx = clamp(drag.ox + dx, 0, 1),
+        ny = clamp(drag.oy + dy, 0, 1);
+      const gs = [];
+      if (st.tools.snap) {
+        for (const g of [0.5, 0.1, 0.9]) {
+          if (Math.abs(nx - g) < 0.015) {
+            nx = g;
+            gs.push(['v', g]);
+          }
+          if (Math.abs(ny - g) < 0.015) {
+            ny = g;
+            gs.push(['h', g]);
+          }
+        }
+      }
+      o.x = nx;
+      o.y = ny;
+      el.style.left = nx * 100 + '%';
+      el.style.top = ny * 100 + '%';
+      guides.innerHTML = gs
+        .map(([k, g]) => `<i class="${k === 'v' ? 'gv' : 'gh'}" style="${k === 'v' ? 'left' : 'top'}:${g * 100}%"></i>`)
+        .join('');
     });
-    const endDrag = () => { if (!drag) return; const m = drag.moved; drag = null; guides.innerHTML = ''; if (m) commit(); };
-    ovsEl.addEventListener('pointerup', endDrag); ovsEl.addEventListener('pointercancel', endDrag);
-    stage.addEventListener('pointerdown', (e) => { if (e.target.closest('.dlx-ov') || e.target === $('#dx-play', root)) return; if (st.sel) { st.sel = null; renderOverlays(); if (['midia', 'texto', 'camadas'].includes(st.panel)) drawDrawer(); } toggle(); });
-    const addOverlay = (o) => { st.overlays.push({ id: rid(), x: 0.5, y: 0.5, start: null, end: null, hidden: false, ...o }); st.sel = st.overlays[st.overlays.length - 1].id; commit(); renderOverlays(); drawDrawer(); };
-    const delOverlay = (id) => { st.overlays = st.overlays.filter((o) => o.id !== id); if (st.sel === id) st.sel = null; commit(); renderOverlays(); drawDrawer(); };
+    const endDrag = () => {
+      if (!drag) return;
+      const m = drag.moved;
+      drag = null;
+      guides.innerHTML = '';
+      if (m) commit();
+    };
+    ovsEl.addEventListener('pointerup', endDrag);
+    ovsEl.addEventListener('pointercancel', endDrag);
+    stage.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.dlx-ov') || e.target === $('#dx-play', root)) return;
+      if (st.sel) {
+        st.sel = null;
+        renderOverlays();
+        if (['midia', 'texto', 'camadas'].includes(st.panel)) drawDrawer();
+      }
+      toggle();
+    });
+    const addOverlay = (o) => {
+      st.overlays.push({ id: rid(), x: 0.5, y: 0.5, start: null, end: null, hidden: false, ...o });
+      st.sel = st.overlays[st.overlays.length - 1].id;
+      commit();
+      renderOverlays();
+      drawDrawer();
+    };
+    const delOverlay = (id) => {
+      st.overlays = st.overlays.filter((o) => o.id !== id);
+      if (st.sel === id) st.sel = null;
+      commit();
+      renderOverlays();
+      drawDrawer();
+    };
 
     /* ----- barra de ferramentas da prévia ----- */
-    const TB = [['undo', 'Desfazer', '<path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/>'], ['redo', 'Refazer', '<path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/>'], ['snap', 'Ímã: encaixar nas guias', '<path d="M6 3v8a6 6 0 0012 0V3M6 7h4M14 7h4"/>'], ['xray', 'Raio-X: ver o que está embaixo (X)', '<circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/>'], ['axes', 'Eixos centrais', '<path d="M12 3v18M3 12h18"/>'], ['ruler', 'Régua', '<path d="M3 17L17 3l4 4L7 21zM8 12l2 2M11 9l2 2M14 6l2 2"/>'], ['center', 'Centralizar no quadro', '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/>'], ['keys', 'Atalhos do teclado', '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>']];
-    $('#dx-tools', root).innerHTML = TB.map((b) => `<button data-t="${b[0]}" aria-label="${b[1]}" title="${b[1]}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${b[2]}</svg></button>`).join('');
+    const TB = [
+      ['undo', 'Desfazer', '<path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/>'],
+      ['redo', 'Refazer', '<path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/>'],
+      ['snap', 'Ímã: encaixar nas guias', '<path d="M6 3v8a6 6 0 0012 0V3M6 7h4M14 7h4"/>'],
+      [
+        'xray',
+        'Raio-X: ver o que está embaixo (X)',
+        '<circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/>',
+      ],
+      ['axes', 'Eixos centrais', '<path d="M12 3v18M3 12h18"/>'],
+      ['ruler', 'Régua', '<path d="M3 17L17 3l4 4L7 21zM8 12l2 2M11 9l2 2M14 6l2 2"/>'],
+      ['center', 'Centralizar no quadro', '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/>'],
+      [
+        'keys',
+        'Atalhos do teclado',
+        '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>',
+      ],
+    ];
+    $('#dx-tools', root).innerHTML = TB.map(
+      (b) =>
+        `<button data-t="${b[0]}" aria-label="${b[1]}" title="${b[1]}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${b[2]}</svg></button>`,
+    ).join('');
     function refreshBar() {
-      const sb = $('#dx-save', root); if (sb) { const d = dirty(); sb.textContent = d ? 'Salvar edição' : clip.editor ? '✓ Edição salva' : 'Salvar edição'; sb.disabled = !d; sb.style.opacity = d ? 1 : 0.6; }
-      const b = (k) => $(`[data-t="${k}"]`, root); if (!b('undo')) return;
-      b('undo').disabled = st.hist.length < 2; b('redo').disabled = !st.fut.length;
+      const sb = $('#dx-save', root);
+      if (sb) {
+        const d = dirty();
+        sb.textContent = d ? 'Salvar edição' : clip.editor ? '✓ Edição salva' : 'Salvar edição';
+        sb.disabled = !d;
+        sb.style.opacity = d ? 1 : 0.6;
+      }
+      const b = (k) => $(`[data-t="${k}"]`, root);
+      if (!b('undo')) return;
+      b('undo').disabled = st.hist.length < 2;
+      b('redo').disabled = !st.fut.length;
       ['snap', 'xray', 'axes', 'ruler'].forEach((k) => b(k).classList.toggle('on', st.tools[k]));
       b('center').disabled = !st.sel;
-      const n = st.overlays.filter((o) => o.type === 'image').length; $('#dx-media', root).textContent = `Mídia: ${n}`;
+      const n = st.overlays.filter((o) => o.type === 'image').length;
+      $('#dx-media', root).textContent = `Mídia: ${n}`;
       $('#dx-chip', root).textContent = isAud ? 'só áudio' : st.cap.on ? 'com legendas' : 'sem legendas';
-      $('#dx-q', root).textContent = `“${segsIn().map((s) => s.text).join(' ')}” · ${tm(outD())}${st.speed !== 1 ? ` em ${spTxt(st.speed)} (original: ${tm(D())})` : Math.abs(outD() - D()) >= 0.05 ? ` (original: ${tm(D())})` : ''}`;
+      $('#dx-q', root).textContent = `“${segsIn()
+        .map((s) => s.text)
+        .join(
+          ' ',
+        )}” · ${tm(outD())}${st.speed !== 1 ? ` em ${spTxt(st.speed)} (original: ${tm(D())})` : Math.abs(outD() - D()) >= 0.05 ? ` (original: ${tm(D())})` : ''}`;
     }
-    const shortcuts = () => { const m = document.createElement('div'); m.className = 'modal-bg'; m.style.zIndex = 130; m.innerHTML = `<div class="modal"><h3>Atalhos do teclado</h3><p>Valem com o editor aberto.</p><table class="tbl"><tr><td><b>Espaço</b></td><td>Reproduzir / pausar</td></tr><tr><td><b>Ctrl+Z</b> · <b>Ctrl+Y</b></td><td>Desfazer · refazer</td></tr><tr><td><b>Setas</b></td><td>Mover o item selecionado (Shift = passo maior)</td></tr><tr><td><b>Delete</b></td><td>Excluir o item selecionado</td></tr><tr><td><b>X</b></td><td>Raio-X (ver o que está embaixo)</td></tr><tr><td><b>Esc</b></td><td>Desmarcar · fechar</td></tr></table><div class="ft"><button class="ap-btn pri" data-x>Fechar</button></div></div>`; document.body.appendChild(m); m.onclick = (e) => { if (e.target === m || e.target.dataset.x !== undefined) m.remove(); }; };
+    const shortcuts = () => {
+      const m = document.createElement('div');
+      m.className = 'modal-bg';
+      m.style.zIndex = 130;
+      m.innerHTML = `<div class="modal"><h3>Atalhos do teclado</h3><p>Valem com o editor aberto.</p><table class="tbl"><tr><td><b>Espaço</b></td><td>Reproduzir / pausar</td></tr><tr><td><b>Ctrl+Z</b> · <b>Ctrl+Y</b></td><td>Desfazer · refazer</td></tr><tr><td><b>Setas</b></td><td>Mover o item selecionado (Shift = passo maior)</td></tr><tr><td><b>Delete</b></td><td>Excluir o item selecionado</td></tr><tr><td><b>X</b></td><td>Raio-X (ver o que está embaixo)</td></tr><tr><td><b>Esc</b></td><td>Desmarcar · fechar</td></tr></table><div class="ft"><button class="ap-btn pri" data-x>Fechar</button></div></div>`;
+      document.body.appendChild(m);
+      m.onclick = (e) => {
+        if (e.target === m || e.target.dataset.x !== undefined) m.remove();
+      };
+    };
     $('#dx-tools', root).onclick = (e) => {
-      const b = e.target.closest('button'); if (!b || b.disabled) return; const k = b.dataset.t;
-      if (k === 'undo') undo(); else if (k === 'redo') redo(); else if (k === 'keys') shortcuts();
-      else if (k === 'center') { const o = ovById(st.sel); if (o) { o.x = 0.5; o.y = 0.5; commit(); renderOverlays(); } }
-      else { st.tools[k] = !st.tools[k]; renderOverlays(); }
+      const b = e.target.closest('button');
+      if (!b || b.disabled) return;
+      const k = b.dataset.t;
+      if (k === 'undo') undo();
+      else if (k === 'redo') redo();
+      else if (k === 'keys') shortcuts();
+      else if (k === 'center') {
+        const o = ovById(st.sel);
+        if (o) {
+          o.x = 0.5;
+          o.y = 0.5;
+          commit();
+          renderOverlays();
+        }
+      } else {
+        st.tools[k] = !st.tools[k];
+        renderOverlays();
+      }
     };
 
     Object.assign(shared, {
-      syLabel, asy, layoutStage, tickUI, runSyTest, runAutoSync, ovById, delOverlay, approx, gone,
-      goStart, addOverlay, closeSyTest, toggle,
+      syLabel,
+      asy,
+      layoutStage,
+      tickUI,
+      runSyTest,
+      runAutoSync,
+      ovById,
+      delOverlay,
+      approx,
+      gone,
+      goStart,
+      addOverlay,
+      closeSyTest,
+      toggle,
     });
   };
 })();
