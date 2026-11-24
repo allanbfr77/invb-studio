@@ -8,7 +8,7 @@
       st, v, upload, tm, root, commit, toast, api, segs, clip, fmtObj, isAud, stage, capEl, style, eff,
       dur, outD, D, removedIn, ovsEl, esc, guides, dirty, segsIn, spTxt, undo, redo,
     } = shared;
-    // definidas em outra parte, mais adiante: chamadas por "shared" na hora do uso
+    // definidas em outra parte, mais adiante: chamadas pelo objeto comum na hora do uso
     const drawLeft = (...a) => shared.drawLeft(...a);
     const drawDrawer = (...a) => shared.drawDrawer(...a);
     const reloadAll = (...a) => shared.reloadAll(...a);

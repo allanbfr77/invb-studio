@@ -34,13 +34,13 @@
     return `<span style="${capCss(style, eff, scale)};display:inline-block;max-width:100%">${ws.map(span).join(' ')}</span>`;
   }
 
-  // O editor tem três arquivos: este (estado, estrutura, salvar e exportar), preview.js (prévia, linha do tempo e
-  // imagens sobre o vídeo) e panels.js (painel da esquerda e gavetas da direita). As partes dividem o objeto "shared".
+  // O editor tem quatro arquivos: este (estado, estrutura, salvar e exportar), preview.js (prévia, linha do tempo e
+  // imagens sobre o vídeo), left.js (painel da esquerda) e drawers.js (gavetas da direita). As partes dividem o objeto "shared".
   const Parts = window.ClipEditorParts = { base: { $, $$, CSx, capHTML, clamp, rid, FORMATS, FORMAT_ICON, SAMPLE, FAV, EP } };
 
   function open(ctx) {
-    const shared = {}; // o que as partes do editor dividem entre si
-    // funções de preview.js e panels.js, chamadas por "shared" na hora do uso
+    const shared = {}; // o que as partes dividem entre si
+    // funções das outras partes, chamadas pelo objeto comum na hora do uso
     const refreshBar = (...a) => shared.refreshBar(...a);
     const drawDrawer = (...a) => shared.drawDrawer(...a);
     const layoutStage = (...a) => shared.layoutStage(...a);
@@ -128,7 +128,7 @@
       dur, outD, reloadAll, D, removedIn, ovsEl, esc, guides, dirty, segsIn, spTxt, undo, redo,
       outSize, ctx, render,
     });
-    Parts.preview(shared); Parts.panels(shared);
+    Parts.preview(shared); Parts.left(shared); Parts.drawers(shared);
 
     $$('.dlx-rail button', root).forEach((b) => b.onclick = () => { if (b.disabled) return; clearInterval(st.animT); st.panel = st.panel === b.dataset.p ? null : b.dataset.p; drawDrawer(); layoutStage(); });
     $('#dx-media', root).onclick = () => { st.panel = 'midia'; drawDrawer(); layoutStage(); };

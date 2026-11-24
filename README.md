@@ -175,16 +175,17 @@ app. Cada análise leva de 25 a 45 segundos. Detalhes, testes e limitações em 
   - `lib/media.js`: o vídeo original (YouTube, Drive, cópia de prévia, capa, limpeza).
   - `lib/transcribe.js`: transcrição local ou na nuvem e o passo a passo de uma pregação nova.
   - `lib/render.js`: exportação do corte com o ffmpeg.
-  - `lib/routes.js` e `lib/routes-clips.js`: as rotas da API (as de cortes e IA ficam no segundo).
+  - `lib/routes.js`: as rotas da API. As do vídeo e da sincronia ficam em `lib/routes-media.js`; as de cortes e IA, em `lib/routes-clips.js`.
 - Onde fica cada tela (`public/app/`, carregadas nessa ordem pelo `index.html`; conversam pelo objeto `window.INVB`):
   - `core.js`: atalhos de DOM, ícones, estado, chamadas ao servidor, avisos, janelas e menus.
   - `shell.js`: o vídeo e o player de baixo, o menu lateral e os atalhos I/O.
   - `home.js`: início, lista de pregações, envio do link ou arquivo, resumo e a tela de entrada.
-  - `transcript.js`: transcrição. `clips.js`: cortes. `extras.js`: capítulos, emoções e diagramas.
+  - `transcript.js`: transcrição. `clips.js` e `clips-actions.js`: cortes. `extras.js`: capítulos, emoções e diagramas.
   - `public/app.js`: o roteador (qual endereço abre qual tela).
 - O editor do corte (`public/editor/`): `editor.js` (estado, estrutura, salvar e exportar), `preview.js` (prévia, teste de
-  sincronia, linha do tempo e imagens por cima) e `panels.js` (painel da esquerda e gavetas da direita). As três partes
-  dividem o objeto `shared`.
+  sincronia, linha do tempo e imagens por cima), `left.js` (painel da esquerda) e `drawers.js` (gavetas da direita). As
+  partes dividem o objeto `shared`.
+- Testes do servidor: `test/server-*.test.js`, por assunto, com os ajudantes em `test/helpers.js`.
 - Estilos (`public/css/`, nessa ordem): `base.css` (variáveis e o básico), `app.css` (as telas), `editor.css` (o editor do
   corte) e `theme.css` (identidade da igreja e os modos claro e noturno).
 - Lógica testável em `lib/`: `lines.js` (linhas curtas), `cutlist.js` (ida e volta com o Claude),
