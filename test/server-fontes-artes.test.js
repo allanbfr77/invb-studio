@@ -118,3 +118,53 @@ test('template: criar com textos e imagens e atualizar com o visual novo', async
   );
   assert.ok(p.body.updatedAt);
 });
+
+test('enquadramento: fica entre 0 e 1 e muda o pedaço do vídeo que vai para o quadro', async (t) => {
+  const { cleanOpts } = require('../lib/render');
+  assert.deepEqual(cleanOpts({}).crop, { x: 0.5, y: 0.5 }); // sem escolha: centro
+  assert.deepEqual(cleanOpts({ crop: { x: 3, y: 'a' } }).crop, { x: 1, y: 0.5 });
+  if (!HAS_FFMPEG || process.platform === 'win32') return;
+  const { spawnSync } = require('child_process');
+  const d = tmp(t);
+  const dir = seedTone(d, 'kkkkkkkkkkk5');
+  const s = await boot(t, d);
+  // cor média de um quadro do vídeo exportado (1×1 pixel)
+  const avg = () => [
+    ...spawnSync('ffmpeg', [
+      '-loglevel',
+      'error',
+      '-ss',
+      '1',
+      '-i',
+      path.join(dir, 'clips', 'm111111111111.mp4'),
+      '-frames:v',
+      '1',
+      '-vf',
+      'scale=1:1',
+      '-f',
+      'rawvideo',
+      '-pix_fmt',
+      'rgb24',
+      '-',
+    ]).stdout,
+  ];
+  const colors = [];
+  for (const x of [0, 1]) {
+    await s.api('/uploads/kkkkkkkkkkk5/clips/m111111111111/render', {
+      json: { format: '9:16', crop: { x }, captions: false },
+    });
+    const r = await waitRender(s, 'kkkkkkkkkkk5');
+    assert.equal(r.status, 'done', r.error);
+    colors.push(avg());
+  }
+  assert.notDeepEqual(colors[0], colors[1], 'esquerda e direita deram o mesmo quadro');
+});
+
+test('formato padrão dos cortes novos: guardar e limpar', async (t) => {
+  const d = tmp(t);
+  const s = await boot(t, d);
+  assert.deepEqual((await s.api('/editor-prefs')).body, { format: null });
+  assert.equal((await s.api('/editor-prefs', { method: 'PATCH', json: { format: '9:16' } })).body.format, '9:16');
+  assert.equal((await s.api('/editor-prefs')).body.format, '9:16');
+  assert.equal((await s.api('/editor-prefs', { method: 'PATCH', json: { format: 'quadrado' } })).body.format, null);
+});

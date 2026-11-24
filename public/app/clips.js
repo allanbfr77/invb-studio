@@ -75,16 +75,21 @@
       }, 800);
     };
     // Exportação de um corte: com a edição salva dele, ou no formato do vídeo e sem legenda.
-    const renderJson = (k) =>
+    // Sem edição, usa o formato padrão da equipe (painel Formato do editor), se houver.
+    let prefsP = null;
+    const renderJson = async (k) =>
       k.editor
         ? ClipEditor.renderOpts({ ...k.editor, start: k.editor.start ?? k.start, end: k.editor.end ?? k.end }, false)
-        : { captions: false };
+        : {
+            captions: false,
+            format: ((await (prefsP = prefsP || api('/editor-prefs').catch(() => ({})))) || {}).format || 'orig',
+          };
     const pause = (ms) => new Promise((r) => setTimeout(r, ms));
     const rendered = async (k0) => {
       // devolve o corte já exportado (exporta se preciso e espera terminar)
       if (k0.render && k0.render.status === 'done') return k0;
       if (!(k0.render && k0.render.status === 'rendering'))
-        await api(`/uploads/${c.id}/clips/${k0.id}/render`, { json: renderJson(k0) });
+        await api(`/uploads/${c.id}/clips/${k0.id}/render`, { json: await renderJson(k0) });
       for (let i = 0; i < 800; i++) {
         await pause(1500);
         shared.clips = await api(`/uploads/${c.id}/clips`);
@@ -319,7 +324,7 @@
                 // baixa direto: exporta com a edição salva do corte (ou, sem edição, no formato do vídeo e sem legenda) e salva o arquivo
                 if (k.render && k.render.status === 'rendering') return toast('Este corte já está sendo exportado.');
                 if (k.render && k.render.status === 'done') return fileDl(k);
-                await api(`/uploads/${c.id}/clips/${k.id}/render`, { json: renderJson(k) });
+                await api(`/uploads/${c.id}/clips/${k.id}/render`, { json: await renderJson(k) });
                 k.render = { status: 'rendering' };
                 draw();
                 toast(
@@ -334,8 +339,10 @@
                 // estilos de legenda salvos (e o padrão), para o editor já abrir com eles
                 const capStyles = await api('/caption-styles').catch(() => ({ styles: [], defaultId: null }));
                 if (window.INVBFonts) await window.INVBFonts.load(); // fontes enviadas pela equipe
+                const prefs = await api('/editor-prefs').catch(() => ({ format: null }));
                 ClipEditor.open({
                   capStyles,
+                  prefs,
                   upload: c,
                   clip: k,
                   segs: S.segs,

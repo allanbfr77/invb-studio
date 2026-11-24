@@ -7,7 +7,7 @@
   const CSx = window.CaptionStyles,
     EP = window.EditorPresets;
   const FORMATS = [
-    ['orig', 'Atual', null, null],
+    ['orig', 'Original', null, null],
     ['16:9', '16:9', 1920, 1080],
     ['9:16', '9:16', 1080, 1920],
     ['1:1', '1:1', 1080, 1080],
@@ -125,6 +125,7 @@
     const dur = upload.duration || clip.end + 60;
     const st = {
       format: 'orig',
+      crop: { x: 0.5, y: 0.5 }, // enquadramento quando o formato recorta o vídeo
       bw: false,
       hq: false,
       removePauses: false,
@@ -170,6 +171,7 @@
     // Edição salva antes neste corte: o editor reabre do jeito que ficou.
     const SAVED = [
       'format',
+      'crop',
       'bw',
       'hq',
       'voice',
@@ -204,6 +206,9 @@
       if (clip.editor.cap && clip.editor.cap.style) st.styleChosen = true;
       st.title = clip.title || st.title;
     }
+    // corte ainda sem edição começa no formato padrão da equipe (marcado no painel Formato)
+    st.prefs = ctx.prefs || { format: null };
+    if (!clip.editor && st.prefs.format && !isAud) st.format = st.prefs.format;
     // estilos de legenda salvos neste computador; corte ainda sem edição começa com o estilo marcado como padrão
     st.myStyles = ctx.capStyles || { styles: [], defaultId: null };
     if (!clip.editor && st.myStyles.defaultId) {
@@ -245,6 +250,7 @@
     const snap = () =>
       JSON.stringify({
         format: st.format,
+        crop: st.crop,
         bw: st.bw,
         hq: st.hq,
         removePauses: st.removePauses,
@@ -612,6 +618,7 @@
   function renderOpts(e, audio) {
     return {
       format: e.format || 'orig',
+      crop: e.crop || { x: 0.5, y: 0.5 },
       bw: !!e.bw,
       hq: !!e.hq,
       removePauses: false,

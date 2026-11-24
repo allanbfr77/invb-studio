@@ -17,8 +17,9 @@
 .dlx-left{border-right:1px solid var(--border);padding:22px 20px;overflow-y:auto}
 .dlx-left h4{margin:0 0 12px;font:500 12px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .dlx-left hr{border:0;border-top:1px solid var(--border);margin:22px 0}
-.dlx-fmts{display:flex;gap:6px;flex-wrap:wrap}
-.dlx-fmt{width:47px;height:58px;border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:11px;color:var(--muted)}
+.dlx-fmts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.dlx-fmt{height:58px;border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:11px;color:var(--muted);padding:0}
+.dlx-fmt .ic{height:24px;display:flex;align-items:center;justify-content:center}
 .dlx-fmt:hover{background:var(--hover)}
 .dlx-fmt i{display:block;border:1.5px solid var(--border-strong);border-radius:3px}
 .dlx-fmt[aria-pressed=true]{border:1.5px solid var(--fg);color:var(--fg);font-weight:600;background:var(--surface-2)}
@@ -270,3 +271,8 @@
 .dlx-input{width:100%;box-sizing:border-box}
 .dlx-input,.dlx-dr .dlx-two input[type=number]{width:100%;border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;background:var(--surface);color:var(--fg);font:inherit;font-size:13px;margin-top:4px;box-sizing:border-box}
 .dlx-code{background:var(--surface);color:var(--fg)}
+
+/* arrastar o vídeo para enquadrar (formatos que recortam) */
+.dlx-stage.pan{cursor:grab}
+.dlx-stage.panning{cursor:grabbing}
+.dlx-stage.panning .dlx-play{opacity:0}

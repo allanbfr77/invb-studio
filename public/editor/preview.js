@@ -214,6 +214,10 @@
       stage.style.width = Math.max(160, W) + 'px';
       stage.style.height = Math.max(100, W / r) + 'px';
       v.style.filter = st.bw ? 'grayscale(1)' : '';
+      // enquadramento: a mesma conta da exportação ((sobra) × posição)
+      const cr = st.crop || { x: 0.5, y: 0.5 };
+      v.style.objectPosition = `${cr.x * 100}% ${cr.y * 100}%`;
+      stage.classList.toggle('pan', canPan());
       paintCap();
       renderOverlays();
     };
@@ -286,6 +290,7 @@
     v.addEventListener('loadedmetadata', () => {
       goStart();
       layoutStage();
+      if (shared.drawLeft) shared.drawLeft(); // o enquadramento depende do tamanho do vídeo
     });
 
     /* ----- linha do tempo: forma de onda do trecho, com sobra dos dois lados, e pontas para ajustar o começo e o fim ----- */
@@ -443,7 +448,10 @@
     v.addEventListener('pause', () => ($('#dx-play', root).style.opacity = 1));
     v.addEventListener('play', () => ($('#dx-play', root).style.opacity = 0));
     const toggle = () => (v.paused ? v.play().catch(() => {}) : v.pause());
-    $('#dx-play', root).onclick = toggle;
+    $('#dx-play', root).onclick = () => {
+      if (shared.panned) return; // acabou de arrastar o enquadramento começando no botão: não é um clique
+      toggle();
+    };
     $('#dx-seek', root).oninput = (e) => {
       v.currentTime = st.start + +e.target.value;
     };
@@ -660,14 +668,63 @@
     };
     ovsEl.addEventListener('pointerup', endDrag);
     ovsEl.addEventListener('pointercancel', endDrag);
+    // Quanto o vídeo sobra para fora do quadro (em px da prévia), nos dois sentidos. Sem recorte, nada sobra.
+    const overflow = () => {
+      const f = fmtObj();
+      if (!f[2] || !v.videoWidth || !v.videoHeight) return { x: 0, y: 0 };
+      const W = stage.clientWidth,
+        H = stage.clientHeight,
+        k = Math.max(W / v.videoWidth, H / v.videoHeight); // object-fit: cover
+      return { x: Math.max(0, v.videoWidth * k - W), y: Math.max(0, v.videoHeight * k - H) };
+    };
+    const canPan = () => {
+      const o = overflow();
+      return o.x > 1 || o.y > 1;
+    };
+    // Clicar no vídeo toca ou pausa. Arrastar (nos formatos que recortam, como o 9:16) move o enquadramento:
+    // o vídeo acompanha o dedo/mouse, e o que fica no quadro é o que sai no arquivo.
     stage.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('.dlx-ov') || e.target === $('#dx-play', root)) return;
+      const onPlay = e.target.closest('#dx-play');
+      if (e.target.closest('.dlx-ov') || (onPlay && !canPan())) return;
       if (st.sel) {
         st.sel = null;
         renderOverlays();
         if (['midia', 'texto', 'camadas'].includes(st.panel)) drawDrawer();
       }
-      toggle();
+      if (isAud || !canPan()) return toggle();
+      e.preventDefault();
+      const of = overflow(),
+        c0 = { ...(st.crop || { x: 0.5, y: 0.5 }) },
+        x0 = e.clientX,
+        y0 = e.clientY;
+      let moved = false;
+      const move = (ev) => {
+        const dx = ev.clientX - x0,
+          dy = ev.clientY - y0;
+        if (!moved && Math.hypot(dx, dy) < 5) return;
+        if (!moved) stage.classList.add('panning');
+        moved = true;
+        st.crop = {
+          x: of.x > 1 ? clamp(c0.x - dx / of.x, 0, 1) : c0.x,
+          y: of.y > 1 ? clamp(c0.y - dy / of.y, 0, 1) : c0.y,
+        };
+        v.style.objectPosition = `${st.crop.x * 100}% ${st.crop.y * 100}%`;
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+        stage.classList.remove('panning');
+        if (!moved) return onPlay ? undefined : toggle(); // no botão, quem toca é o clique dele
+        shared.panned = true;
+        setTimeout(() => (shared.panned = false), 0);
+        st.crop = { x: +st.crop.x.toFixed(3), y: +st.crop.y.toFixed(3) };
+        commit();
+        if (shared.drawLeft) shared.drawLeft();
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
     });
     const addOverlay = (o) => {
       st.overlays.push({ id: rid(), x: 0.5, y: 0.5, start: null, end: null, hidden: false, ...o });

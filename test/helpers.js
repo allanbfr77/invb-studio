@@ -273,7 +273,8 @@ const meanVolume = (f) =>
   ) || [])[1];
 const waitRender = async (s, id) => {
   let k;
-  for (let i = 0; i < 300; i++) {
+  // até 60 s: com a máquina ocupada (testes em paralelo), uma exportação curta pode passar de 30 s
+  for (let i = 0; i < 600; i++) {
     k = (await s.api(`/uploads/${id}/clips`)).body[0];
     if (k.render && k.render.status !== 'rendering') break;
     await new Promise((r) => setTimeout(r, 100));

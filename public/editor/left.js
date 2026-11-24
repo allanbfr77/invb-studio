@@ -16,6 +16,7 @@
       outSize,
       syLabel,
       ctx,
+      api,
       asy,
       upload,
       commit,
@@ -59,6 +60,24 @@
       const sec = (key, title, value, body, valueId) =>
         `<details class="dlx-sec" data-sec="${key}"${st.open[key] ? ' open' : ''}><summary><span class="dlx-sect">${title}</span><${valueId ? 'output' : 'span'} class="dlx-secv"${valueId ? ` id="${valueId}"` : ''}>${value}</${valueId ? 'output' : 'span'}></summary><div class="dlx-secb">${body}</div></details>`;
       const nCuts = cutList().length;
+      // Enquadramento: só quando o formato recorta o vídeo. Vídeo mais largo que o quadro anda para os lados;
+      // mais alto, para cima e para baixo.
+      const f = fmtObj(),
+        vr = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 16 / 9,
+        fr = f[2] ? f[2] / f[3] : vr,
+        axis = !f[2] || Math.abs(vr - fr) < 0.01 ? null : vr > fr ? 'x' : 'y',
+        cr = st.crop || { x: 0.5, y: 0.5 },
+        cv = axis ? cr[axis] : 0.5,
+        ends = axis === 'x' ? ['Esquerda', 'Centro', 'Direita'] : ['Topo', 'Centro', 'Base'];
+      const cropTxt = (x) =>
+        (x <= 0 ? ends[0] : x >= 1 ? ends[2] : x === 0.5 ? 'centro' : Math.round(x * 100) + '%').toLowerCase();
+      const isDef = !!(st.prefs && st.prefs.format === st.format);
+      const frame = axis
+        ? `<label class="dlx-lab" for="dx-crop">Enquadramento <small id="dx-cropv">${cropTxt(cv)}</small></label>
+          <input type="range" id="dx-crop" class="dlx-sp" min="0" max="1" step="0.01" value="${cv}" aria-label="Enquadramento">
+          <div class="dlx-spb">${[0, 0.5, 1].map((x, i) => `<button data-crop="${x}" aria-pressed="${Math.abs(cv - x) < 0.005}">${ends[i]}</button>`).join('')}</div>
+          <p class="dlx-hint">Ou <b>arraste o vídeo na prévia</b> até o pregador ficar onde quer. Vale para o corte inteiro.</p>`
+        : '';
       L.innerHTML = [
         isAud
           ? ''
@@ -66,15 +85,17 @@
               'fmt',
               'Formato',
               esc(fmtObj()[1]),
-              `<div class="dlx-fmts">${FORMATS.map((f) => `<button class="dlx-fmt" data-f="${f[0]}" aria-pressed="${st.format === f[0]}"><i style="width:${FORMAT_ICON[f[0]][0]}px;height:${FORMAT_ICON[f[0]][1]}px"></i>${f[1]}</button>`).join('')}</div>
-          <p class="dlx-sub">${st.format === 'orig' ? 'Mantém o formato do vídeo' : 'Recorte central do vídeo'} · Saída ${outSize()}</p>`,
+              `<div class="dlx-fmts">${FORMATS.map((f) => `<button class="dlx-fmt" data-f="${f[0]}" aria-pressed="${st.format === f[0]}"><span class="ic"><i style="width:${FORMAT_ICON[f[0]][0]}px;height:${FORMAT_ICON[f[0]][1]}px"></i></span>${f[1]}</button>`).join('')}</div>
+          <p class="dlx-sub">${st.format === 'orig' ? 'Sai no tamanho original do vídeo' : 'Recorta o vídeo'} · ${outSize()}</p>
+          ${frame}
+          <label class="dlx-check" style="margin-top:10px"><input type="checkbox" id="dx-fdef" ${isDef ? 'checked' : ''}> Usar ${esc(fmtObj()[1])} nos cortes novos</label>`,
             ),
         isAud
           ? ''
           : sec(
               'img',
-              'Imagem',
-              [st.bw ? 'Preto e branco' : 'Colorido', st.hq ? 'alta qualidade' : ''].filter(Boolean).join(' · '),
+              'Imagem e qualidade',
+              [st.bw ? 'P&B' : 'Colorido', st.hq ? 'alta' : ''].filter(Boolean).join(' · '),
               `
           <div class="dlx-row"><div><b>Preto e branco</b><small>Deixa o vídeo em tons de cinza.</small></div>${sw('dx-bw', st.bw)}</div>
           <div class="dlx-row"><div><b>Preservar qualidade</b><small>Arquivo maior e exportação mais lenta. Bom para levar ao CapCut.</small></div>${sw('dx-hq', st.hq)}</div>`,
@@ -84,7 +105,7 @@
           'Velocidade',
           spLabel(st.speed),
           `<small id="dx-spd" class="dlx-spd">${durTxt()}</small>
-          <input type="range" id="dx-sp" class="dlx-sp" min="0.25" max="2" step="0.05" value="${st.speed}" aria-label="Velocidade">
+          <input type="range" id="dx-sp" class="dlx-sp" min="0.5" max="2" step="0.05" value="${st.speed}" aria-label="Velocidade">
           <div class="dlx-spb">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((x) => `<button data-sp="${x}" aria-pressed="${st.speed === x}">${spLabel(x)}</button>`).join('')}</div>
           <p class="dlx-hint">O tom da voz não muda. A prévia acompanha.</p>`,
           'dx-spv',
@@ -97,15 +118,15 @@
               syLabel(st.sync),
               `<input type="range" id="dx-sy" class="dlx-sp" min="-2" max="2" step="0.01" value="${st.sync}" aria-label="Sincronia do áudio">
           <div class="dlx-spb">${[
-            [-0.1, '−100'],
-            [-0.01, '−10'],
+            [-0.1, '−0,1 s'],
+            [-0.01, '−0,01 s'],
             [0, 'Zerar'],
-            [0.01, '+10'],
-            [0.1, '+100'],
+            [0.01, '+0,01 s'],
+            [0.1, '+0,1 s'],
           ]
             .map(
               (x) =>
-                `<button style="min-width:36px" title="${x[0] ? x[1] + ' milissegundos' : 'Voltar ao áudio original'}" data-sy="${x[0]}">${x[1]}</button>`,
+                `<button style="min-width:36px" title="${x[0] ? (x[0] > 0 ? 'Atrasar o som em ' : 'Adiantar o som em ') + x[1].slice(1) : 'Voltar ao áudio original'}" data-sy="${x[0]}">${x[1]}</button>`,
             )
             .join('')}</div>
           <button class="dlx-sytgo" id="dx-syt">▶ Testar o ajuste (8 s)</button>
@@ -166,6 +187,39 @@
             drawLeft();
           };
       };
+      // enquadramento: arrastando, só a prévia muda; ao soltar, entra no histórico
+      const crop = $('#dx-crop', L);
+      const setCrop = (x, save) => {
+        st.crop = { ...(st.crop || { x: 0.5, y: 0.5 }), [axis]: Math.max(0, Math.min(1, x)) };
+        layoutStage();
+        const o = $('#dx-cropv', L);
+        if (o) o.textContent = cropTxt(st.crop[axis]);
+        if (save) {
+          commit();
+          drawLeft();
+        }
+      };
+      if (crop) {
+        crop.oninput = () => setCrop(+crop.value, false);
+        crop.onchange = () => setCrop(+crop.value, true);
+        $$('[data-crop]', L).forEach((b) => (b.onclick = () => setCrop(+b.dataset.crop, true)));
+      }
+      const fdef = $('#dx-fdef', L);
+      if (fdef)
+        fdef.onchange = async () => {
+          const format = fdef.checked ? st.format : null;
+          try {
+            st.prefs = await api('/editor-prefs', { method: 'PATCH', json: { format } });
+            toast(
+              format
+                ? `Os cortes novos vão abrir em ${fmtObj()[1]}.`
+                : 'Os cortes novos voltam a abrir no formato original.',
+            );
+          } catch (e) {
+            toast(e.message);
+          }
+          drawLeft();
+        };
       tg('dx-bw', 'bw');
       tg('dx-hq', 'hq');
       const mu = $('#dx-mu', L);
@@ -245,7 +299,7 @@
       // Velocidade: de 0,25x a 2x, em passos de 0,05. A prévia toca na mesma velocidade (o navegador mantém o tom da voz).
       const sp = $('#dx-sp', L),
         setSp = (x, redraw) => {
-          st.speed = Math.max(0.25, Math.min(2, Math.round(x * 100) / 100));
+          st.speed = Math.max(0.5, Math.min(2, Math.round(x * 100) / 100));
           v.playbackRate = st.speed;
           $('#dx-spv', L).textContent = spLabel(st.speed);
           $('#dx-spd', L).textContent = durTxt();

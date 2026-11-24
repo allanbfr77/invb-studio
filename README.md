@@ -66,6 +66,10 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   Não vão para o vídeo: animações e imagens de links externos.
 - **Ganchos**: frases curtas para o começo do corte (“OUÇA ATÉ O FIM”, “UMA PALAVRA PARA VOCÊ”…), nas cores da igreja.
 - **Texto**, **Mídia** e **Camadas**: texto livre por cima, imagens enviadas e a lista do que está no quadro.
+- **Painel da esquerda**: formato (Original, 16:9, 9:16, 1:1, 4:5) com **enquadramento**: nos formatos que recortam,
+  arraste o vídeo na prévia (ou use Esquerda/Centro/Direita) para escolher que parte fica no quadro; a exportação usa
+  a mesma posição. “Usar … nos cortes novos” deixa um formato como padrão (`data/editor-prefs.json`), inclusive para
+  quem exporta pela lista sem abrir o editor. Velocidade de 0,5x a 2x; sincronia em segundos.
 - **Barra da prévia**: Ímã, Raio-X (X), Guias (G: centro, terços e, no 9:16, a área que o Instagram/TikTok cobre) e
   Centralizar. A legenda se arrasta direto no vídeo.
 
