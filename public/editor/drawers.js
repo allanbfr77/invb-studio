@@ -1,7 +1,7 @@
 /* INVB Studio — editor do corte: as gavetas da direita (transcrição, templates, legendas, mídia, texto, ganchos e camadas).
    Parte de public/editor/editor.js; recebe o objeto "shared" com o estado e as funções das outras partes. */
 (function () {
-  const { CSx, $, clamp, SAMPLE, capHTML, FAV, EP, $$, rid } = window.ClipEditorParts.base;
+  const { CSx, $, clamp, SAMPLE, capHTML, EP, $$, rid } = window.ClipEditorParts.base;
 
   window.ClipEditorParts.drawers = function (shared) {
     const {
@@ -44,7 +44,7 @@
         <label>Fonte</label><select id="pp-font">${CSx.FONTS.map((f) => `<option ${f === o.font ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select>
         <label>Tamanho <b>${Math.round(o.size * 100)}</b></label><input type="range" id="pp-size" min="2" max="30" value="${Math.round(o.size * 100)}">
         <div class="dlx-two"><label>Cor<input type="color" id="pp-color" value="${o.color}"></label><label>Contorno<input type="color" id="pp-oc" value="${o.outline ? o.outline.color : '#000000'}"></label></div>
-        <div class="dlx-chips" style="margin-top:8px"><button id="pp-bold" aria-pressed="${o.bold}">Negrito</button><button id="pp-ital" aria-pressed="${o.italic}">Itálico</button><button id="pp-up" aria-pressed="${o.upper}">MAIÚSCULAS</button><button id="pp-box" aria-pressed="${!!o.box}">Tarja</button></div>
+        <div class="dlx-chips" style="margin-top:8px"><button id="pp-ital" aria-pressed="${o.italic}">Itálico</button><button id="pp-up" aria-pressed="${o.upper}">MAIÚSCULAS</button><button id="pp-box" aria-pressed="${!!o.box}">Tarja</button></div>
         ${o.box ? `<div class="dlx-two"><label>Cor da tarja<input type="color" id="pp-bc" value="${o.box.color}"></label><label>Transparência<input type="range" id="pp-ba" min="0" max="90" value="${Math.round(o.box.alpha * 100)}"></label></div>` : ''}
         ${timing}<button class="ap-btn" id="pp-del" style="margin-top:10px">Excluir do quadro</button></div>`;
     };
@@ -85,11 +85,6 @@
         live();
       });
       on('pp-oc', 'change', commit);
-      on('pp-bold', 'click', () => {
-        o.bold = !o.bold;
-        done();
-        live();
-      });
       on('pp-ital', 'click', () => {
         o.italic = !o.italic;
         done();
@@ -151,23 +146,22 @@
       on('pp-del', 'click', () => delOverlay(o.id));
     }
     const sampleCard = (S, tick) => {
-      const E = { upper: S.upper, ow: S.ow, shadow: S.shadow, font: S.font, pop: S.pop };
+      const E = S; // o estilo já vem resolvido (fonte, contorno, sombra...)
       const chunks = CSx.chunkWords(SAMPLE, S),
         ci = S.mode === 'block' ? 0 : chunks.findIndex((c) => c.some((w) => w.t === 'precisa')),
         ch = chunks[Math.max(0, ci)];
       const act = S.mode === 'block' ? -1 : tick % ch.length,
         ws = S.mode === 'block' ? [{ t: 'Você não precisa de mais tempo,' }] : ch;
-      return `<span style="font-size:${14 * Math.min(S.size, 1.3)}px;line-height:1.15;text-align:center;display:block">${capHTML(S, E, 0.012, ws, act, S.mode === 'karaoke' ? ((tick % 5) + 1) * 20 : 55)}</span>`;
+      return `<span style="font-size:${14 * Math.min(S.scale || 1, 1.3)}px;line-height:1.15;text-align:center;display:block">${capHTML(S, E, 0.012, ws, act, S.mode === 'karaoke' ? ((tick % 5) + 1) * 20 : 55)}</span>`;
     };
-    const tplHTML = (t) => `<span class="tp-bar" style="background:${t.bg}">${esc(t.text || t.name)}</span>`;
-    const catChips = (cats, cur, total, attr) =>
-      `<div class="dlx-cats"><button class="dlx-cat" ${attr}="Todos" aria-checked="${cur === 'Todos'}">Todos <b>${total}</b></button>${cats.map((c) => `<button class="dlx-cat" ${attr}="${esc(c.id)}" aria-checked="${cur === c.id}">${esc(c.id)} <b>${c.count}</b></button>`).join('')}</div>`;
+    const tplHTML = (t) =>
+      t.text
+        ? `<span class="tp-bar" style="background:${t.bg};color:${t.fg || '#fff'}">${esc(t.text)}</span>`
+        : `<span class="mini">${esc(CSx.byName(t.style).name)}</span>`;
     let drawerScroll = 0;
     const panelsHTML = {
       transcricao: () => {
         const ex = `<div class="dlx-two"><label>Início<span class="hms"><input type="number" min="0" data-hms="s0" value="${Math.floor(st.start / 3600)}">:<input type="number" min="0" max="59" data-hms="s1" value="${Math.floor((st.start % 3600) / 60)}">:<input type="number" min="0" max="59" data-hms="s2" value="${Math.floor(st.start % 60)}"></span></label><label>Fim<span class="hms"><input type="number" min="0" data-hms="e0" value="${Math.floor(st.end / 3600)}">:<input type="number" min="0" max="59" data-hms="e1" value="${Math.floor((st.end % 3600) / 60)}">:<input type="number" min="0" max="59" data-hms="e2" value="${Math.floor(st.end % 60)}"></span></label></div>`;
-        const lo = Math.max(0, clip.start - 60),
-          hi = Math.min(dur, clip.end + 60);
         const ctxSegs = segs.filter((s) => s.end > st.start - 30 && s.t < st.end + 30);
         const body = ctxSegs
           .map((s) => {
@@ -189,71 +183,120 @@
         return `<h3>Corte</h3><button class="dlx-link" id="tr-big">${st.trLarge ? 'Reduzir transcrição' : 'Ampliar transcrição'}</button>
           <label class="dlx-lab">Título do corte<input id="tr-title" placeholder="Título (opcional)" value="${esc(st.title)}" maxlength="120"></label>
           <label class="dlx-lab">Intervalo do corte <small>Duração: ${Math.round(D())}s</small></label>${ex}
-          <div class="dlx-two"><input type="range" id="tr-rs" min="${lo.toFixed(1)}" max="${hi.toFixed(1)}" step="0.1" value="${st.start}" aria-label="Início"><input type="range" id="tr-re" min="${lo.toFixed(1)}" max="${hi.toFixed(1)}" step="0.1" value="${st.end}" aria-label="Fim"></div>
-          <label class="dlx-lab">Idioma da transcrição<span class="dlx-ro">${esc(upload.language || 'Idioma detectado')}</span></label>
-          <p class="dlx-sub" style="margin:6px 0 10px">Clique numa palavra pra ajustar onde o corte começa ou termina ou use o slider.</p>
+          <p class="dlx-sub" style="margin:6px 0 10px">Clique numa palavra para o corte começar ou terminar nela. A linha do tempo embaixo do vídeo faz o ajuste fino.</p>
           <div class="dlx-row"><div><b>Remover palavras</b><small>Clique nas palavras para cortá-las do vídeo</small></div>${sw('tr-rm', st.trMode === 'remove')}</div>
           <div class="dlx-row"><div><b>Editar texto</b><small>Clique numa fala para corrigir o texto da legenda</small></div>${sw('tr-ed', st.trMode === 'edit')}</div>
-          <button class="ap-btn" id="tr-seg" style="width:100%;justify-content:center;margin-bottom:12px">Baixar segmento</button>
+          <button class="ap-btn" id="tr-seg" style="width:100%;justify-content:center;margin-bottom:12px" title="Baixa este trecho do vídeo como está, sem legenda, textos nem ajustes">Baixar o trecho original</button>
           <div class="dlx-tlist ${st.trLarge ? 'big' : ''}">${body || '<p class="dlx-sub">Sem texto neste trecho.</p>'}</div>`;
       },
       templates: () => {
-        const mine = (st.templates || []).filter((t) => t.config),
-          tf = FAV.get('invb.favTpl'),
-          q = st.tq.trim().toLowerCase();
-        const pr = EP.TEMPLATES.filter(
-          (t) => (st.tplCat === 'Todos' || t.cat === st.tplCat) && (!q || t.name.toLowerCase().includes(q)),
-        );
-        const mineF = mine.filter((t) => !q || t.name.toLowerCase().includes(q));
+        const mine = (st.templates || []).filter((t) => t.config);
         const card = (id, name, inner, own) =>
-          `<div class="dlx-card" data-tpl="${id}" ${own ? 'data-own="1"' : ''} role="button" tabindex="0"><button class="fav" data-fav="${id}" aria-label="${tf.has(id) ? 'Remover dos favoritos' : 'Marcar como favorito'}">${tf.has(id) ? '★' : '☆'}</button><div class="pv">${inner}</div><span>${esc(name)}</span></div>`;
-        return `<p class="dlx-sub" style="margin-top:0">Aplique um visual salvo neste corte com um clique.</p><input class="dlx-search" id="tp-q" placeholder="Buscar template" value="${esc(st.tq)}">
-          <h4>Meus templates</h4><div class="dlx-grid">${mineF.map((t) => card(t.id, t.name, `<span class="mini">${esc(t.config.style.split('/').pop())}</span>`, true)).join('') || '<p class="dlx-sub" style="grid-column:1/-1">Nenhum template seu ainda.</p>'}</div>
-          <button class="ap-btn" id="tp-save" style="width:100%;justify-content:center;margin:10px 0 18px">Salvar o visual atual como template</button>
-          <h4>Prontos</h4>${catChips(EP.TEMPLATE_CATS, st.tplCat, EP.TEMPLATES.length, 'data-tc')}
-          <p class="dlx-sub">A moldura aparece nos formatos 9:16, 1:1 e 4:5. (Aqui o template aplica a legenda e uma faixa de título.)</p><div class="dlx-grid">${pr.map((t) => card(t.id, t.name, tplHTML(t))).join('') || '<p class="dlx-sub">Nenhum template encontrado.</p>'}</div>`;
+          `<div class="dlx-card" data-tpl="${id}" role="button" tabindex="0">${own ? `<button class="x" data-tpl-del="${id}" aria-label="Excluir o template ${esc(name)}" title="Excluir">✕</button>` : ''}<div class="pv">${inner}</div><span>${esc(name)}</span></div>`;
+        return `<p class="dlx-sub" style="margin-top:0">Um template aplica de uma vez o estilo da legenda e uma faixa de título no alto do corte. Depois dá para mudar tudo.</p>
+          <h4>Meus templates</h4><div class="dlx-grid">${mine.map((t) => card(t.id, t.name, `<span class="mini">${esc(CSx.byName(t.config.style).name)}</span>`, true)).join('') || '<p class="dlx-sub" style="grid-column:1/-1;margin:0">Nenhum ainda. Monte o visual (legenda, textos, imagens) e salve aqui.</p>'}</div>
+          <button class="ap-btn" id="tp-save" style="width:100%;justify-content:center;margin:10px 0 4px">Salvar o visual atual como template</button>
+          ${EP.TEMPLATE_CATS.map(
+            (c) =>
+              `<h4>${esc(c.id)}</h4><div class="dlx-grid">${EP.TEMPLATES.filter((t) => t.cat === c.id)
+                .map((t) => card(t.id, t.name, tplHTML(t)))
+                .join('')}</div>`,
+          ).join('')}`;
       },
       legendas: () => {
-        const e = eff(),
-          tabs = [
-            ['estilos', 'Estilos'],
-            ['fonte', 'Fonte'],
-            ['efeitos', 'Efeitos'],
-            ['traducao', 'Tradução'],
-          ];
+        // abas antigas (Fonte e Efeitos) viraram "Personalizar"
+        if (st.tab === 'fonte' || st.tab === 'efeitos') st.tab = 'personalizar';
+        const tabs = [
+          ['estilos', 'Estilos'],
+          ['personalizar', 'Personalizar'],
+          ['traducao', 'Tradução'],
+        ];
+        const S = eff(),
+          mine = (st.myStyles && st.myStyles.styles) || [],
+          defId = st.myStyles && st.myStyles.defaultId,
+          changed = Object.keys(CSx.diff(S, st.cap.style)).length > 0;
         let body = '';
         if (st.tab === 'estilos') {
-          const fav = FAV.get('invb.favSty'),
-            q = st.q.trim().toLowerCase();
-          const list = CSx.STYLES.filter(
-            (s) =>
-              (st.cat === 'Todos' || s.cat === st.cat) &&
-              (!q || s.name.toLowerCase().includes(q) || s.cat.toLowerCase().includes(q)),
-          );
-          body = `<div class="dlx-row" style="margin-bottom:8px"><div><b>Sempre animar os estilos</b></div>${sw('sty-anim', st.anim)}</div><input class="dlx-search" id="sty-q" placeholder="Buscar estilo, fonte ou efeito" value="${esc(st.q)}">${catChips(CSx.CATEGORIES, st.cat, CSx.STYLES.length, 'data-cat')}
-            <div class="dlx-grid" id="sty-grid"><button class="dlx-card nosub" data-style="" aria-pressed="${!st.cap.on}"><div class="pv none">Sem legenda</div><span>Sem legenda</span></button>${list.map((s) => `<div class="dlx-card" role="button" tabindex="0" data-style="${esc(s.id)}" aria-pressed="${st.cap.on && st.cap.style === s.id}"><button class="fav" data-fav="${esc(s.id)}" aria-label="${fav.has(s.id) ? 'Remover dos favoritos' : 'Marcar como favorito'}">${fav.has(s.id) ? '★' : '☆'}</button><div class="pv">${sampleCard(s, 0)}</div><span>${esc(s.name)}</span></div>`).join('')}</div>`;
-        } else if (st.tab === 'fonte')
-          body = `<p class="dlx-sub" style="margin-top:0">Fontes instaladas no servidor. “Padrão do estilo” usa a fonte do estilo escolhido.</p><div class="dlx-fonts"><button data-font="" aria-pressed="${st.cap.font === null}">Padrão do estilo</button>${CSx.FONTS.map((f) => `<button data-font="${esc(f)}" style="font-family:'${esc(f)}',sans-serif" aria-pressed="${st.cap.font === f}">${esc(f)}<small>Você não precisa de mais tempo</small></button>`).join('')}</div>`;
-        else if (st.tab === 'efeitos')
-          body = `<div class="dlx-fx"><label>Palavras por legenda <b id="v-wd">${st.cap.words ? st.cap.words : 'Padrão do estilo'}</b></label><input type="range" id="fx-wd" min="0" max="10" step="1" value="${st.cap.words || 0}" aria-label="Palavras por legenda"><p class="dlx-sub" style="margin:2px 0 14px">Quantas palavras aparecem de cada vez. No zero, vale o que o estilo escolhido define.</p><label>Contorno <b id="v-ow">${e.ow}</b></label><input type="range" id="fx-ow" min="0" max="10" value="${e.ow}"><label>Sombra <b id="v-sh">${e.shadow}</b></label><input type="range" id="fx-sh" min="0" max="8" value="${e.shadow}"><label>Tamanho <b id="v-sz">${st.cap.size}</b></label><input type="range" id="fx-sz" min="10" max="32" value="${st.cap.size}">
-          <div class="dlx-row" style="margin-top:14px"><div><b>Animação ao entrar</b><small>A palavra “pula” ao aparecer</small></div>${sw('fx-pop', e.pop)}</div><div class="dlx-row"><div><b>Maiúsculas</b></div>${sw('fx-up', e.upper)}</div>
-          <h4>Posição</h4><div class="dlx-chips">${[
-            ['top', 'Topo'],
-            ['middle', 'Meio'],
-            ['bottom', 'Base'],
-          ]
-            .map((p) => `<button data-pos="${p[0]}" aria-pressed="${st.cap.pos === p[0]}">${p[1]}</button>`)
-            .join(
-              '',
-            )}</div><button class="dlx-link" id="fx-reset" style="margin-top:12px">Restaurar o padrão do estilo</button></div>`;
-        else
+          const card = (attr, id, name, S2, pressed, extra = '') =>
+            `<div class="dlx-card" role="button" tabindex="0" ${attr}="${esc(id)}" aria-pressed="${pressed}">${extra}<div class="pv">${sampleCard(S2, 0)}</div><span>${name}</span></div>`;
+          const mineCards = mine
+            .map((it) =>
+              card(
+                'data-mine',
+                it.id,
+                `${esc(it.name)}${it.id === defId ? ' <em class="dlx-def">padrão</em>' : ''}`,
+                CSx.resolve(CSx.fromSaved(it)),
+                st.cap.on && st.cap.mine === it.id,
+                `<button class="x" data-mine-del="${esc(it.id)}" aria-label="Excluir o estilo ${esc(it.name)}" title="Excluir">✕</button><button class="star ${it.id === defId ? 'on' : ''}" data-mine-def="${esc(it.id)}" aria-label="${it.id === defId ? 'Deixar de usar como padrão' : 'Usar como padrão nos cortes novos'}" title="${it.id === defId ? 'Padrão dos cortes novos (clique para tirar)' : 'Usar como padrão nos cortes novos'}">★</button>`,
+              ),
+            )
+            .join('');
+          body = `<p class="dlx-sub" style="margin-top:0">Escolha um ponto de partida. Em <b>Personalizar</b> dá para mudar tudo e salvar como estilo seu.</p>
+            <div class="dlx-grid" id="sty-grid" style="margin-bottom:6px"><button class="dlx-card nosub" data-style="" aria-pressed="${!st.cap.on}"><div class="pv none">Sem legenda</div><span>Sem legenda</span></button></div>
+            <h4>Meus estilos</h4><div class="dlx-grid sty-grid">${mineCards || '<p class="dlx-sub" style="grid-column:1/-1;margin:0">Nenhum ainda. Ajuste em Personalizar e clique em “Salvar como meu estilo”.</p>'}</div>
+            ${CSx.CATEGORIES.map(
+              (c) =>
+                `<h4>${esc(c.id)}</h4><div class="dlx-grid sty-grid">${CSx.STYLES.filter((x) => x.cat === c.id)
+                  .map((x) =>
+                    card(
+                      'data-style',
+                      x.id,
+                      esc(x.name),
+                      x,
+                      st.cap.on && !st.cap.mine && st.cap.style === x.id && !changed,
+                    ),
+                  )
+                  .join('')}</div>`,
+            ).join('')}`;
+        } else if (st.tab === 'personalizar') {
+          const hasHi = ['highlight', 'boxhl', 'karaoke'].includes(S.mode),
+            hasWords = !['block', 'words1'].includes(S.mode);
+          const color = (key, label, val) =>
+            `<div class="dlx-color"><span>${label}</span><div class="dlx-swatches">${CSx.PAL.map((c) => `<button data-cset="${key}" data-c="${c}" style="background:${c}" aria-label="${label}: ${c}" ${val === c ? 'aria-pressed="true"' : ''}></button>`).join('')}<input type="color" data-color="${key}" value="${val}" aria-label="${label}: outra cor"></div></div>`;
+          const range = (id, label, val, min, max, shown = val) =>
+            `<label for="${id}">${label} <b id="${id}-v">${shown}</b></label><input type="range" id="${id}" min="${min}" max="${max}" value="${val}">`;
+          const mine1 = st.cap.mine && mine.find((x) => x.id === st.cap.mine);
+          body = `${st.cap.on ? '' : '<div class="dlx-note2">A legenda está desligada. <button class="dlx-link" id="cx-on">Ligar a legenda</button></div>'}
+            <p class="dlx-sub" style="margin-top:0">Partindo de <b>${esc(mine1 ? mine1.name : CSx.byName(st.cap.style).name)}</b>${changed && !mine1 ? ', com mudanças' : ''}. <button class="dlx-link" id="cx-reset">Voltar ao estilo original</button></p>
+            <div class="dlx-fx">
+            <h4>Texto</h4>
+            <label class="dlx-lab" for="cx-font">Fonte</label><select id="cx-font" class="dlx-select">${CSx.FONT_LIST.map((f) => `<option value="${esc(f.name)}" ${f.name === S.font ? 'selected' : ''}>${esc(f.name)} · ${esc(f.note)}</option>`).join('')}</select>
+            <div class="dlx-fontpv" style="font-family:'${esc(S.font)}';${S.italic ? 'font-style:italic;' : ''}${S.upper ? 'text-transform:uppercase' : ''}">Você não precisa de mais tempo</div>
+            ${range('cx-size', 'Tamanho', st.cap.size, 10, 32)}
+            <div class="dlx-row" style="margin-top:14px"><div><b>Maiúsculas</b></div>${sw('cx-upper', S.upper)}</div>
+            <div class="dlx-row"><div><b>Itálico</b></div>${sw('cx-italic', S.italic)}</div>
+            <h4>Como a palavra falada aparece</h4>
+            <div class="dlx-chips">${CSx.MODES.map((m) => `<button data-mode="${m[0]}" aria-pressed="${S.mode === m[0]}">${m[1]}</button>`).join('')}</div>
+            ${hasWords ? range('cx-words', 'Palavras de cada vez', S.chunk, 1, 10) : ''}
+            <h4>Cores</h4>
+            ${color('color', 'Texto', S.color)}${hasHi ? color('hi', 'Palavra falada', S.hi) : ''}${S.box ? '' : color('outline', 'Contorno', S.outline)}
+            <h4>Contorno, sombra e brilho</h4>
+            ${S.box ? '<p class="dlx-sub" style="margin:0">Com fundo, o contorno não aparece.</p>' : range('cx-ow', 'Contorno', S.ow, 0, 10)}
+            ${range('cx-sh', 'Sombra', S.shadow, 0, 8)}
+            <div class="dlx-row" style="margin-top:14px"><div><b>Brilho</b><small>O contorno vira um brilho na cor da palavra falada</small></div>${sw('cx-glow', S.glow)}</div>
+            <h4>Fundo</h4>
+            <div class="dlx-row"><div><b>Fundo atrás do texto</b><small>Uma faixa que deixa a legenda legível em qualquer imagem</small></div>${sw('cx-box', !!S.box)}</div>
+            ${S.box ? color('box', 'Cor do fundo', S.box.color) + range('cx-ba', 'Transparência', Math.round(S.box.alpha * 100), 0, 95, Math.round(S.box.alpha * 100) + '%') : ''}
+            <h4>Entrada</h4>
+            <div class="dlx-row"><div><b>Animação ao entrar</b><small>A legenda “pula” ao aparecer</small></div>${sw('cx-pop', S.pop)}</div>
+            <h4>Posição</h4>
+            <div class="dlx-chips">${[
+              ['top', 'Topo'],
+              ['middle', 'Meio'],
+              ['bottom', 'Base'],
+            ]
+              .map((p) => `<button data-pos="${p[0]}" aria-pressed="${st.cap.pos === p[0]}">${p[1]}</button>`)
+              .join('')}</div>
+            ${st.cap.pos === 'middle' ? '' : `${range('cx-mg', 'Distância da borda', st.cap.margin === null || st.cap.margin === undefined ? (st.format === '9:16' ? 14 : 8) : st.cap.margin, 0, 40, st.cap.margin === null || st.cap.margin === undefined ? 'automática' : st.cap.margin + '%')}${st.cap.margin === null || st.cap.margin === undefined ? '' : '<button class="dlx-link" id="cx-mg-auto">Voltar à automática</button>'}`}
+            </div>
+            <div class="dlx-save">
+              <button class="ap-btn pri" id="cx-save">Salvar como meu estilo</button>
+              ${mine1 ? `<button class="ap-btn" id="cx-upd">Atualizar “${esc(mine1.name)}”</button>` : ''}
+              <label class="dlx-check"><input type="checkbox" id="cx-def"> Usar como padrão nos cortes novos</label>
+            </div>`;
+        } else
           body = `<p class="dlx-sub" style="margin-top:0">Traduz o texto da legenda deste corte. Usa um modelo de linguagem (precisa de GROQ_API_KEY no servidor) e a tradução vale para o arquivo final.</p><label class="dlx-lab">Traduzir para<select id="tr-lang"><option value="">Original</option>${EP.LANGS.map((l) => `<option ${st.lang === l ? 'selected' : ''}>${l}</option>`).join('')}</select></label><button class="ap-btn pri" id="tr-go" style="width:100%;justify-content:center;margin-top:12px">Traduzir legenda</button><p class="dlx-sub" id="tr-msg">${st.lang ? `Legenda traduzida para ${esc(st.lang)}.` : ''}</p>`;
-        return `<div class="dlx-tabs" role="tablist">${tabs
-          .map((t) => {
-            const dis = t[0] !== 'estilos' && !st.styleChosen;
-            return `<button role="tab" data-tab="${t[0]}" aria-selected="${st.tab === t[0]}" ${dis ? 'disabled title="Escolha um estilo primeiro"' : ''}>${t[1]}</button>`;
-          })
-          .join('')}</div>${body}`;
+        return `<div class="dlx-tabs three" role="tablist">${tabs.map((t) => `<button role="tab" data-tab="${t[0]}" aria-selected="${st.tab === t[0]}">${t[1]}</button>`).join('')}</div>${body}`;
       },
       midia: () => {
         const imgs = st.overlays.filter((o) => o.type === 'image'),
@@ -270,7 +313,7 @@
           ${ts.length ? `<div class="dlx-layers" style="margin-top:12px">${ts.map((o) => `<button class="lr ${st.sel === o.id ? 'on' : ''}" data-sel="${o.id}">T <span>${esc(o.text.slice(0, 28))}</span></button>`).join('')}</div>` : '<p class="dlx-sub" style="margin-top:12px">Nenhum texto ainda. Adicione um para mostrar no corte.</p>'}${sel && sel.type === 'text' ? propsEditor(sel) : ''}`;
       },
       ganchos:
-        () => `<h3>Ganchos</h3><p class="dlx-sub" style="margin-top:0">Adicione um gancho de texto no começo do corte para aumentar a retenção.</p><h4>Ganchos de texto</h4><div class="dlx-hooks">${EP.HOOKS.map((h, i) => `<button data-hook="${i}" style="background:${EP.COLORS[i % EP.COLORS.length]}">${esc(h)}</button>`).join('')}</div>
+        () => `<h3>Ganchos</h3><p class="dlx-sub" style="margin-top:0">Adicione um gancho de texto no começo do corte para aumentar a retenção.</p><h4>Ganchos de texto</h4><div class="dlx-hooks">${EP.HOOKS.map((h, i) => `<button data-hook="${i}" style="background:${EP.COLORS[i % EP.COLORS.length]};color:${EP.COLORS[i % EP.COLORS.length] === '#f0b93a' ? '#111' : '#fff'}">${esc(h)}</button>`).join('')}</div>
         <h4>Formato</h4><div class="dlx-chips"><button data-hf="box" aria-pressed="${st.hookFmt !== 'plain'}">Com tarja</button><button data-hf="plain" aria-pressed="${st.hookFmt === 'plain'}">Só texto</button></div>`,
       camadas: () => {
         const list = st.overlays.slice().reverse();
@@ -311,7 +354,7 @@
           st.lib = [];
         });
     function applyTemplate(t) {
-      st.cap = { ...st.cap, style: t.style, on: true };
+      st.cap = { on: true, style: t.style, size: st.cap.size, pos: st.cap.pos, margin: st.cap.margin, words: null };
       st.styleChosen = true;
       st.overlays = st.overlays.filter((o) => !o.tpl);
       if (t.text)
@@ -323,9 +366,9 @@
           x: 0.5,
           y: st.format === '16:9' ? 0.12 : 0.1,
           size: 0.05,
-          color: '#ffffff',
-          font: 'Arial',
-          bold: true,
+          color: t.fg || '#ffffff',
+          font: 'Montserrat ExtraBold',
+          bold: false,
           italic: false,
           upper: true,
           box: { color: t.bg, alpha: 0 },
@@ -382,20 +425,6 @@
             drawDrawer();
           }),
         );
-        const rs = $('#tr-rs', dr),
-          re = $('#tr-re', dr);
-        if (rs) {
-          rs.oninput = () => setIv(+rs.value, st.end);
-          rs.onchange = () => {
-            commit();
-            drawDrawer();
-          };
-          re.oninput = () => setIv(st.start, +re.value);
-          re.onchange = () => {
-            commit();
-            drawDrawer();
-          };
-        }
         on('tr-rm', 'click', () => {
           st.trMode = st.trMode === 'remove' ? 'cut' : 'remove';
           drawDrawer();
@@ -456,17 +485,19 @@
         });
       }
       if (st.panel === 'templates') {
-        on('tp-q', 'input', (e) => {
-          st.tq = e.target.value;
-          const pos = e.target.selectionStart;
-          drawDrawer();
-          const n = $('#tp-q', root);
-          n.focus();
-          n.setSelectionRange(pos, pos);
-        });
-        onAll('[data-tc]', 'click', (b) => {
-          st.tplCat = b.dataset.tc;
-          drawDrawer();
+        onAll('[data-tpl-del]', 'click', async (b) => {
+          const ev = window.event;
+          if (ev) ev.stopPropagation();
+          const t = (st.templates || []).find((x) => x.id === b.dataset.tplDel);
+          if (!t || !window.confirm(`Excluir o template “${t.name}”?`)) return;
+          try {
+            await api('/templates/' + t.id, { method: 'DELETE' });
+            st.templates = st.templates.filter((x) => x.id !== t.id);
+            toast('Template excluído.');
+            drawDrawer();
+          } catch (e) {
+            toast(e.message);
+          }
         });
         onAll('.dlx-card', 'click', (c) => {
           const id = c.dataset.tpl;
@@ -487,14 +518,6 @@
             toast(`Template “${t.name}” aplicado.`);
           }
         });
-        onAll('[data-fav]', 'click', (b) => {
-          const ev = window.event;
-          if (ev) ev.stopPropagation();
-          const s = FAV.get('invb.favTpl');
-          s.has(b.dataset.fav) ? s.delete(b.dataset.fav) : s.add(b.dataset.fav);
-          FAV.set('invb.favTpl', s);
-          drawDrawer();
-        });
         on('tp-save', 'click', () => {
           const name = prompt('Nome do template');
           if (!name || !name.trim()) return;
@@ -510,103 +533,209 @@
         });
       }
       if (st.panel === 'legendas') {
-        onAll('[data-tab]', 'click', (b) => {
-          if (b.disabled) return;
-          st.tab = b.dataset.tab;
-          drawDrawer();
-        });
-        on('sty-anim', 'click', () => {
-          st.anim = !st.anim;
-          drawDrawer();
-        });
-        on('sty-q', 'input', (e) => {
-          st.q = e.target.value;
-          const pos = e.target.selectionStart;
-          drawDrawer();
-          const n = $('#sty-q', root);
-          n.focus();
-          n.setSelectionRange(pos, pos);
-        });
-        onAll('[data-cat]', 'click', (b) => {
-          st.cat = b.dataset.cat;
-          drawDrawer();
-        });
-        onAll('[data-style]', 'click', (c) => {
-          const id = c.dataset.style;
-          if (id === '') {
-            st.cap.on = false;
-          } else {
-            st.cap.style = id;
-            st.cap.on = true;
-            st.styleChosen = true;
-          }
+        const redraw = () => {
           shared.wordsDirty = true;
           commit();
           refreshBar();
           paintCap();
           drawDrawer();
+        };
+        // muda uma propriedade do estilo deste corte; `live` só repinta (enquanto arrasta), sem guardar no histórico
+        const setP = (k, v, live) => {
+          st.cap[k] = v;
+          if (!st.cap.on) st.cap.on = true;
+          shared.wordsDirty = true;
+          paintCap();
+          if (!live) {
+            commit();
+            refreshBar();
+          }
+        };
+        const keep = () => ({ size: st.cap.size, pos: st.cap.pos, margin: st.cap.margin });
+        onAll('[data-tab]', 'click', (b) => {
+          st.tab = b.dataset.tab;
+          drawDrawer();
         });
-        onAll('[data-fav]', 'click', (b) => {
+        /* ----- Estilos ----- */
+        onAll('[data-style]', 'click', (c) => {
+          const id = c.dataset.style;
+          if (id === '') st.cap.on = false;
+          else st.cap = { on: true, style: id, ...keep(), words: null }; // estilo pronto: começa sem as mudanças anteriores
+          st.styleChosen = true;
+          redraw();
+        });
+        const myList = () => (st.myStyles && st.myStyles.styles) || [];
+        onAll('[data-mine]', 'click', (c) => {
+          const it = myList().find((x) => x.id === c.dataset.mine);
+          if (!it) return;
+          st.cap = CSx.fromSaved(it, true);
+          st.styleChosen = true;
+          redraw();
+        });
+        onAll('[data-mine-del]', 'click', async (b) => {
           const ev = window.event;
           if (ev) ev.stopPropagation();
-          const s = FAV.get('invb.favSty');
-          s.has(b.dataset.fav) ? s.delete(b.dataset.fav) : s.add(b.dataset.fav);
-          FAV.set('invb.favSty', s);
+          const it = myList().find((x) => x.id === b.dataset.mineDel);
+          if (!it || !window.confirm(`Excluir o estilo “${it.name}”? Os cortes que já usam continuam como estão.`))
+            return;
+          try {
+            const r = await api('/caption-styles/' + it.id, { method: 'DELETE' });
+            st.myStyles = { styles: myList().filter((x) => x.id !== it.id), defaultId: r.defaultId };
+            if (st.cap.mine === it.id) delete st.cap.mine;
+            toast('Estilo excluído.');
+            drawDrawer();
+          } catch (e) {
+            toast(e.message);
+          }
+        });
+        onAll('[data-mine-def]', 'click', async (b) => {
+          const ev = window.event;
+          if (ev) ev.stopPropagation();
+          const id = b.dataset.mineDef,
+            on = st.myStyles.defaultId !== id;
+          try {
+            const r = await api('/caption-styles/' + id, { method: 'PATCH', json: { default: on } });
+            st.myStyles.defaultId = r.defaultId;
+            toast(
+              on ? 'Os cortes novos vão começar com este estilo.' : 'Os cortes novos voltam a começar com a Clássica.',
+            );
+            drawDrawer();
+          } catch (e) {
+            toast(e.message);
+          }
+        });
+        /* ----- Personalizar ----- */
+        on('cx-on', 'click', () => {
+          st.cap.on = true;
+          redraw();
+        });
+        on('cx-reset', 'click', () => {
+          const mine1 = st.cap.mine && myList().find((x) => x.id === st.cap.mine);
+          st.cap = mine1
+            ? CSx.fromSaved(mine1, st.cap.on)
+            : { on: st.cap.on, style: st.cap.style, ...keep(), words: null };
+          redraw();
+        });
+        on('cx-font', 'change', (e) => {
+          setP('font', e.target.value);
           drawDrawer();
         });
-        onAll('[data-font]', 'click', (b) => {
-          st.cap.font = b.dataset.font || null;
-          commit();
+        const rng = (id, fn, fmt = (v) => v) => {
+          const r = $('#' + id, dr);
+          if (!r) return;
+          r.oninput = () => {
+            fn(+r.value, true);
+            const o = $('#' + id + '-v', dr);
+            if (o) o.textContent = fmt(+r.value);
+          };
+          r.onchange = () => fn(+r.value, false);
+        };
+        rng('cx-size', (v, live) => {
+          st.cap.size = v;
           paintCap();
+          if (!live) commit();
+        });
+        rng('cx-words', (v, live) => {
+          st.cap.words = v;
+          delete st.cap.chunk;
+          setP('words', v, live);
+        });
+        rng('cx-ow', (v, live) => setP('ow', v, live));
+        rng('cx-sh', (v, live) => setP('shadow', v, live));
+        rng(
+          'cx-ba',
+          (v, live) => setP('box', { color: eff().box.color, alpha: v / 100 }, live),
+          (v) => v + '%',
+        );
+        rng(
+          'cx-mg',
+          (v, live) => {
+            st.cap.margin = v;
+            paintCap();
+            if (!live) {
+              commit();
+              drawDrawer();
+            }
+          },
+          (v) => v + '%',
+        );
+        on('cx-mg-auto', 'click', () => {
+          st.cap.margin = null;
+          redraw();
+        });
+        for (const k of ['upper', 'italic', 'glow', 'pop'])
+          on('cx-' + k, 'click', () => {
+            setP(k, !eff()[k]);
+            drawDrawer();
+          });
+        on('cx-box', 'click', () => {
+          setP('box', eff().box ? false : { color: '#000000', alpha: 0.35 });
           drawDrawer();
+        });
+        onAll('[data-mode]', 'click', (b) => {
+          setP('mode', b.dataset.mode);
+          drawDrawer();
+        });
+        const setColor = (key, c, live) =>
+          key === 'box'
+            ? setP('box', { color: c, alpha: eff().box ? eff().box.alpha : 0.35 }, live)
+            : setP(key, c, live);
+        onAll('[data-cset]', 'click', (b) => {
+          setColor(b.dataset.cset, b.dataset.c);
+          drawDrawer();
+        });
+        $$('[data-color]', dr).forEach((i) => {
+          i.oninput = () => setColor(i.dataset.color, i.value, true);
+          i.onchange = () => {
+            setColor(i.dataset.color, i.value);
+            drawDrawer();
+          };
         });
         onAll('[data-pos]', 'click', (b) => {
           st.cap.pos = b.dataset.pos;
-          commit();
-          paintCap();
-          drawDrawer();
+          redraw();
         });
-        const rng = (id, key, out) => {
-          const r = $('#' + id, dr);
-          if (r) {
-            r.oninput = () => {
-              st.cap[key] = +r.value;
-              $('#' + out, dr).textContent = r.value;
-              paintCap();
-            };
-            r.onchange = commit;
+        // o que vai para um estilo salvo: o estilo base, só o que mudou, e tamanho/posição
+        const payload = () => ({
+          base: st.cap.style,
+          props: CSx.diff(eff(), st.cap.style),
+          ...keep(),
+          default: !!($('#cx-def', dr) || {}).checked,
+        });
+        on('cx-save', 'click', async () => {
+          const name = (window.prompt('Nome do estilo (ex.: Pregação domingo):') || '').trim();
+          if (!name) return;
+          try {
+            const r = await api('/caption-styles', { json: { name, ...payload() } });
+            st.myStyles = { styles: [...myList(), r.style], defaultId: r.defaultId };
+            st.cap.mine = r.style.id;
+            commit();
+            toast(
+              `Estilo “${name}” salvo.${r.defaultId === r.style.id ? ' Os cortes novos vão começar com ele.' : ''}`,
+            );
+            drawDrawer();
+          } catch (e) {
+            toast(e.message);
           }
-        };
-        rng('fx-ow', 'ow', 'v-ow');
-        rng('fx-sh', 'shadow', 'v-sh');
-        rng('fx-sz', 'size', 'v-sz');
-        const wd = $('#fx-wd', dr);
-        if (wd) {
-          wd.oninput = () => {
-            st.cap.words = +wd.value >= 1 ? +wd.value : null;
-            $('#v-wd', dr).textContent = st.cap.words ? st.cap.words : 'Padrão do estilo';
-            paintCap();
-          };
-          wd.onchange = commit;
-        }
-        on('fx-pop', 'click', () => {
-          st.cap.pop = !eff().pop;
-          commit();
-          paintCap();
-          drawDrawer();
         });
-        on('fx-up', 'click', () => {
-          st.cap.upper = !eff().upper;
-          commit();
-          paintCap();
-          drawDrawer();
+        on('cx-upd', 'click', async () => {
+          const it = myList().find((x) => x.id === st.cap.mine);
+          if (!it) return;
+          const p = payload();
+          try {
+            const r = await api('/caption-styles/' + it.id, {
+              method: 'PATCH',
+              json: { ...p, default: p.default || undefined },
+            });
+            Object.assign(it, r.style);
+            st.myStyles.defaultId = r.defaultId;
+            toast(`Estilo “${it.name}” atualizado.`);
+            drawDrawer();
+          } catch (e) {
+            toast(e.message);
+          }
         });
-        on('fx-reset', 'click', () => {
-          Object.assign(st.cap, { upper: null, pop: null, font: null, ow: null, shadow: null, size: 16, words: null });
-          commit();
-          paintCap();
-          drawDrawer();
-        });
+        /* ----- Tradução ----- */
         on('tr-lang', 'change', (e) => {
           if (!e.target.value) {
             st.lang = null;
@@ -643,21 +772,21 @@
           btn.disabled = false;
         });
         if (st.tab === 'estilos') {
-          // pré-visualizações animadas só dos cartões visíveis
+          // as amostras dos cartões visíveis ficam animadas, mostrando como a palavra falada aparece
           clearInterval(st.animT);
-          if (st.anim)
-            st.animT = setInterval(() => {
-              st.tick++;
-              const box = $('#dx-drawer', root);
-              if (!box || st.panel !== 'legendas' || st.tab !== 'estilos') return clearInterval(st.animT);
-              const br = box.getBoundingClientRect();
-              $$('#sty-grid [data-style]:not(.nosub)', box).forEach((c) => {
-                const r = c.getBoundingClientRect();
-                if (r.bottom < br.top || r.top > br.bottom) return;
-                const S = CSx.byName(c.dataset.style);
-                $('.pv', c).innerHTML = sampleCard(S, st.tick);
-              });
-            }, 750);
+          st.animT = setInterval(() => {
+            st.tick++;
+            const box = $('#dx-drawer', root);
+            if (!box || st.panel !== 'legendas' || st.tab !== 'estilos') return clearInterval(st.animT);
+            const br = box.getBoundingClientRect();
+            $$('.sty-grid [data-style], .sty-grid [data-mine]', box).forEach((c) => {
+              const r = c.getBoundingClientRect();
+              if (r.bottom < br.top || r.top > br.bottom) return;
+              const it = c.dataset.mine && myList().find((x) => x.id === c.dataset.mine);
+              const S = it ? CSx.resolve(CSx.fromSaved(it)) : CSx.byName(c.dataset.style);
+              $('.pv', c).innerHTML = sampleCard(S, st.tick);
+            });
+          }, 750);
         }
       }
       if (st.panel === 'midia') {
@@ -707,8 +836,8 @@
             text: 'Seu texto',
             size: 0.06,
             color: '#ffffff',
-            font: 'Arial',
-            bold: true,
+            font: CSx.DEFAULT_FONT,
+            bold: false,
             italic: false,
             upper: false,
             box: null,
@@ -730,17 +859,18 @@
         onAll('[data-hook]', 'click', (b) => {
           const i = +b.dataset.hook,
             plain = st.hookFmt === 'plain';
+          const bg = EP.COLORS[i % EP.COLORS.length];
           addOverlay({
             type: 'text',
             text: EP.HOOKS[i],
             size: 0.065,
-            color: '#ffffff',
-            font: 'Arial',
-            bold: true,
+            color: !plain && bg === '#f0b93a' ? '#111111' : '#ffffff', // texto escuro na tarja dourada
+            font: 'Montserrat ExtraBold',
+            bold: false,
             italic: false,
             upper: false,
-            y: 0.16,
-            box: plain ? null : { color: EP.COLORS[i % EP.COLORS.length], alpha: 0 },
+            y: st.overlays.some((o) => o.tpl && !o.hidden) ? 0.24 : 0.16, // abaixo da faixa do template, se houver
+            box: plain ? null : { color: bg, alpha: 0 },
             outline: plain ? { color: '#000000', w: 4 } : null,
             start: 0,
             end: Math.min(3, D()),

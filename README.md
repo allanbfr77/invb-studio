@@ -46,6 +46,20 @@ Cada culto tem um responsável, que faz sozinho da transcrição aos cortes.
 Para fazer tudo de uma vez, use **Baixar todos** ou **Enviar todos ao Drive** no alto da lista: o app exporta o que
 faltar e baixa (ou envia) cada corte da aba, um por vez.
 
+### Legenda e visual do corte (gavetas do editor)
+
+- **Legendas**: a aba **Estilos** tem 18 estilos prontos, por categoria (Essenciais, Destaque, Com fundo, Impacto,
+  Elegante). Em **Personalizar** dá para mudar tudo: fonte, tamanho, maiúsculas, itálico, como a palavra falada aparece,
+  quantas palavras por vez, cores, contorno, sombra, brilho, fundo, animação, posição e distância da borda.
+  **Salvar como meu estilo** guarda o visual com um nome (em `data/caption-styles.json`). A ★ (ou a caixa “Usar como
+  padrão”) faz os cortes novos já começarem com aquele estilo.
+- **Fontes**: as fontes ficam em `public/fonts/` (com as licenças). A prévia e o vídeo exportado usam os mesmos arquivos,
+  então o que aparece no editor é o que sai no vídeo, em qualquer computador.
+- **Templates**: 13 modelos de igreja (Pregação, Versículo, Reflexão, Impacto, Igreja), cada um com legenda e faixa de
+  título. **Salvar o visual atual como template** guarda a legenda e os textos por cima.
+- **Ganchos**: frases curtas para o começo do corte (“OUÇA ATÉ O FIM”, “UMA PALAVRA PARA VOCÊ”…), nas cores da igreja.
+- **Texto**, **Mídia** e **Camadas**: texto livre por cima, imagens enviadas e a lista do que está no quadro.
+
 ### A pregação inteira não fica guardada
 
 Fica salvo só o link. O vídeo baixado continua no computador enquanto você estiver usando, então dá
@@ -190,6 +204,8 @@ app. Cada análise leva de 25 a 45 segundos. Detalhes, testes e limitações em 
   `npx prettier --write .` (o CSS e os arquivos de texto ficam de fora, pelo `.prettierignore`).
 - Estilos (`public/css/`, nessa ordem): `base.css` (variáveis e o básico), `app.css` (as telas), `editor.css` (o editor do
   corte) e `theme.css` (identidade da igreja e os modos claro e noturno).
+- Legenda: `public/caption-styles.js` é a fonte única dos estilos e das fontes, usada pela prévia (navegador) e pela
+  exportação (`lib/render.js`). `public/css/fonts.css` carrega as fontes de `public/fonts/`.
 - Lógica testável em `lib/`: `lines.js` (linhas curtas), `cutlist.js` (ida e volta com o Claude),
   `drive.js` (importar e enviar), `kit.js` (legenda e texto do corte), `cleanup.js` (limpeza do original), `claude.js` (IA), `autosync.js` (sincronia automática), `analyze.js`.
 - O projeto e o plano desta mudança estão em `docs/superpowers/`.

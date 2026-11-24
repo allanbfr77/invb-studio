@@ -220,3 +220,25 @@
 .dlx-triml .mid{font-family:inherit;color:var(--muted);text-align:center;flex:1;font-size:11.5px}
 @media (max-width:900px){.dlx-triml .mid{display:none}
 }
+
+/* Painel Legendas: estilos salvos, cores e salvar */
+.dlx-tabs.three{grid-template-columns:repeat(3,1fr)}
+.dlx-card .x,.dlx-card .star{position:absolute;top:12px;z-index:2;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:11px;line-height:1;display:grid;place-items:center}
+.dlx-card .x{right:12px}
+.dlx-card .star{right:40px;color:rgba(255,255,255,.55);font-size:13px}
+.dlx-card .star.on{color:#f0b93a}
+.dlx-def{font-style:normal;font-size:10.5px;font-weight:700;color:var(--soft-fg);background:var(--soft);border-radius:99px;padding:1px 7px;margin-left:4px}
+.dlx-drawer h4{margin:20px 0 8px}
+.dlx-select{width:100%;border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;background:var(--surface);color:var(--fg);font:inherit;font-size:13px}
+.dlx-fontpv{margin:8px 0 2px;padding:10px 12px;border-radius:var(--r);background:linear-gradient(170deg,#6b6c72,#3a3b40);color:#fff;font-size:20px;text-align:center;line-height:1.2}
+.dlx-color{display:flex;flex-direction:column;gap:6px;margin:10px 0 4px}
+.dlx-color>span{font-size:13px;color:var(--fg)}
+.dlx-color .dlx-swatches{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.dlx-color .dlx-swatches button{width:24px;height:24px;border-radius:50%;border:1px solid var(--border-strong);box-shadow:inset 0 0 0 2px rgba(0,0,0,.08)}
+.dlx-color .dlx-swatches button[aria-pressed=true]{outline:2px solid var(--primary);outline-offset:2px}
+.dlx-color input[type=color]{width:32px;height:26px;padding:0;border:1px solid var(--border);border-radius:6px;background:none;cursor:pointer}
+.dlx-save{display:flex;flex-direction:column;gap:8px;margin:22px 0 8px;padding-top:16px;border-top:1px solid var(--border)}
+.dlx-save .ap-btn{width:100%;justify-content:center}
+.dlx-check{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted);cursor:pointer}
+.dlx-check input{accent-color:var(--primary)}
+.dlx-note2{font-size:12.5px;padding:8px 10px;border-radius:var(--r);background:var(--soft);color:var(--soft-fg);margin-bottom:12px}

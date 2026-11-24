@@ -331,7 +331,10 @@
               } else if (a === 'open') {
                 // tesoura: abre o editor (formato, legenda, textos, ajustes finos)
                 if (k.render && k.render.status === 'rendering') return toast('Este corte já está sendo exportado.');
+                // estilos de legenda salvos (e o padrão), para o editor já abrir com eles
+                const capStyles = await api('/caption-styles').catch(() => ({ styles: [], defaultId: null }));
                 ClipEditor.open({
+                  capStyles,
                   upload: c,
                   clip: k,
                   segs: S.segs,

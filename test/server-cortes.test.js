@@ -397,3 +397,103 @@ test('a exportação soma a sincronia da pregação ao ajuste do corte', { skip:
     `bipe deveria ir para 1,4 s do corte (1,0 + 0,3 da pregação + 0,1 do corte); foi ${beep}`,
   );
 });
+
+test(
+  'legenda personalizada: a exportação usa a fonte do app, as cores e o fundo escolhidos',
+  { skip: !HAS_FFMPEG || process.platform === 'win32' },
+  async (t) => {
+    const d = tmp(t);
+    const dir = seedTone(d, 'kkkkkkkkkkk2');
+    const s = await boot(t, d);
+    const cap = {
+      on: true,
+      style: 'Destaque/Destaque dourado',
+      font: 'Anton',
+      color: '#F6D27A',
+      box: { color: '#231c47', alpha: 0.2 },
+      size: 16,
+    };
+    await s.api('/uploads/kkkkkkkkkkk2/clips/m111111111111/render', { json: { format: '9:16', captions: cap } });
+    const r = await waitRender(s, 'kkkkkkkkkkk2');
+    assert.equal(r.status, 'done', r.error);
+    assert.equal(r.captions, true); // a legenda foi queimada (não caiu no plano B sem legenda)
+    const style = fs
+      .readFileSync(path.join(dir, 'clips', 'm111111111111.ass'), 'utf8')
+      .match(/^Style: Default,.*$/m)[0]
+      .split(',');
+    assert.equal(style[1], 'Anton');
+    assert.equal(style[3], '&H007AD2F6'); // #f6d27a no formato do ASS (azul, verde, vermelho)
+    assert.equal(style[5], '&H33471C23'); // fundo #231c47 com 20% de transparência
+    assert.equal(style[15], '3'); // caixa atrás do texto
+  },
+);
+
+test(
+  'trecho fora do vídeo não é dado como pronto com um arquivo vazio',
+  { skip: !HAS_FFMPEG || process.platform === 'win32' },
+  async (t) => {
+    const d = tmp(t);
+    const dir = seedTone(d, 'kkkkkkkkkkk3');
+    // com a duração gravada o servidor já recusa antes; sem ela, quem pega é a checagem do arquivo final
+    const m = meta(dir);
+    delete m.duration;
+    fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(m));
+    const s = await boot(t, d);
+    await s.api('/uploads/kkkkkkkkkkk3/clips/m111111111111/render', { json: { start: 30, end: 40, captions: false } });
+    let k;
+    for (let i = 0; i < 300; i++) {
+      k = (await s.api('/uploads/kkkkkkkkkkk3/clips')).body[0];
+      if (k.render && k.render.status !== 'rendering') break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.equal(k.render.status, 'error');
+    assert.match(k.render.error, /vazio/);
+  },
+);
+
+test('estilos de legenda salvos: criar, marcar como padrão, conferir os valores e excluir', async (t) => {
+  const d = tmp(t);
+  const s = await boot(t, d);
+  assert.deepEqual((await s.api('/caption-styles')).body, { styles: [], defaultId: null });
+  const c = await s.api('/caption-styles', {
+    json: {
+      name: 'Domingo',
+      base: 'Impacto/Impacto',
+      props: { font: 'Comic Sans', color: '#FF0000', ow: 50 },
+      size: 99,
+      pos: 'lado',
+      default: true,
+    },
+  });
+  assert.equal(c.status, 201);
+  const it = c.body.style;
+  assert.deepEqual(it.props, { font: 'Poppins ExtraBold', color: '#ff0000', ow: 10 }); // fonte desconhecida e excessos corrigidos
+  assert.equal(it.size, 32);
+  assert.equal(it.pos, 'bottom');
+  assert.equal(c.body.defaultId, it.id);
+  assert.equal((await s.api('/caption-styles', { json: { name: '  ' } })).status, 400);
+  const p = await s.api('/caption-styles/' + it.id, { method: 'PATCH', json: { default: false, name: 'Domingo 2' } });
+  assert.equal(p.body.defaultId, null);
+  assert.equal(p.body.style.name, 'Domingo 2');
+  assert.equal((await s.api('/caption-styles/naoexiste', { method: 'DELETE' })).status, 404);
+  await s.api('/caption-styles/' + it.id, { method: 'DELETE' });
+  assert.equal((await s.api('/caption-styles')).body.styles.length, 0);
+});
+
+test('template salvo guarda também os textos sobre o vídeo', async (t) => {
+  const d = tmp(t);
+  const s = await boot(t, d);
+  const r = await s.api('/templates', {
+    json: {
+      name: 'Com faixa',
+      config: {
+        on: true,
+        style: 'Essenciais/Clássica',
+        overlays: [{ type: 'text', text: 'PALAVRA DE HOJE', x: 0.5, y: 0.1, font: 'Montserrat ExtraBold' }],
+      },
+    },
+  });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.config.overlays.length, 1);
+  assert.equal(r.body.config.overlays[0].text, 'PALAVRA DE HOJE');
+});

@@ -21,6 +21,8 @@ const staticTypes = {
   '.json': 'application/json',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
+  '.ttf': 'font/ttf',
+  '.txt': 'text/plain; charset=utf-8',
 };
 function serveStatic(req, res, url) {
   if (url === '/') {

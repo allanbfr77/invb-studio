@@ -1,0 +1,11 @@
+/* Fontes das legendas e dos textos sobre o corte (arquivos em public/fonts). As mesmas vão para o ffmpeg,
+   então a prévia mostra a letra que sai no vídeo. Gerado a partir de FONT_LIST, em public/caption-styles.js. */
+@font-face{font-family:'Poppins ExtraBold';src:url(/fonts/Poppins-ExtraBold.ttf) format('truetype');font-weight:normal;font-style:normal;font-display:swap}
+@font-face{font-family:'Poppins SemiBold';src:url(/fonts/Poppins-SemiBold.ttf) format('truetype');font-weight:normal;font-style:normal;font-display:swap}
+@font-face{font-family:'Montserrat ExtraBold';src:url(/fonts/Montserrat-ExtraBold.ttf) format('truetype');font-weight:normal;font-style:normal;font-display:swap}
+@font-face{font-family:'Anton';src:url(/fonts/Anton-Regular.ttf) format('truetype');font-weight:normal;font-style:normal;font-display:swap}
+@font-face{font-family:'Bebas Neue';src:url(/fonts/BebasNeue-Regular.ttf) format('truetype');font-weight:normal;font-style:normal;font-display:swap}
+@font-face{font-family:'Archivo Black';src:url(/fonts/ArchivoBlack-Regular.ttf) format('truetype');font-weight:normal;font-style:normal;font-display:swap}
+@font-face{font-family:'DM Serif Display';src:url(/fonts/DMSerifDisplay-Regular.ttf) format('truetype');font-weight:normal;font-style:normal;font-display:swap}
+@font-face{font-family:'DM Serif Display';src:url(/fonts/DMSerifDisplay-Italic.ttf) format('truetype');font-weight:normal;font-style:italic;font-display:swap}
+@font-face{font-family:'Permanent Marker';src:url(/fonts/PermanentMarker-Regular.ttf) format('truetype');font-weight:normal;font-style:normal;font-display:swap}

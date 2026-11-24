@@ -1,0 +1,6 @@
+Fontes das legendas e dos textos sobre o corte.
+Vão junto com o app para que a prévia no navegador e o vídeo exportado (ffmpeg) usem exatamente a mesma letra,
+em qualquer computador. Todas são livres: OFL 1.1 (Poppins, Montserrat, Anton, Bebas Neue, Archivo Black,
+DM Serif Display) e Apache 2.0 (Permanent Marker). As licenças estão na pasta "licencas".
+A Montserrat ExtraBold é a versão de peso 800 tirada da Montserrat variável oficial.
+Para acrescentar uma fonte: ponha o .ttf aqui e inclua uma linha em FONT_LIST, em public/caption-styles.js.

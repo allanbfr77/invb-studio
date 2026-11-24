@@ -224,7 +224,7 @@
         return;
       }
       const t = relT(),
-        S = CSx.withWords(style(), st.cap.words),
+        S = style(),
         E = eff(),
         H = stage.clientHeight || 1,
         scale = H / 1080,
@@ -273,8 +273,10 @@
         capEl.style.display = 'none';
         return;
       }
-      const fs = H * (st.cap.size / 288) * S.size,
-        mv = st.format === '9:16' ? '14%' : '8%';
+      const fs = H * (st.cap.size / 288) * S.scale,
+        mv =
+          (st.cap.margin === null || st.cap.margin === undefined ? (st.format === '9:16' ? 14 : 8) : st.cap.margin) +
+          '%';
       capEl.style.cssText = `display:block;font-size:${fs}px;${st.cap.pos === 'top' ? 'top:7%;bottom:auto' : st.cap.pos === 'middle' ? 'top:50%;transform:translateY(-50%);bottom:auto' : 'bottom:' + mv}`;
       capEl.innerHTML = html;
     }
@@ -464,7 +466,7 @@
             `font-size:${o.size * H}px`,
             `color:${o.color}`,
             `font-family:'${o.font}',Arial,sans-serif`,
-            `font-weight:${o.bold ? 800 : 500}`,
+            'font-weight:normal', // o peso vem da fonte
             o.italic ? 'font-style:italic' : '',
             o.box
               ? `background:${o.box.color}${Math.round((1 - o.box.alpha) * 255)

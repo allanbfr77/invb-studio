@@ -46,22 +46,7 @@
     e: i * 0.35 + 0.35,
     seg: 0,
   }));
-  const FAV = {
-    get: (k) => {
-      try {
-        return new Set(JSON.parse(localStorage.getItem(k) || '[]'));
-      } catch {
-        return new Set();
-      }
-    },
-    set: (k, s) => {
-      try {
-        localStorage.setItem(k, JSON.stringify([...s]));
-      } catch {
-        /* sem storage */
-      }
-    },
-  };
+
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rid = () => Math.random().toString(36).slice(2, 10);
 
@@ -72,7 +57,7 @@
     const css = [
       `color:${style.color}`,
       `font-family:'${eff.font}',Arial,sans-serif`,
-      `font-weight:${style.bold ? 800 : 500}`,
+      'font-weight:normal', // o peso vem da fonte (cada fonte do app é um arquivo com o seu peso)
       style.italic ? 'font-style:italic' : '',
       eff.upper ? 'text-transform:uppercase' : '',
     ];
@@ -85,7 +70,10 @@
         'border-radius:6px',
       );
     else if (ow > 0)
-      css.push(`-webkit-text-stroke:${(ow * 2).toFixed(1)}px ${style.outline}`, 'paint-order:stroke fill');
+      css.push(
+        `-webkit-text-stroke:${(ow * 2).toFixed(1)}px ${style.glow ? style.hi : style.outline}`,
+        'paint-order:stroke fill',
+      );
     if (sh > 0) css.push(`text-shadow:0 ${sh.toFixed(1)}px ${(sh * 1.5).toFixed(1)}px rgba(0,0,0,.65)`);
     if (style.glow) css.push(`filter:drop-shadow(0 0 ${(6 * Math.max(scale * 3, 0.6)).toFixed(1)}px ${style.hi})`);
     return css.filter(Boolean).join(';');
@@ -105,7 +93,7 @@
   // O editor tem quatro arquivos: este (estado, estrutura, salvar e exportar), preview.js (prévia, linha do tempo e
   // imagens sobre o vídeo), left.js (painel da esquerda) e drawers.js (gavetas da direita). As partes dividem o objeto "shared".
   const Parts = (window.ClipEditorParts = {
-    base: { $, $$, CSx, capHTML, clamp, rid, FORMATS, FORMAT_ICON, SAMPLE, FAV, EP },
+    base: { $, $$, CSx, capHTML, clamp, rid, FORMATS, FORMAT_ICON, SAMPLE, EP },
   });
 
   function open(ctx) {
@@ -139,14 +127,10 @@
       sync: 0,
       cap: {
         on: false,
-        style: 'Clássicos/Clássica',
+        style: CSx.DEFAULT_ID,
         size: 16,
         pos: 'bottom',
-        upper: null,
-        pop: null,
-        font: null,
-        ow: null,
-        shadow: null,
+        margin: null, // distância da borda em % da altura; vazio = a do formato
         words: null,
       },
       start: clip.start,
@@ -200,14 +184,10 @@
       st.cap = {
         ...{
           on: false,
-          style: 'Clássicos/Clássica',
+          style: CSx.DEFAULT_ID,
           size: 16,
           pos: 'bottom',
-          upper: null,
-          pop: null,
-          font: null,
-          ow: null,
-          shadow: null,
+          margin: null,
         },
         ...st.cap,
       };
@@ -218,20 +198,17 @@
       if (clip.editor.cap && clip.editor.cap.style) st.styleChosen = true;
       st.title = clip.title || st.title;
     }
+    // estilos de legenda salvos neste computador; corte ainda sem edição começa com o estilo marcado como padrão
+    st.myStyles = ctx.capStyles || { styles: [], defaultId: null };
+    if (!clip.editor && st.myStyles.defaultId) {
+      const it = st.myStyles.styles.find((x) => x.id === st.myStyles.defaultId);
+      if (it) st.cap = CSx.fromSaved(it, false);
+    }
     const segs = ctx.segs || [];
     shared.words = [];
-    const style = () => CSx.byName(st.cap.style);
-    const eff = () => {
-      const s = style(),
-        c = st.cap;
-      return {
-        upper: c.upper === null ? s.upper : c.upper,
-        ow: c.ow === null ? s.ow : c.ow,
-        shadow: c.shadow === null ? s.shadow : c.shadow,
-        font: c.font || s.font,
-        pop: c.pop === null ? s.pop : c.pop,
-      };
-    };
+    // o estilo que vale: o escolhido com as mudanças de "Personalizar" por cima (o mesmo cálculo da exportação)
+    const style = () => CSx.resolve(st.cap);
+    const eff = style;
     const fmtObj = () => FORMATS.find((x) => x[0] === st.format);
     const outSize = () => {
       const f = fmtObj();
@@ -613,7 +590,7 @@
     $('#dx-save', root).onclick = () => saveEdit(false);
     $('#dx-note', root).textContent = isAud
       ? 'O arquivo final é gerado com ffmpeg no servidor.'
-      : 'Prévia aproximada (recorte central, fontes do navegador). O arquivo final é gerado com ffmpeg no servidor.';
+      : 'Prévia aproximada (recorte central). As fontes são as mesmas do arquivo final, que é gerado no servidor.';
     drawLeft();
     drawDrawer();
     refreshBar();
