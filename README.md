@@ -185,6 +185,8 @@ app. Cada análise leva de 25 a 45 segundos. Detalhes, testes e limitações em 
 - O editor do corte (`public/editor/`): `editor.js` (estado, estrutura, salvar e exportar), `preview.js` (prévia, teste de
   sincronia, linha do tempo e imagens por cima) e `panels.js` (painel da esquerda e gavetas da direita). As três partes
   dividem o objeto `shared`.
+- Estilos (`public/css/`, nessa ordem): `base.css` (variáveis e o básico), `app.css` (as telas), `editor.css` (o editor do
+  corte) e `theme.css` (identidade da igreja e os modos claro e noturno).
 - Lógica testável em `lib/`: `lines.js` (linhas curtas), `cutlist.js` (ida e volta com o Claude),
   `drive.js` (importar e enviar), `kit.js` (legenda e texto do corte), `cleanup.js` (limpeza do original), `claude.js` (IA), `autosync.js` (sincronia automática), `analyze.js`.
 - O projeto e o plano desta mudança estão em `docs/superpowers/`.

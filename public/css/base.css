@@ -1,5 +1,5 @@
 /* INVB Studio — base do visual: tokens (cores, raios, sombras, fontes) e elementos comuns.
-   As cores da identidade Nova Vida Botafogo e o modo noturno ficam em theme.css; a área logada em app-area.css. */
+   As cores da identidade Nova Vida Botafogo e o modo noturno ficam em theme.css; as telas em app.css e o editor do corte em editor.css. */
 :root{
   color-scheme:light;
   /* superfícies */
