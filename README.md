@@ -79,7 +79,9 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   2. No **Editor avançado**, a seção **Pregações do Studio** (ou "Abrir no Editor avançado" na pregação) abre o
      projeto dela: na primeira vez o vídeo vem sozinho do Studio para o começo da linha do tempo; depois, o mesmo
      projeto com as edições. A ligação pregação → projeto fica no navegador.
-  3. **Só cortou?** No painel de exportar, use **⚡ Cortar no Studio**: o editor manda só os trechos que ficaram e o
+  3. **Exportar → "Para onde vai?"**: antes de começar, escolha os destinos (**Computador**, **INVB Studio**,
+     **YouTube**, **Google Drive** na pasta da equipe) e como gerar o vídeo. No fim, cada destino é executado sozinho,
+     com o resultado de cada um na tela. **Só cortou?** A opção **⚡ Cortar no Studio** já vem marcada: o editor manda só os trechos que ficaram e o
      Studio corta com o ffmpeg (`lib/cut.js`) — **rápido** (cópia direta, segundos; o corte pode cair até ~2 s antes)
      ou **exato** (gera de novo só o que ficou, com o codificador do Mac quando houver; minutos). A pregação passa a
      ser a versão cortada e é transcrita; dá para publicar no YouTube em seguida. Exportar pelo navegador gera o

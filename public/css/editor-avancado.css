@@ -506,3 +506,51 @@ img[src*='/logos/opencut/'] {
   line-height: 1.35;
   color: var(--muted-foreground);
 }
+
+/* andamento da exportação: uma linha por destino */
+.invb-steps {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.invb-steps li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.invb-steps li b {
+  font-size: 14px;
+}
+.invb-steps li span {
+  color: var(--muted-foreground);
+  word-break: break-word;
+}
+.invb-steps li.run {
+  border-color: var(--invb-gold);
+}
+.invb-steps li.ok span {
+  color: var(--foreground);
+}
+.invb-steps li.err {
+  border-color: #e11d48;
+}
+.invb-steps li.err span {
+  color: #e11d48;
+}
+.invb-steps a {
+  color: var(--invb-gold);
+  font-weight: 700;
+}
+.invb-opt input[type='checkbox'] {
+  margin-top: 3px;
+  accent-color: var(--invb-gold);
+}
+.invb-opt:has(input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

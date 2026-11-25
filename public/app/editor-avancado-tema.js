@@ -143,7 +143,11 @@
   HTMLAnchorElement.prototype.click = function () {
     var b = this.download && blobs[this.href];
     if (b && !this.__invbPass && isVideo(b, this.download)) {
-      offer(b, this.download);
+      if (pendingPlan) {
+        var plan = pendingPlan;
+        pendingPlan = null;
+        runPlan(b, this.download, plan);
+      } else offer(b, this.download);
       return;
     }
     return click.apply(this, arguments);
@@ -152,7 +156,11 @@
     var u = createURL.call(URL, b),
       a = document.createElement('a');
     a.href = u;
-    a.download = name;
+    // sem acentos no nome do arquivo: com eles, alguns navegadores salvam como "download", sem extensão
+    a.download = String(name)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w .()-]/g, '_');
     a.__invbPass = true;
     document.body.appendChild(a);
     click.call(a);
@@ -191,13 +199,13 @@
       document.head.appendChild(sc);
     });
   }
-  function ytToken(clientId) {
+  function ytToken(clientId, scope) {
     return loadGsi().then(function () {
       return new Promise(function (ok, bad) {
         google.accounts.oauth2
           .initTokenClient({
             client_id: clientId,
-            scope: YT_SCOPE,
+            scope: scope || YT_SCOPE,
             callback: function (t) {
               t && t.access_token ? ok(t.access_token) : bad(new Error('Não foi possível entrar com o Google.'));
             },
@@ -751,6 +759,494 @@
       $('.invb-ytf').hidden = false;
       drawThumb();
     }
+  }
+
+  /* ----- Exportar: "Para onde vai?" antes de começar -----
+     O botão Exportar do painel do editor começava direto. Agora ele abre antes a escolha dos destinos (Computador,
+     Studio, YouTube, Google Drive) e de como gerar o vídeo (cortar no Studio, rápido, quando a edição é só de cortes;
+     ou gerar no navegador). Ao confirmar, a exportação começa e, no fim, cada destino é executado sozinho, com o
+     resultado de cada um na tela. */
+  var DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
+  var pendingPlan = null;
+  var bypassExport = false;
+  // a janela não pode deixar o painel de exportar do editor fechar (ele fecha com clique ou foco fora dele)
+  function keepPopover(box) {
+    ['pointerdown', 'mousedown', 'focusin'].forEach(function (t) {
+      box.addEventListener(t, function (e) {
+        e.stopPropagation();
+      });
+    });
+  }
+  function exportButton() {
+    var hs = document.querySelectorAll('[data-radix-popper-content-wrapper] h3');
+    for (var i = 0; i < hs.length; i++) {
+      if ((hs[i].textContent || '').trim() !== 'Exportar projeto') continue;
+      var bs = hs[i].closest('[data-radix-popper-content-wrapper]').querySelectorAll('button');
+      for (var k = 0; k < bs.length; k++) if ((bs[k].textContent || '').trim() === 'Exportar') return bs[k];
+    }
+    return null;
+  }
+  window.addEventListener(
+    'click',
+    function (e) {
+      var btn = e.target.closest && e.target.closest('button');
+      if (!btn || btn !== exportButton()) return;
+      if (bypassExport) {
+        bypassExport = false;
+        return;
+      }
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      preExport();
+    },
+    true,
+  );
+  async function preExport() {
+    var old = document.getElementById('invb-send');
+    if (old) old.remove();
+    var preg = linkedPregacao(),
+      st = {},
+      u = null,
+      plan = null;
+    try {
+      st = await api('/api/status');
+    } catch (e) {
+      /* fora do login: só o computador */
+    }
+    if (preg) {
+      try {
+        u = await api('/api/uploads/' + encodeURIComponent(preg));
+        plan = planCut(await readProject(currentProject()), u.duration);
+      } catch (e) {
+        plan = { why: [e.message] };
+      }
+    }
+    var fast = !!(plan && plan.segs);
+    var projName = ((document.querySelector('header input') || {}).value || '').trim() || 'Vídeo';
+    var title = u ? titleOf(u) : projName;
+    loadGsi().catch(function () {});
+    var box = document.createElement('div');
+    box.id = 'invb-send';
+    box.className = 'invb-send';
+    keepPopover(box);
+    box.innerHTML =
+      '<div class="invb-card" role="dialog" aria-modal="true" aria-labelledby="invb-pre-t"><h2 id="invb-pre-t">Exportar: para onde vai?</h2>' +
+      '<p class="invb-sub">' +
+      esc(projName) +
+      (u ? ' · pregação “' + esc(title) + '”' : '') +
+      '</p>' +
+      '<div class="invb-opts">' +
+      '<label class="invb-opt"><input type="checkbox" data-dest="pc" checked><span><b>Computador</b><small>Baixa o arquivo (pasta Downloads).</small></span></label>' +
+      '<label class="invb-opt"><input type="checkbox" data-dest="studio"' +
+      (u ? ' checked' : '') +
+      '><span><b>INVB Studio</b><small>' +
+      (u
+        ? 'Substitui o vídeo da pregação “' + esc(title) + '” (transcreve só o que ficou; os cortes antigos saem).'
+        : 'Entra como pregação nova e é transcrita.') +
+      '</small></span></label>' +
+      '<label class="invb-opt"><input type="checkbox" data-dest="yt"' +
+      (st.driveClientId ? '' : ' disabled') +
+      '><span><b>YouTube</b><small>' +
+      (st.driveClientId
+        ? 'Publica no canal, com título, descrição e thumbnail.'
+        : 'Indisponível: o login do Google não está configurado no Studio.') +
+      '</small></span></label>' +
+      '<label class="invb-opt"><input type="checkbox" data-dest="drive"' +
+      (st.driveFolder ? '' : ' disabled') +
+      '><span><b>Google Drive</b><small>' +
+      (st.driveFolder
+        ? 'Envia para a pasta da equipe, numa pasta com o nome da pregação.'
+        : 'Indisponível: a pasta da equipe no Drive não está configurada no Studio.') +
+      '</small></span></label>' +
+      '</div>' +
+      '<div class="invb-f" data-ytf hidden>' +
+      '<div class="invb-f"><label for="invb-yt-title">Título no YouTube</label><input id="invb-yt-title" maxlength="100" value="' +
+      esc(title) +
+      '"></div>' +
+      '<div class="invb-f"><label for="invb-yt-desc">Descrição</label><textarea id="invb-yt-desc" rows="3" maxlength="5000">' +
+      esc(title) +
+      '\n\nNova Vida Botafogo</textarea></div>' +
+      '<div class="invb-f"><label for="invb-yt-priv">Visibilidade</label><select id="invb-yt-priv"><option value="private">Privado (só quem você convidar)</option><option value="unlisted">Não listado (quem tiver o link)</option><option value="public">Público</option></select></div>' +
+      '<div class="invb-f"><label>Thumbnail</label><div class="invb-chips">' +
+      '<label><input type="radio" name="invb-th" value="tpl" checked> Modelo da igreja</label>' +
+      '<label><input type="radio" name="invb-th" value="frame"> Quadro do vídeo</label>' +
+      '<label><input type="radio" name="invb-th" value="file"> Imagem pronta</label>' +
+      '<label><input type="radio" name="invb-th" value="none"> O YouTube escolhe</label></div>' +
+      '<div class="invb-thc"><label data-th-t>Momento do vídeo para a thumbnail <input type="range" id="invb-th-t" min="0" max="1000" value="250"></label>' +
+      '<label data-th-sub>Linha de baixo (ex.: nome do pregador) <input id="invb-th-sub" maxlength="60" placeholder="Pr. Nome · Nova Vida Botafogo"></label>' +
+      '<label data-th-file hidden>Imagem (JPG ou PNG, até 2 MB) <input type="file" id="invb-th-file" accept="image/jpeg,image/png"></label></div>' +
+      '<p class="invb-sub" style="margin:6px 0 0">A thumbnail é feita com o vídeo exportado. Personalizada só com o canal verificado por telefone.</p></div>' +
+      '</div>' +
+      (u
+        ? '<div class="invb-f"><label>Como gerar o vídeo</label><div class="invb-opts">' +
+          '<label class="invb-opt"><input type="radio" name="invb-how" value="fast"' +
+          (fast ? ' checked' : ' disabled') +
+          '><span><b>⚡ Cortar no Studio (rápido)</b><small>' +
+          (fast
+            ? 'Só cortes do vídeo da pregação: o Studio corta em segundos (' +
+              plan.segs.length +
+              ' trecho' +
+              (plan.segs.length > 1 ? 's' : '') +
+              ', fica ' +
+              hms(plan.total) +
+              ').'
+            : 'Não dá neste projeto: ' + esc(((plan && plan.why) || []).join('; '))) +
+          '</small></span></label>' +
+          '<label class="invb-opt"><input type="radio" name="invb-how" value="browser"' +
+          (fast ? '' : ' checked') +
+          '><span><b>Gerar no navegador</b><small>Necessário com texto, música ou efeitos. Numa live inteira pode levar horas.</small></span></label>' +
+          '</div><div data-exact' +
+          (fast ? '' : ' hidden') +
+          '><label class="invb-chk"><input type="checkbox" id="invb-exact"> Corte exato (gera de novo só o que ficou; leva alguns minutos)</label></div></div>'
+        : '') +
+      '<p class="invb-msg" role="status"></p>' +
+      '<div class="invb-act"><button type="button" class="invb-btn" data-x>Cancelar</button><button type="button" class="invb-btn pri" data-go>Exportar</button></div>' +
+      '</div>';
+    document.body.appendChild(box);
+    var $ = function (sel) {
+      return box.querySelector(sel);
+    };
+    var on = function (d) {
+      var x = box.querySelector('[data-dest="' + d + '"]');
+      return !!(x && x.checked);
+    };
+    var how = function () {
+      var r = box.querySelector('input[name="invb-how"]:checked');
+      return r ? r.value : 'browser';
+    };
+    var thumbFile = null;
+    var sync = function () {
+      $('[data-ytf]').hidden = !on('yt');
+      var kind = (box.querySelector('input[name="invb-th"]:checked') || {}).value;
+      $('[data-th-t]').hidden = kind === 'file' || kind === 'none';
+      $('[data-th-sub]').hidden = kind !== 'tpl';
+      $('[data-th-file]').hidden = kind !== 'file';
+      var ex = $('[data-exact]');
+      if (ex) ex.hidden = how() !== 'fast';
+      // cortar no Studio troca o vídeo da pregação: o Studio vai junto
+      var stu = box.querySelector('[data-dest="studio"]');
+      if (how() === 'fast') {
+        stu.checked = true;
+        stu.disabled = true;
+      } else stu.disabled = false;
+      var n = ['pc', 'studio', 'yt', 'drive'].filter(on).length;
+      $('[data-go]').disabled = !n;
+      $('[data-go]').textContent = how() === 'fast' ? 'Cortar no Studio' : 'Exportar';
+    };
+    box.querySelectorAll('input').forEach(function (i) {
+      i.addEventListener('change', sync);
+    });
+    $('#invb-th-file').onchange = function () {
+      thumbFile = this.files[0] || null;
+    };
+    var close = function () {
+      box.remove();
+    };
+    $('[data-x]').onclick = close;
+    box.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+      if (e.key === 'Escape') close();
+    });
+    sync();
+    $('[data-go]').onclick = async function () {
+      var msg = $('.invb-msg');
+      var p = {
+        pc: on('pc'),
+        studio: on('studio') ? (u ? { replace: preg } : { title: projName }) : null,
+        yt: on('yt')
+          ? {
+              title: ($('#invb-yt-title').value || '').trim() || title,
+              description: $('#invb-yt-desc').value,
+              privacy: $('#invb-yt-priv').value,
+              thumb: (box.querySelector('input[name="invb-th"]:checked') || {}).value || 'none',
+              at: +$('#invb-th-t').value / 1000,
+              sub: $('#invb-th-sub').value,
+              file: thumbFile,
+            }
+          : null,
+        drive: on('drive') ? { folder: st.driveFolder, sub: u ? titleOf(u) : projName } : null,
+        preg: preg,
+        title: title,
+      };
+      if (
+        p.studio &&
+        p.studio.replace &&
+        u &&
+        u.cuts &&
+        u.cuts.total &&
+        !window.confirm(
+          'Os ' + u.cuts.total + ' corte(s) de “' + title + '” vão ser apagados, porque a minutagem muda. Continuar?',
+        )
+      )
+        return;
+      // o login do Google agora, ainda dentro do clique (senão o navegador bloqueia a janela de login)
+      var scopes = [];
+      if (p.yt) scopes.push(YT_SCOPE);
+      if (p.drive) scopes.push(DRIVE_SCOPE);
+      if (scopes.length) {
+        msg.textContent = 'Entrando no Google…';
+        try {
+          p.token = await ytToken(st.driveClientId, scopes.join(' '));
+        } catch (e) {
+          return (msg.textContent = e.message);
+        }
+      }
+      close();
+      if (how() === 'fast') return fastPlan(p, plan, $('#invb-exact') && $('#invb-exact').checked ? 'exact' : 'fast');
+      // gerar no navegador: o plano fica guardado e a exportação do editor começa; no fim, runPlan
+      pendingPlan = p;
+      var b = exportButton();
+      if (!b) {
+        pendingPlan = null;
+        return toast('Não achei o botão Exportar do editor. Abra o painel de exportar de novo.');
+      }
+      bypassExport = true;
+      b.click();
+    };
+  }
+  // tela de andamento: uma linha por destino
+  function progressBox(p) {
+    var box = document.createElement('div');
+    box.id = 'invb-send';
+    box.className = 'invb-send';
+    keepPopover(box);
+    var rows = [];
+    if (p.cutting) rows.push(['cut', '⚡ Cortar no Studio']);
+    if (p.pc) rows.push(['pc', 'Computador']);
+    if (p.studio && !p.cutting) rows.push(['studio', 'INVB Studio']);
+    if (p.yt) rows.push(['yt', 'YouTube']);
+    if (p.drive) rows.push(['drive', 'Google Drive']);
+    box.innerHTML =
+      '<div class="invb-card" role="dialog" aria-modal="true"><h2>Exportando</h2><ul class="invb-steps">' +
+      rows
+        .map(function (r) {
+          return '<li data-step="' + r[0] + '"><b>' + r[1] + '</b><span>aguardando</span></li>';
+        })
+        .join('') +
+      '</ul><div class="invb-bar"><i></i></div><p class="invb-msg" role="status">Não feche esta aba até terminar.</p>' +
+      '<div class="invb-act"><button type="button" class="invb-btn" data-x hidden>Fechar</button></div></div>';
+    document.body.appendChild(box);
+    box.querySelector('[data-x]').onclick = function () {
+      box.remove();
+    };
+    return {
+      step: function (k, html, cls) {
+        var li = box.querySelector('[data-step="' + k + '"]');
+        if (!li) return;
+        li.className = cls || 'run';
+        li.querySelector('span').innerHTML = html;
+      },
+      bar: function (f) {
+        box.querySelector('.invb-bar i').style.width = Math.round(Math.max(0, Math.min(1, f)) * 100) + '%';
+      },
+      done: function (text) {
+        box.querySelector('.invb-msg').innerHTML = text;
+        box.querySelector('[data-x]').hidden = false;
+      },
+    };
+  }
+  async function fastPlan(p, plan, mode) {
+    p.cutting = true;
+    var ui = progressBox(p);
+    ui.step('cut', 'cortando…');
+    var r = await send(
+      '/api/uploads/' + encodeURIComponent(p.preg) + '/cut',
+      JSON.stringify({ segments: plan.segs, mode: mode }),
+      { 'x-invb': '1', 'content-type': 'application/json' },
+    ).catch(function (e) {
+      return { status: 0, json: { error: e.message } };
+    });
+    if (r.status !== 202) {
+      ui.step('cut', '⚠ ' + esc(r.json.error || 'não consegui começar'), 'err');
+      return ui.done('O corte não começou.');
+    }
+    for (;;) {
+      await sleep(1000);
+      var m = await api('/api/uploads/' + encodeURIComponent(p.preg)).catch(function () {
+        return null;
+      });
+      if (!m) continue;
+      if (m.cutError) {
+        ui.step('cut', '⚠ ' + esc(m.cutError), 'err');
+        return ui.done('O corte falhou.');
+      }
+      if (m.status === 'processing' && /^Cortando/.test(m.stage || '')) {
+        ui.step('cut', 'cortando… ' + (m.progress || 0) + '%');
+        ui.bar((m.progress || 0) / 100);
+        continue;
+      }
+      break;
+    }
+    ui.step(
+      'cut',
+      '✓ pronto: a pregação agora é a versão cortada e está sendo transcrita. <a href="/app/uploads/' +
+        esc(p.preg) +
+        '/transcription" target="_blank" rel="noopener">abrir</a>',
+      'ok',
+    );
+    if (!p.pc && !p.yt && !p.drive) return ui.done('✓ Tudo pronto.');
+    // os outros destinos usam o arquivo cortado
+    ui.step(p.pc ? 'pc' : p.yt ? 'yt' : 'drive', 'pegando o vídeo cortado no Studio…');
+    var resp = await fetch('/api/uploads/' + encodeURIComponent(p.preg) + '/media', { credentials: 'same-origin' });
+    if (!resp.ok) return ui.done('⚠ O Studio não entregou o vídeo cortado.');
+    var vb = await resp.blob();
+    p.studio = null; // já está no Studio
+    await runPlan(new File([vb], p.title + '.mp4', { type: vb.type || 'video/mp4' }), p.title + '.mp4', p, ui);
+  }
+  async function ensureDriveFolder(token, parent, name) {
+    var q =
+      "'" +
+      parent +
+      "' in parents and name = '" +
+      String(name).replace(/\\/g, '\\\\').replace(/'/g, "\\'") +
+      "' and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
+    var r = await fetch(
+      'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=1&fields=files(id)&q=' +
+        encodeURIComponent(q),
+      { headers: { Authorization: 'Bearer ' + token } },
+    );
+    var j = await r.json().catch(function () {
+      return {};
+    });
+    if (!r.ok) throw new Error((j.error && j.error.message) || 'O Drive recusou o acesso à pasta da equipe.');
+    if (j.files && j.files[0]) return j.files[0].id;
+    r = await fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, parents: [parent], mimeType: 'application/vnd.google-apps.folder' }),
+    });
+    j = await r.json().catch(function () {
+      return {};
+    });
+    if (!r.ok || !j.id) throw new Error((j.error && j.error.message) || 'Não consegui criar a pasta no Drive.');
+    return j.id;
+  }
+  async function driveUpload(token, folderId, blob, name, onprog) {
+    var r = await send(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true&fields=id,webViewLink',
+      JSON.stringify({ name: name, parents: [folderId] }),
+      {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': blob.type || 'video/mp4',
+        'X-Upload-Content-Length': String(blob.size),
+      },
+    );
+    var loc = r.xhr.getResponseHeader('Location') || r.xhr.getResponseHeader('location');
+    if (r.status !== 200 || !loc) throw new Error((r.json.error && r.json.error.message) || 'O Drive recusou o envio.');
+    var up = await send(loc, blob, { 'Content-Type': blob.type || 'video/mp4' }, onprog, 'PUT');
+    if ((up.status !== 200 && up.status !== 201) || !up.json.id)
+      throw new Error((up.json.error && up.json.error.message) || 'O Drive recusou o envio.');
+    return up.json.webViewLink || 'https://drive.google.com/file/d/' + up.json.id + '/view';
+  }
+  // executa os destinos escolhidos antes de exportar, um de cada vez
+  async function runPlan(blob, fileName, p, ui) {
+    ui = ui || progressBox(p);
+    var fails = 0;
+    var ext = (/\.[a-z0-9]+$/i.exec(fileName) || ['.mp4'])[0].toLowerCase();
+    if (p.pc) {
+      saveLocal(blob, fileName);
+      ui.step('pc', '✓ baixado: ' + esc(fileName) + ' (' + mb(blob.size) + '), na pasta Downloads', 'ok');
+    }
+    if (p.studio) {
+      ui.step('studio', 'enviando…');
+      try {
+        var url = p.studio.replace
+          ? '/api/uploads/' + encodeURIComponent(p.studio.replace) + '/edited?name=' + encodeURIComponent(fileName)
+          : '/api/uploads?name=' + encodeURIComponent(p.studio.title + ext);
+        var r = await send(url, blob, { 'x-invb': '1' }, function (f) {
+          ui.bar(f);
+          ui.step('studio', 'enviando… ' + Math.round(f * 100) + '%');
+        });
+        if (r.status === 401) throw new Error('entre no Studio primeiro e tente de novo');
+        if (r.status < 200 || r.status >= 300 || !r.json.id) throw new Error(r.json.error || 'o Studio recusou');
+        p.target = r.json.id;
+        ui.step(
+          'studio',
+          '✓ no Studio, sendo transcrita. <a href="/app/uploads/' +
+            esc(r.json.id) +
+            '/transcription" target="_blank" rel="noopener">abrir</a>',
+          'ok',
+        );
+      } catch (e) {
+        fails++;
+        ui.step('studio', '⚠ ' + esc(e.message), 'err');
+      }
+    }
+    if (p.yt) {
+      ui.step('yt', 'enviando…');
+      try {
+        var v = await ytUpload(p.token, blob, p.yt, function (f) {
+          ui.bar(f);
+          ui.step('yt', 'enviando… ' + Math.round(f * 100) + '%');
+        });
+        var link = 'https://youtu.be/' + v;
+        var extra = '';
+        if (p.yt.thumb !== 'none' && (p.yt.thumb !== 'file' || p.yt.file)) {
+          ui.step('yt', 'enviando a thumbnail…');
+          try {
+            var cv = document.createElement('canvas');
+            cv.width = 1280;
+            cv.height = 720;
+            if (p.yt.thumb === 'file') await drawCover(cv, await loadImg(URL.createObjectURL(p.yt.file)));
+            else {
+              var vid = await videoFrom(blob);
+              await seek(vid, (vid.duration || 0) * p.yt.at);
+              if (p.yt.thumb === 'frame') drawCover(cv, vid);
+              else await churchThumb(cv, vid, p.yt.title, p.yt.sub);
+            }
+            await ytThumb(p.token, v, await canvasJpeg(cv));
+            extra = ' · thumbnail ✓';
+          } catch (e) {
+            extra = ' · ⚠ thumbnail: ' + esc(e.message);
+          }
+        }
+        ui.step(
+          'yt',
+          '✓ publicado (' +
+            esc(p.yt.privacy) +
+            '): <a href="' +
+            link +
+            '" target="_blank" rel="noopener">' +
+            link +
+            '</a>' +
+            extra,
+          'ok',
+        );
+        var who = p.target || p.preg;
+        if (who)
+          await fetch('/api/uploads/' + encodeURIComponent(who) + '/youtube', {
+            method: 'POST',
+            headers: { 'x-invb': '1', 'content-type': 'application/json' },
+            body: JSON.stringify({ videoId: v, privacy: p.yt.privacy, title: p.yt.title }),
+          }).catch(function () {});
+      } catch (e) {
+        fails++;
+        ui.step('yt', '⚠ ' + esc(e.message), 'err');
+      }
+    }
+    if (p.drive) {
+      ui.step('drive', 'enviando…');
+      try {
+        var folder = await ensureDriveFolder(p.token, p.drive.folder, p.drive.sub);
+        var dl = await driveUpload(p.token, folder, blob, fileName, function (f) {
+          ui.bar(f);
+          ui.step('drive', 'enviando… ' + Math.round(f * 100) + '%');
+        });
+        ui.step(
+          'drive',
+          '✓ na pasta da equipe: <a href="' + esc(dl) + '" target="_blank" rel="noopener">abrir no Drive</a>',
+          'ok',
+        );
+      } catch (e) {
+        fails++;
+        ui.step('drive', '⚠ ' + esc(e.message), 'err');
+      }
+    }
+    ui.bar(1);
+    ui.done(
+      fails ? '⚠ Terminou com ' + fails + ' problema' + (fails > 1 ? 's' : '') + ' (veja acima).' : '✓ Tudo pronto.',
+    );
   }
 
   /* ----- Pregações do Studio dentro do editor -----
@@ -1384,7 +1880,6 @@
     route();
     setInterval(function () {
       route();
-      if (/\/editor-avancado\/editor/.test(location.pathname)) cutButton();
       if (/\/editor-avancado(\/projects)?\/?$/.test(location.pathname) && !document.getElementById('invb-preg'))
         drawSection();
     }, 700);
