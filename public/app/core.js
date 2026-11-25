@@ -195,8 +195,11 @@
       ? 'Concluído'
       : m.status === 'error'
         ? 'Erro'
-        : `${m.stage || 'Processando'}${m.progress ? ' ' + m.progress + '%' : ''}`;
-  const stClass = (m) => (m.status === 'done' ? '' : m.status === 'error' ? 'err' : 'proc');
+        : m.status === 'waiting'
+          ? 'Aguardando o editor'
+          : `${m.stage || 'Processando'}${m.progress ? ' ' + m.progress + '%' : ''}`;
+  const stClass = (m) =>
+    m.status === 'done' ? '' : m.status === 'error' ? 'err' : m.status === 'waiting' ? 'wait' : 'proc';
 
   const modal = (title, body, onOk, okLabel = 'Salvar', desc = '') => {
     const m = document.createElement('div');

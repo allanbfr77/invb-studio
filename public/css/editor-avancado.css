@@ -307,3 +307,91 @@ img[src*='/logos/opencut/'] {
   opacity: 1;
   transform: translate(-50%, 0);
 }
+
+/* seção "Pregações do Studio" na tela de projetos */
+.invb-preg {
+  padding: 8px 32px 18px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+  font-family: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+}
+.invb-preg h2 {
+  margin: 6px 0 2px;
+  font: 700 12px/1.2 'Montserrat', 'Figtree', sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--invb-gold);
+}
+.invb-preg .invb-sub a {
+  color: var(--invb-gold);
+  font-weight: 700;
+}
+.invb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+.invb-pc {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  font: inherit;
+  transition:
+    border-color 0.15s,
+    transform 0.15s;
+}
+.invb-pc:hover {
+  border-color: var(--invb-gold);
+  transform: translateY(-1px);
+}
+.invb-pc .th {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--muted);
+  display: block;
+}
+.invb-pc .th img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.invb-pc .th em {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  font: 600 11px/1 'Figtree', sans-serif;
+  font-style: normal;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.invb-pc b {
+  padding: 0 10px;
+  font-size: 13.5px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.invb-pc small {
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.invb-pc small .w {
+  font-style: normal;
+  color: var(--invb-gold);
+  font-weight: 600;
+}

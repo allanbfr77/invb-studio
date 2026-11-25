@@ -52,3 +52,60 @@ test(
     assert.deepEqual(staleOriginals([{ ...m, status: 'done', lastUsedAt: 0 }], Date.now(), 1000), []);
   },
 );
+
+test(
+  'cortar no editor antes de transcrever: baixa, espera sem transcrever e segue quando a versão cortada chega',
+  { skip: !HAS_FFMPEG || process.platform === 'win32' },
+  async (t) => {
+    const d = tmp(t);
+    const s = await boot(t, d);
+    const vid = path.join(d, 'live.mp4');
+    spawnSync('ffmpeg', [
+      '-y',
+      '-loglevel',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc=size=320x180:rate=25:duration=3',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=duration=3',
+      '-pix_fmt',
+      'yuv420p',
+      '-shortest',
+      vid,
+    ]);
+    const up = await fetch(s.url + '/api/uploads?name=live.mp4&later=1', {
+      method: 'POST',
+      headers: { 'x-invb': '1', cookie: s.cookie },
+      body: fs.readFileSync(vid),
+    }).then((r) => r.json());
+    let m;
+    for (let i = 0; i < 100; i++) {
+      m = (await s.api('/uploads/' + up.id)).body;
+      if (m.status === 'waiting' || m.status === 'error') break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.equal(m.status, 'waiting', m.error);
+    assert.ok(m.duration > 2, 'a duração já é medida');
+    assert.equal(m.transcript, null); // não transcreveu
+    // a versão cortada chega do editor: deixa de esperar e entra na fila de transcrição
+    const r = await sendEdited(s, up.id, fs.readFileSync(vid));
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.later, false);
+    assert.ok(['queued', 'processing', 'error'].includes(r.body.status));
+  },
+);
+
+test('"Transcrever agora" tira a pregação da espera', async (t) => {
+  const d = tmp(t);
+  const dir = seedTone(d, 'kkkkkkkkkkk9');
+  fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify({ ...meta(dir), status: 'waiting', later: true }));
+  const s = await boot(t, d);
+  await s.api('/uploads/kkkkkkkkkkk9/retry', { json: { now: true } });
+  const m = meta(dir);
+  assert.equal(m.later, false);
+  assert.notEqual(m.status, 'waiting');
+});

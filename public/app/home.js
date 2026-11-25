@@ -101,7 +101,8 @@
       '/api/uploads?name=' +
         encodeURIComponent(file.name) +
         (range.start ? '&start=' + encodeURIComponent(range.start) : '') +
-        (range.end ? '&end=' + encodeURIComponent(range.end) : ''),
+        (range.end ? '&end=' + encodeURIComponent(range.end) : '') +
+        (readLater(root) ? '&later=1' : ''),
     );
     x.setRequestHeader('x-invb', '1');
     x.upload.onprogress = (e) => {
@@ -139,8 +140,28 @@
     RangeUtils.cleanRange(r);
     return r;
   };
+  // Depois de baixar: cortar no Editor avançado antes de transcrever (padrão) ou transcrever já. A escolha fica lembrada.
+  const laterPref = () => {
+    try {
+      return localStorage.getItem('invb-depois') !== 'agora';
+    } catch {
+      return true;
+    }
+  };
+  const laterRow = () =>
+    `<div class="up-after" role="radiogroup" aria-label="Depois de baixar"><span class="up-rl">Depois de baixar</span><label><input type="radio" name="up-later" value="1" ${laterPref() ? 'checked' : ''}> Cortar no Editor avançado antes de transcrever</label><label><input type="radio" name="up-later" value="0" ${laterPref() ? '' : 'checked'}> Transcrever agora</label></div>`;
+  const readLater = (root) => {
+    const r = $('input[name="up-later"]:checked', root);
+    const later = !r || r.value === '1';
+    try {
+      localStorage.setItem('invb-depois', later ? 'editor' : 'agora');
+    } catch {
+      /* ok */
+    }
+    return later;
+  };
   const uploadBox = () =>
-    `<div id="ut-body"><div class="ap-yt up1"><b style="font-size:16px">Cole o link da pregação</b><br><span class="sub2">YouTube ou Google Drive. O app baixa e transcreve sozinho.</span><br><input id="lk" placeholder="https://www.youtube.com/watch?v=...  ou  https://drive.google.com/file/d/..." aria-label="Link do YouTube ou do Google Drive" autocomplete="off" spellcheck="false">${rangeRow()}<button class="ap-btn pri lg" id="lkgo">Baixar e transcrever</button><p class="sub2 up-msg" id="lkmsg" role="alert"></p><button class="ap-btn" id="lklogin" hidden>Entrar com o Google e tentar de novo</button><p class="up-alt">Ou <button type="button" class="up-link" id="lkfile">envie um arquivo do computador</button></p></div><div id="ut-file" hidden></div></div>`;
+    `<div id="ut-body"><div class="ap-yt up1"><b style="font-size:16px">Cole o link da pregação</b><br><span class="sub2">YouTube ou Google Drive. Pode ser a live inteira: o louvor sai no Editor avançado.</span><br><input id="lk" placeholder="https://www.youtube.com/watch?v=...  ou  https://drive.google.com/file/d/..." aria-label="Link do YouTube ou do Google Drive" autocomplete="off" spellcheck="false">${laterRow()}${rangeRow()}<button class="ap-btn pri lg" id="lkgo">Baixar</button><p class="sub2 up-msg" id="lkmsg" role="alert"></p><button class="ap-btn" id="lklogin" hidden>Entrar com o Google e tentar de novo</button><p class="up-alt">Ou <button type="button" class="up-link" id="lkfile">envie um arquivo do computador</button></p></div><div id="ut-file" hidden></div></div>`;
   function bindUpload(root) {
     const body = $('#ut-body', root);
     if (!body) return;
@@ -165,12 +186,13 @@
         msg.textContent = e.message;
         return;
       }
+      const later = readLater(body);
       btn.disabled = true;
       try {
         if (isDrive(url)) {
-          await api('/uploads/drive', { json: { url, token, range } });
+          await api('/uploads/drive', { json: { url, token, range, later } });
           toast('Download do Drive iniciado.');
-        } else await api('/uploads/youtube', { json: { url, range } });
+        } else await api('/uploads/youtube', { json: { url, range, later } });
         go('/app/uploads');
       } catch (e) {
         if (e.status === 401) return go('/entrar');
@@ -212,7 +234,7 @@
       const linkBox = $('.up1', body);
       linkBox.hidden = true;
       fileBox.hidden = false;
-      fileBox.innerHTML = `<div class="up-file"><button type="button" class="up-back" id="lkback">${ic.back} Voltar para colar um link</button>${rangeRow()}<div class="ap-drop" id="drop"><div class="ci">${ic.up}</div><b>Arraste o arquivo aqui</b><small>ou clique para escolher</small><p class="fm">Áudio: MP3, WAV, M4A, AAC, OGG, OPUS • Vídeo: MP4, MOV, AVI, MKV, WEBM</p><input type="file" id="file" hidden accept="audio/*,video/*,.mkv,.mov"><div hidden style="max-width:420px;margin:18px auto 0"><div class="bigbar"><i id="upbar" style="width:0"></i></div><small id="uplab" class="sub2"></small></div></div></div>`;
+      fileBox.innerHTML = `<div class="up-file"><button type="button" class="up-back" id="lkback">${ic.back} Voltar para colar um link</button>${laterRow()}${rangeRow()}<div class="ap-drop" id="drop"><div class="ci">${ic.up}</div><b>Arraste o arquivo aqui</b><small>ou clique para escolher</small><p class="fm">Áudio: MP3, WAV, M4A, AAC, OGG, OPUS • Vídeo: MP4, MOV, AVI, MKV, WEBM</p><input type="file" id="file" hidden accept="audio/*,video/*,.mkv,.mov"><div hidden style="max-width:420px;margin:18px auto 0"><div class="bigbar"><i id="upbar" style="width:0"></i></div><small id="uplab" class="sub2"></small></div></div></div>`;
       $('#lkback', fileBox).onclick = () => {
         fileBox.hidden = true;
         fileBox.innerHTML = '';
@@ -244,7 +266,7 @@
     return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
   };
   const upCard = (u) =>
-    `<a class="ap-up" href="/app/uploads/${u.id}/overview"><div class="th"><i>${u.kind === 'aud' ? ic.aud : ic.vid}</i>${u.kind === 'vid' && u.status === 'done' ? `<img src="/api/uploads/${u.id}/thumb" alt="" loading="lazy" onerror="this.remove()">` : ''}${u.duration ? `<em>${tm(u.duration)}</em>` : ''}</div><b>${esc(u.name)}</b><small>${fmtDate(u.createdAt).split(',')[0]} · ${esc(upWhere(u))}</small></a>`;
+    `<a class="ap-up" href="/app/uploads/${u.id}/overview"><div class="th"><i>${u.kind === 'aud' ? ic.aud : ic.vid}</i>${u.kind === 'vid' && (u.status === 'done' || u.status === 'waiting') ? `<img src="/api/uploads/${u.id}/thumb" alt="" loading="lazy" onerror="this.remove()">` : ''}${u.duration ? `<em>${tm(u.duration)}</em>` : ''}</div><b>${esc(u.name)}</b><small>${fmtDate(u.createdAt).split(',')[0]} · ${esc(upWhere(u))}</small></a>`;
   const aiOn = () => !!(S.status && S.status.ai);
   const aiFailNote = (c) => {
     const n = String((c.analysis && c.analysis.note) || ''),
@@ -287,6 +309,9 @@
     }
     toast('A análise está demorando. Recarregue a página em instantes.');
   });
+  // "Cortar no editor antes de transcrever": o vídeo já está no computador, esperando a versão cortada
+  const waitView = (c) =>
+    `<div class="empty" id="proc"><div class="ci">✂️</div><h3>Aguardando o corte no Editor avançado</h3><p>O vídeo já está no computador. Abra no Editor avançado, corte o louvor e os avisos e, ao exportar, escolha <b>Substituir o vídeo de uma pregação</b> → esta pregação. Aí o Studio transcreve só a pregação.</p><div class="wait-act"><a class="ap-btn pri" href="/editor-avancado/projects?pregacao=${esc(c.id)}" target="_blank" rel="noopener">Abrir no Editor avançado</a><button class="ap-btn" id="now">Transcrever agora, sem cortar</button></div><a class="ap-btn" href="/app/uploads" style="margin-top:10px">Todas as pregações</a></div>`;
   const procView = (c) =>
     `<div class="empty" id="proc"><div class="ci">${c.status === 'error' ? '⚠️' : '⏳'}</div><h3>${c.status === 'error' ? 'Não foi possível processar' : 'Processando…'}</h3><p id="procmsg">${c.status === 'error' ? esc(c.error || 'Erro desconhecido.') : esc(statusLabel(c))}</p>${c.status === 'error' ? `<button class="ap-btn pri" id="retry">Tentar de novo</button> ` : `<div class="bigbar" style="max-width:320px;margin:10px auto"><i id="procbar" style="width:${c.progress || 3}%"></i></div>`}<a class="ap-btn" href="/app/uploads">Todas as pregações</a></div>`;
 
@@ -313,7 +338,7 @@
         l
           .map(
             (u) =>
-              `<div class="ap-row" data-up="${u.id}"><a class="rth" href="/app/uploads/${u.id}/overview" tabindex="-1" aria-hidden="true"><i>${u.kind === 'aud' ? ic.aud.replace('20', '16') : ic.vid.replace('20', '16')}</i>${u.kind === 'vid' && u.status === 'done' ? `<img src="/api/uploads/${u.id}/thumb" alt="" loading="lazy" onerror="this.remove()">` : ''}${u.duration ? `<em>${tm(u.duration)}</em>` : ''}</a><a class="nm" href="/app/uploads/${u.id}/overview"><b>${esc(u.name)}</b><small>${fmtDate(u.createdAt)} • ${fmtSize(u.size)}${u.cuts && u.cuts.total ? ` • ${u.cuts.total} corte${u.cuts.total === 1 ? '' : 's'}${u.cuts.ready ? ` · ${u.cuts.ready} exportado${u.cuts.ready === 1 ? '' : 's'}` : ''}${u.cuts.drive ? ` · ${u.cuts.drive} no Drive` : ''}` : ''}</small></a><span class="st ${stClass(u)}">${esc(statusLabel(u))}</span><button class="ap-ic" data-opt="${u.id}" aria-label="Opções do upload">⋮</button></div>`,
+              `<div class="ap-row" data-up="${u.id}"><a class="rth" href="/app/uploads/${u.id}/overview" tabindex="-1" aria-hidden="true"><i>${u.kind === 'aud' ? ic.aud.replace('20', '16') : ic.vid.replace('20', '16')}</i>${u.kind === 'vid' && (u.status === 'done' || u.status === 'waiting') ? `<img src="/api/uploads/${u.id}/thumb" alt="" loading="lazy" onerror="this.remove()">` : ''}${u.duration ? `<em>${tm(u.duration)}</em>` : ''}</a><a class="nm" href="/app/uploads/${u.id}/overview"><b>${esc(u.name)}</b><small>${fmtDate(u.createdAt)} • ${fmtSize(u.size)}${u.cuts && u.cuts.total ? ` • ${u.cuts.total} corte${u.cuts.total === 1 ? '' : 's'}${u.cuts.ready ? ` · ${u.cuts.ready} exportado${u.cuts.ready === 1 ? '' : 's'}` : ''}${u.cuts.drive ? ` · ${u.cuts.drive} no Drive` : ''}` : ''}</small></a><span class="st ${stClass(u)}">${esc(statusLabel(u))}</span><button class="ap-ic" data-opt="${u.id}" aria-label="Opções do upload">⋮</button></div>`,
           )
           .join('') || '<div class="empty"><p>Nenhuma pregação encontrada.</p></div>';
       $$('[data-opt]').forEach(
@@ -324,7 +349,7 @@
               u = S.uploads.find((z) => z.id === id);
             popover(
               b,
-              `<button data-a="open">Abrir</button><button data-a="ren">Renomear</button>${u.status === 'error' ? '<button data-a="retry">Tentar de novo</button>' : ''}${u.status === 'done' && !u.originalGone && (u.source === 'youtube' || u.source === 'drive') && u.url ? '<button data-a="free">Liberar espaço</button>' : ''}<button data-a="del" style="color:#c0262d">Excluir</button>`,
+              `<button data-a="open">Abrir</button><button data-a="ren">Renomear</button>${u.status === 'error' ? '<button data-a="retry">Tentar de novo</button>' : ''}${u.status === 'waiting' ? '<button data-a="editor">Abrir no Editor avançado</button><button data-a="now">Transcrever agora</button>' : ''}${u.status === 'done' && !u.originalGone && (u.source === 'youtube' || u.source === 'drive') && u.url ? '<button data-a="free">Liberar espaço</button>' : ''}<button data-a="del" style="color:#c0262d">Excluir</button>`,
               (m) =>
                 $$('button', m).forEach(
                   (x) =>
@@ -361,6 +386,12 @@
                           await api(`/uploads/${id}/retry`, { method: 'POST', json: {} });
                           await refreshList();
                         })();
+                      if (a === 'now')
+                        guard(async () => {
+                          await api(`/uploads/${id}/retry`, { method: 'POST', json: { now: true } });
+                          await refreshList();
+                        })();
+                      if (a === 'editor') window.open('/editor-avancado/projects?pregacao=' + id, '_blank', 'noopener');
                       if (a === 'del')
                         modal(
                           'Excluir pregação',
@@ -431,5 +462,5 @@
     <input id="pw" type="password" placeholder="Senha de acesso" autocomplete="current-password" aria-label="Senha de acesso" autofocus><button class="ap-btn pri" type="submit">Entrar</button><p class="sub2" id="lgerr" style="text-align:center;margin-top:10px;font-size:12.5px;color:#c0262d;min-height:18px"></p>
 </form></div>
     <div class="r"><div><img src="/img/nv-logo-noturno.png" width="220" alt="Nova Vida Botafogo"><span class="tag">Mídia · Pregações</span><h2>Da pregação inteira aos cortes prontos para postar.</h2><span class="pill2">1. Transcrição</span><span class="pill2">2. Cortes</span><span class="pill2">3. Drive</span></div></div></div>`;
-  Object.assign(INVB, { note, aiOn, bindUploads, login, procView, bindUpload, reanalyze, refreshList });
+  Object.assign(INVB, { note, aiOn, bindUploads, login, procView, waitView, bindUpload, reanalyze, refreshList });
 })();

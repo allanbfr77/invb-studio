@@ -23,6 +23,7 @@
     bindUploads,
     login,
     procView,
+    waitView,
     bindUpload,
     reanalyze,
     refreshList,
@@ -113,7 +114,14 @@
             `<div class="empty"><h3>Página não encontrada</h3><a class="ap-btn pri" href="/app">Ir para o início</a></div>`,
           );
         } else if (r.id && needsDone.has(r.v) && !isDone(S.cur)) {
-          root.innerHTML = shell(p, procView(S.cur), r.id);
+          const waiting = S.cur.status === 'waiting';
+          root.innerHTML = shell(p, waiting ? waitView(S.cur) : procView(S.cur), r.id);
+          const now = $('#now');
+          if (now)
+            now.onclick = guard(async () => {
+              await api(`/uploads/${r.id}/retry`, { json: { now: true } });
+              go(p);
+            });
           const retry = $('#retry');
           if (retry)
             retry.onclick = guard(async () => {
@@ -124,7 +132,7 @@
             S.poll = setInterval(async () => {
               try {
                 const m = await api('/uploads/' + r.id);
-                if (isDone(m) || m.status === 'error') {
+                if (isDone(m) || m.status === 'error' || (m.status === 'waiting') !== waiting) {
                   clearInterval(S.poll);
                   go(p);
                 } else {
