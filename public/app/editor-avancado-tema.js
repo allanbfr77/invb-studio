@@ -431,7 +431,8 @@
     });
   }
 
-  function offer(blob, fileName) {
+  function offer(blob, fileName, opts) {
+    opts = opts || {};
     var old = document.getElementById('invb-send');
     if (old) old.remove();
     var ext = (/\.[a-z0-9]+$/i.exec(fileName) || ['.mp4'])[0].toLowerCase();
@@ -484,6 +485,13 @@
     // projeto aberto a partir de uma pregação do Studio: a sugestão é substituir o vídeo dela
     var linked = linkedPregacao();
     if (linked) box.querySelector('input[name="invb-dest"][value="replace"]').checked = true;
+    // vindo do "Cortar no Studio": o vídeo já está no Studio, aqui é só publicar
+    if (opts.studioDone) {
+      box.querySelector('input[name="invb-dest"][value="none"]').checked = true;
+      box.querySelector('.invb-opts').hidden = true;
+      $('#invb-send-t').textContent = 'Publicar a versão cortada';
+      $('#invb-yt').checked = true;
+    }
     var dest = function () {
       return box.querySelector('input[name="invb-dest"]:checked').value;
     };
@@ -502,7 +510,7 @@
       box.querySelectorAll('[data-for]').forEach(function (e) {
         e.hidden = e.getAttribute('data-for') !== d;
       });
-      $('[data-for-not]').hidden = d === 'none';
+      $('[data-for-not]').hidden = d === 'none' && !opts.studioDone;
       var ytOn = $('#invb-yt') && $('#invb-yt').checked;
       $('[data-go]').textContent =
         d === 'none' ? (ytOn ? 'Publicar no YouTube' : 'Baixar') : ytOn ? 'Enviar e publicar' : 'Enviar pro Studio';
@@ -625,6 +633,7 @@
         bar.firstChild.style.width = Math.round(Math.max(0, Math.min(1, f)) * 100) + '%';
       };
       if (d === 'none' && !yt) {
+        if (opts.studioDone && !$('#invb-dl').checked) return close();
         saveLocal(blob, fileName);
         return close();
       }
@@ -670,7 +679,7 @@
         }
       }
       go.disabled = true;
-      if (d === 'none' || $('#invb-dl').checked) saveLocal(blob, fileName);
+      if ((d === 'none' && !opts.studioDone) || $('#invb-dl').checked) saveLocal(blob, fileName);
       var lines = [];
       try {
         if (url) {
@@ -738,6 +747,10 @@
       }
     };
     sync();
+    if (opts.studioDone) {
+      $('.invb-ytf').hidden = false;
+      drawThumb();
+    }
   }
 
   /* ----- Pregações do Studio dentro do editor -----
@@ -1129,10 +1142,249 @@
       drawSection();
     }
   }
+
+  /* ----- "Cortar no Studio" -----
+     Exportar no navegador gera o vídeo de novo quadro por quadro: numa live inteira, horas. Quando a edição é só
+     cortar o vídeo da pregação, o painel de exportar ganha o botão "Cortar no Studio": o script lê os trechos que
+     ficaram na linha do tempo (o banco do editor só é lido) e o Studio corta com o ffmpeg, em segundos (cópia direta)
+     ou poucos minutos (exato). Texto, música, efeito ou outro vídeo no projeto: aí precisa do Exportar normal. */
+  function readProject(pid) {
+    return new Promise(function (ok, bad) {
+      var rq = indexedDB.open('video-editor-projects');
+      rq.onerror = function () {
+        bad(new Error('Não consegui ler o projeto.'));
+      };
+      rq.onsuccess = function () {
+        var db = rq.result;
+        try {
+          var g = db.transaction('projects', 'readonly').objectStore('projects').get(pid);
+          g.onsuccess = function () {
+            db.close();
+            g.result ? ok(g.result) : bad(new Error('Projeto não encontrado.'));
+          };
+          g.onerror = function () {
+            db.close();
+            bad(new Error('Não consegui ler o projeto.'));
+          };
+        } catch (e) {
+          db.close();
+          bad(e);
+        }
+      };
+    });
+  }
+  var near = function (a, b) {
+    return Math.abs((+a || 0) - b) < 1e-6;
+  };
+  // os trechos (em segundos do vídeo da pregação) ou os motivos para não dar
+  function planCut(proj, duration) {
+    var why = [];
+    var sc =
+      (proj.scenes || []).filter(function (x) {
+        return x.id === proj.currentSceneId;
+      })[0] || (proj.scenes || [])[0];
+    if (!sc || !sc.tracks || !sc.tracks.main) return { why: ['Não consegui ler a linha do tempo deste projeto.'] };
+    var tr = sc.tracks;
+    var count = function (arr) {
+      return (arr || []).reduce(function (n, t) {
+        return n + ((t && t.elements) || []).length;
+      }, 0);
+    };
+    if (count(tr.overlay)) why.push('tem texto, imagem ou outro vídeo por cima');
+    if (count(tr.audio)) why.push('tem música ou outro áudio');
+    var els = (tr.main.elements || []).filter(function (e) {
+      return !e.hidden;
+    });
+    if (!els.length) return { why: ['a linha do tempo está vazia'] };
+    var media = {};
+    els.forEach(function (e) {
+      media[e.mediaId] = 1;
+      if (e.type !== 'video') why.push('tem algo que não é o vídeo da pregação na faixa principal');
+      var p = e.params || {};
+      if (
+        !near(p['transform.positionX'], 0) ||
+        !near(p['transform.positionY'], 0) ||
+        !near(p['transform.scaleX'] == null ? 1 : p['transform.scaleX'], 1) ||
+        !near(p['transform.scaleY'] == null ? 1 : p['transform.scaleY'], 1) ||
+        !near(p['transform.rotate'], 0) ||
+        !near(p.opacity == null ? 1 : p.opacity, 1) ||
+        (p.blendMode && p.blendMode !== 'normal')
+      )
+        why.push('o vídeo foi movido, girado, ampliado ou ficou transparente');
+      if (p.muted || !near(p.volume, 0) || e.isSourceAudioEnabled === false) why.push('o volume foi mudado');
+      if ((e.effects || []).length) why.push('tem efeito no vídeo');
+      if ((e.playbackRate && e.playbackRate !== 1) || (e.speed && e.speed !== 1)) why.push('a velocidade foi mudada');
+    });
+    if (Object.keys(media).length > 1) why.push('tem mais de um vídeo');
+    if (why.length) return { why: why.filter((w, i) => why.indexOf(w) === i) };
+    // o editor guarda o tempo em 1/120000 de segundo (um vídeo de 60 s tem duração 7200000)
+    var unit = 120000;
+    if (duration && els[0].sourceDuration && Math.abs(els[0].sourceDuration / unit - duration) > 3)
+      return { why: ['o vídeo do projeto não parece ser o desta pregação (durações diferentes)'] };
+    var segs = els
+      .slice()
+      .sort(function (a, b) {
+        return a.startTime - b.startTime;
+      })
+      .map(function (e) {
+        var a = (e.trimStart || 0) / unit;
+        return [+a.toFixed(3), +(a + e.duration / unit).toFixed(3)];
+      });
+    var total = segs.reduce(function (n, x) {
+      return n + (x[1] - x[0]);
+    }, 0);
+    return { segs: segs, total: total };
+  }
+  async function cutDialog() {
+    var pid = currentProject(),
+      preg = linkedPregacao();
+    var box = document.createElement('div');
+    box.id = 'invb-send';
+    box.className = 'invb-send';
+    document.body.appendChild(box);
+    var close = function () {
+      box.remove();
+    };
+    box.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+      if (e.key === 'Escape') close();
+    });
+    var show = function (html) {
+      box.innerHTML =
+        '<div class="invb-card" role="dialog" aria-modal="true"><h2>Cortar no Studio</h2>' + html + '</div>';
+      var x = box.querySelector('[data-x]');
+      if (x) x.onclick = close;
+    };
+    if (!preg)
+      return show(
+        '<p class="invb-sub">Este projeto não veio de uma pregação do Studio. Abra a pregação pela seção <b>Pregações do Studio</b> ou use o <b>Exportar</b> normal.</p><div class="invb-act"><button class="invb-btn" data-x>Fechar</button></div>',
+      );
+    show('<p class="invb-sub">Lendo a linha do tempo…</p>');
+    var u, plan;
+    try {
+      u = await api('/api/uploads/' + encodeURIComponent(preg));
+      plan = planCut(await readProject(pid), u.duration);
+    } catch (e) {
+      return show(
+        '<p class="invb-sub">' +
+          esc(e.message) +
+          '</p><div class="invb-act"><button class="invb-btn" data-x>Fechar</button></div>',
+      );
+    }
+    if (plan.why)
+      return show(
+        '<p class="invb-sub">Este projeto não é só de cortes: ' +
+          esc(plan.why.join('; ')) +
+          '. Para isso, use o <b>Exportar</b> normal (gera o vídeo no navegador, mais demorado).</p><div class="invb-act"><button class="invb-btn" data-x>Fechar</button></div>',
+      );
+    show(
+      '<p class="invb-sub">' +
+        esc(titleOf(u)) +
+        ' · ' +
+        plan.segs.length +
+        ' trecho' +
+        (plan.segs.length > 1 ? 's' : '') +
+        ' · fica ' +
+        hms(plan.total) +
+        ' de ' +
+        hms(u.duration) +
+        '</p>' +
+        '<div class="invb-opts">' +
+        '<label class="invb-opt"><input type="radio" name="invb-mode" value="fast" checked><span><b>Rápido (recomendado)</b><small>Em segundos: só recorta, sem gerar o vídeo de novo. Cada corte pode cair até ~2 s antes do ponto marcado.</small></span></label>' +
+        '<label class="invb-opt"><input type="radio" name="invb-mode" value="exact"><span><b>Exato</b><small>No ponto certo, gerando de novo só o que ficou. Leva alguns minutos.</small></span></label>' +
+        '</div>' +
+        '<label class="invb-chk"><input type="checkbox" id="invb-cut-yt"> Depois, publicar no YouTube</label>' +
+        '<p class="invb-warn">O vídeo desta pregação no Studio passa a ser a versão cortada e a transcrição é refeita' +
+        (u.cuts && u.cuts.total ? ' (os cortes atuais saem)' : '') +
+        '.</p>' +
+        '<div class="invb-bar" hidden><i></i></div><p class="invb-msg" role="status"></p>' +
+        '<div class="invb-act"><button class="invb-btn" data-x>Fechar</button><button class="invb-btn pri" data-go>Cortar no Studio</button></div>',
+    );
+    var $ = function (sel) {
+      return box.querySelector(sel);
+    };
+    $('[data-go]').onclick = async function () {
+      var go = this,
+        msg = $('.invb-msg'),
+        bar = $('.invb-bar');
+      var mode = box.querySelector('input[name="invb-mode"]:checked').value;
+      var thenYt = $('#invb-cut-yt').checked;
+      go.disabled = true;
+      bar.hidden = false;
+      msg.textContent = 'Cortando no Studio…';
+      var r = await send(
+        '/api/uploads/' + encodeURIComponent(preg) + '/cut',
+        JSON.stringify({ segments: plan.segs, mode: mode }),
+        { 'x-invb': '1', 'content-type': 'application/json' },
+      ).catch(function (e) {
+        return { status: 0, json: { error: e.message } };
+      });
+      if (r.status !== 202) {
+        go.disabled = false;
+        return (msg.textContent = r.json.error || 'Não consegui começar o corte.');
+      }
+      // acompanha o andamento pela pregação
+      for (;;) {
+        await sleep(1000);
+        var m = await api('/api/uploads/' + encodeURIComponent(preg)).catch(function () {
+          return null;
+        });
+        if (!m) continue;
+        if (m.cutError) {
+          go.disabled = false;
+          return (msg.textContent = '⚠ ' + m.cutError);
+        }
+        if (m.status === 'processing' && /^Cortando/.test(m.stage || '')) {
+          bar.firstChild.style.width = Math.max(3, m.progress || 0) + '%';
+          msg.textContent = 'Cortando no Studio… ' + (m.progress || 0) + '%';
+          continue;
+        }
+        break;
+      }
+      bar.firstChild.style.width = '100%';
+      msg.innerHTML =
+        '✓ Pronto! A pregação agora é a versão cortada e o Studio está transcrevendo. <a href="/app/uploads/' +
+        esc(preg) +
+        '/transcription" target="_blank" rel="noopener">Abrir no Studio</a>';
+      go.hidden = true;
+      if (thenYt) {
+        msg.innerHTML += '<br>Preparando para publicar…';
+        try {
+          var resp = await fetch('/api/uploads/' + encodeURIComponent(preg) + '/media', { credentials: 'same-origin' });
+          if (!resp.ok) throw new Error('O Studio não entregou o vídeo cortado.');
+          var vb = await resp.blob();
+          close();
+          offer(new File([vb], titleOf(u) + '.mp4', { type: vb.type || 'video/mp4' }), titleOf(u) + '.mp4', {
+            studioDone: preg,
+          });
+        } catch (e) {
+          msg.innerHTML += '<br>⚠ ' + esc(e.message);
+        }
+      }
+    };
+  }
+  // o botão no painel de exportar (enquanto ele mostra "Exportar projeto", antes de começar)
+  function cutButton() {
+    var hs = document.querySelectorAll('[data-radix-popper-content-wrapper] h3');
+    for (var i = 0; i < hs.length; i++) {
+      if ((hs[i].textContent || '').trim() !== 'Exportar projeto') continue;
+      var content = hs[i].closest('[data-radix-popper-content-wrapper]').firstElementChild;
+      if (!content || content.querySelector('.invb-cutbox')) return;
+      var d = document.createElement('div');
+      d.className = 'invb-cutbox';
+      d.innerHTML =
+        '<button type="button" class="invb-btn pri">⚡ Cortar no Studio</button><small>Só cortou o vídeo da pregação? O Studio corta em segundos, sem gerar o vídeo de novo no navegador.</small>';
+      d.querySelector('button').onclick = function () {
+        cutDialog();
+      };
+      content.appendChild(d);
+    }
+  }
   function startRoutes() {
     route();
     setInterval(function () {
       route();
+      if (/\/editor-avancado\/editor/.test(location.pathname)) cutButton();
       if (/\/editor-avancado(\/projects)?\/?$/.test(location.pathname) && !document.getElementById('invb-preg'))
         drawSection();
     }, 700);

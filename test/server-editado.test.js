@@ -146,3 +146,66 @@ test('publicada no YouTube: guarda o link; pública ou não listada volta para a
     ['kkkkkkkkkkka'],
   );
 });
+
+test(
+  'cortar no Studio: os trechos que ficaram viram o vídeo da pregação (exato e rápido)',
+  { skip: !HAS_FFMPEG || process.platform === 'win32' },
+  async (t) => {
+    const { cleanSegments } = require('../lib/cut');
+    assert.deepEqual(
+      cleanSegments(
+        [
+          [4, 5.5],
+          [1, 2.5],
+          [2.4, 3],
+          [9, 20],
+          ['x', 1],
+        ],
+        6,
+      ),
+      [
+        [1, 3],
+        [4, 5.5],
+      ],
+    ); // junta e limita
+    assert.equal(cleanSegments([[1, 1.1]], 6), null);
+    const d = tmp(t);
+    const dir = seedTone(d, 'kkkkkkkkkkkb');
+    fs.writeFileSync(
+      path.join(dir, 'meta.json'),
+      JSON.stringify({ ...meta(dir), status: 'waiting', later: true, file: 'original.mp4' }),
+    );
+    const s = await boot(t, d);
+    const durOf = (f) =>
+      +spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]).stdout.toString();
+    const cut = async (body) => {
+      const r = await s.api('/uploads/kkkkkkkkkkkb/cut', { json: body });
+      assert.equal(r.status, 202, JSON.stringify(r.body));
+      let m;
+      for (let i = 0; i < 200; i++) {
+        m = meta(dir);
+        if (m.status !== 'processing' || m.cutError) break;
+        await new Promise((res) => setTimeout(res, 100));
+      }
+      return m;
+    };
+    assert.equal((await s.api('/uploads/kkkkkkkkkkkb/cut', { json: { segments: [] } })).status, 400);
+    let m = await cut({
+      segments: [
+        [1, 2.5],
+        [4, 5.5],
+      ],
+      mode: 'exact',
+    });
+    assert.equal(m.cutError || null, null);
+    assert.equal(m.source, 'editor');
+    assert.equal(m.later, false); // a versão cortada libera a transcrição
+    const d1 = durOf(path.join(dir, m.file));
+    assert.ok(Math.abs(d1 - 3) < 0.3, 'duração ' + d1);
+    await idle(s, 'kkkkkkkkkkkb');
+    m = await cut({ segments: [[0, 1.5]], mode: 'fast' });
+    assert.equal(m.cutError || null, null);
+    assert.ok(durOf(path.join(dir, m.file)) <= 3.1);
+    await idle(s, 'kkkkkkkkkkkb');
+  },
+);

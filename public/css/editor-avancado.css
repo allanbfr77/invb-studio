@@ -489,3 +489,20 @@ img[src*='/logos/opencut/'] {
   border: 0;
   flex: none;
 }
+
+/* "Cortar no Studio" dentro do painel de exportar */
+.invb-cutbox {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  font-family: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+}
+.invb-cutbox .invb-btn {
+  width: 100%;
+}
+.invb-cutbox small {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted-foreground);
+}

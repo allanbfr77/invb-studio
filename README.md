@@ -79,10 +79,15 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   2. No **Editor avançado**, a seção **Pregações do Studio** (ou "Abrir no Editor avançado" na pregação) abre o
      projeto dela: na primeira vez o vídeo vem sozinho do Studio para o começo da linha do tempo; depois, o mesmo
      projeto com as edições. A ligação pregação → projeto fica no navegador.
-  3. Corte o louvor e os avisos, edite e **exporte**. A janela **Vídeo exportado** já sugere **substituir o vídeo
+  3. **Só cortou?** No painel de exportar, use **⚡ Cortar no Studio**: o editor manda só os trechos que ficaram e o
+     Studio corta com o ffmpeg (`lib/cut.js`) — **rápido** (cópia direta, segundos; o corte pode cair até ~2 s antes)
+     ou **exato** (gera de novo só o que ficou, com o codificador do Mac quando houver; minutos). A pregação passa a
+     ser a versão cortada e é transcrita; dá para publicar no YouTube em seguida. Exportar pelo navegador gera o
+     vídeo quadro por quadro e, numa live inteira, leva horas: fica para quando há texto, música ou efeitos.
+  4. Com texto, música ou efeitos, edite e **exporte**. A janela **Vídeo exportado** já sugere **substituir o vídeo
      desta pregação** (o Studio transcreve só a pregação, minutagem a partir de 0:00) e pode **publicar no YouTube**:
      título, descrição, visibilidade e **thumbnail** (modelo da igreja, quadro do vídeo ou imagem pronta).
-  4. O link do YouTube fica na pregação ("Ver no YouTube"). Pública ou não listada, a versão editada volta à
+  5. O link do YouTube fica na pregação ("Ver no YouTube"). Pública ou não listada, a versão editada volta à
      limpeza dos 7 dias (o link do YouTube vira a fonte); privada, fica guardada.
 - **Configurar o YouTube (uma vez)**: no projeto do Google Cloud do `GOOGLE_CLIENT_ID` (o mesmo do Drive), ative a
   **YouTube Data API v3** e acrescente o escopo `https://www.googleapis.com/auth/youtube.upload` na tela de
