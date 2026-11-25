@@ -127,3 +127,158 @@ img[src*='/logos/opencut/'] {
   filter: none !important;
   object-fit: contain;
 }
+
+/* janela "Enviar pro Studio" (depois de exportar) */
+.invb-send {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  background: rgba(0, 0, 0, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  font-family: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+}
+.invb-card {
+  width: min(480px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.invb-card h2 {
+  margin: 0;
+  font: 700 18px/1.2 'Montserrat', 'Figtree', sans-serif;
+}
+.invb-sub {
+  margin: 4px 0 16px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  word-break: break-all;
+}
+.invb-opts {
+  display: grid;
+  gap: 8px;
+}
+.invb-opt {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.invb-opt:has(input:checked) {
+  border-color: var(--invb-gold);
+  background: var(--secondary);
+}
+.invb-opt input {
+  margin-top: 3px;
+  accent-color: var(--invb-gold);
+}
+.invb-opt b {
+  display: block;
+  font-size: 14px;
+}
+.invb-opt small {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+  margin-top: 2px;
+}
+.invb-f {
+  margin-top: 14px;
+}
+.invb-f label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+  margin-bottom: 4px;
+}
+.invb-f input,
+.invb-f select {
+  width: 100%;
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--input);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 14px;
+}
+.invb-warn {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--invb-gold);
+}
+.invb-chk {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.invb-chk input {
+  accent-color: var(--invb-gold);
+}
+.invb-bar {
+  height: 6px;
+  border-radius: 6px;
+  background: var(--muted);
+  margin-top: 14px;
+  overflow: hidden;
+}
+.invb-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--invb-gold);
+  transition: width 0.2s;
+}
+.invb-msg {
+  min-height: 18px;
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+.invb-msg a {
+  color: var(--invb-gold);
+  font-weight: 700;
+}
+.invb-act {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.invb-btn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--foreground);
+  font: 600 14px 'Figtree', sans-serif;
+  cursor: pointer;
+}
+.invb-btn.pri {
+  background: var(--invb-cta);
+  color: var(--invb-cta-fg);
+  border-color: var(--invb-cta);
+  font-weight: 700;
+}
+.invb-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.invb-send [hidden] {
+  display: none !important;
+}

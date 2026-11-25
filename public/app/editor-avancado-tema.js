@@ -68,4 +68,226 @@
     window.addEventListener('load', function () {
       setTimeout(start, 300);
     });
+
+  /* ----- Exportar → "Enviar pro Studio" -----
+     O editor entrega o arquivo exportado sempre do mesmo jeito: cria um endereço temporário para o vídeo
+     (URL.createObjectURL) e clica num link de download. Aqui esse clique, quando é de um vídeo, abre a janela
+     "Enviar pro Studio" (como pregação nova ou no lugar do vídeo de uma pregação), com a opção de baixar também.
+     Não mexe no código do editor: continua valendo depois de um novo build:studio. */
+  var blobs = {};
+  var createURL = URL.createObjectURL,
+    revokeURL = URL.revokeObjectURL;
+  URL.createObjectURL = function (o) {
+    var u = createURL.apply(URL, arguments);
+    if (o instanceof Blob) blobs[u] = o;
+    return u;
+  };
+  URL.revokeObjectURL = function (u) {
+    delete blobs[u];
+    return revokeURL.apply(URL, arguments);
+  };
+  var click = HTMLAnchorElement.prototype.click;
+  var isVideo = function (b, name) {
+    return /^video\//.test(b.type || '') || /\.(mp4|webm|mov|m4v)$/i.test(name || '');
+  };
+  HTMLAnchorElement.prototype.click = function () {
+    var b = this.download && blobs[this.href];
+    if (b && !this.__invbPass && isVideo(b, this.download)) {
+      offer(b, this.download);
+      return;
+    }
+    return click.apply(this, arguments);
+  };
+  function saveLocal(b, name) {
+    var u = createURL.call(URL, b),
+      a = document.createElement('a');
+    a.href = u;
+    a.download = name;
+    a.__invbPass = true;
+    document.body.appendChild(a);
+    click.call(a);
+    a.remove();
+    setTimeout(function () {
+      revokeURL.call(URL, u);
+    }, 4000);
+  }
+  var esc = function (t) {
+    return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  };
+  var mb = function (n) {
+    return (n / 1048576).toFixed(n > 104857600 ? 0 : 1).replace('.', ',') + ' MB';
+  };
+  function api(url) {
+    return fetch(url, { headers: { 'x-invb': '1' }, credentials: 'same-origin' }).then(function (r) {
+      if (r.status === 401) throw new Error('login');
+      return r.json();
+    });
+  }
+  function offer(blob, fileName) {
+    var old = document.getElementById('invb-send');
+    if (old) old.remove();
+    var ext = (/\.[a-z0-9]+$/i.exec(fileName) || ['.mp4'])[0].toLowerCase();
+    var title = fileName.replace(/\.[a-z0-9]+$/i, '');
+    var box = document.createElement('div');
+    box.id = 'invb-send';
+    box.className = 'invb-send';
+    box.innerHTML =
+      '<div class="invb-card" role="dialog" aria-modal="true" aria-labelledby="invb-send-t">' +
+      '<h2 id="invb-send-t">Vídeo exportado</h2>' +
+      '<p class="invb-sub">' +
+      esc(fileName) +
+      ' · ' +
+      mb(blob.size) +
+      '</p>' +
+      '<div class="invb-opts">' +
+      '<label class="invb-opt"><input type="radio" name="invb-dest" value="new" checked><span><b>Enviar pro Studio como pregação nova</b><small>Aparece em Pregações e é transcrita.</small></span></label>' +
+      '<label class="invb-opt"><input type="radio" name="invb-dest" value="replace"><span><b>Substituir o vídeo de uma pregação</b><small>A versão editada passa a ser a base da transcrição e dos cortes. A minutagem começa no início deste vídeo.</small></span></label>' +
+      '<label class="invb-opt"><input type="radio" name="invb-dest" value="none"><span><b>Só baixar no computador</b><small>Como antes.</small></span></label>' +
+      '</div>' +
+      '<div class="invb-f" data-for="new"><label for="invb-title">Nome da pregação</label><input id="invb-title" value="' +
+      esc(title) +
+      '"></div>' +
+      '<div class="invb-f" data-for="replace" hidden><label for="invb-up">Qual pregação</label><select id="invb-up"><option value="">Carregando…</option></select><p class="invb-warn" id="invb-warn"></p></div>' +
+      '<label class="invb-chk" data-for-not="none"><input type="checkbox" id="invb-dl"> Baixar também no computador</label>' +
+      '<div class="invb-bar" hidden><i></i></div><p class="invb-msg" role="status"></p>' +
+      '<div class="invb-act"><button type="button" class="invb-btn" data-x>Fechar</button><button type="button" class="invb-btn pri" data-go>Enviar pro Studio</button></div>' +
+      '</div>';
+    document.body.appendChild(box);
+    var $ = function (sel) {
+      return box.querySelector(sel);
+    };
+    var ups = [];
+    var dest = function () {
+      return box.querySelector('input[name="invb-dest"]:checked').value;
+    };
+    var warn = function () {
+      var u = ups.find(function (x) {
+        return x.id === $('#invb-up').value;
+      });
+      var n = u && u.cuts ? u.cuts.total : 0;
+      $('#invb-warn').textContent = u
+        ? 'A transcrição é refeita' +
+          (n ? ' e os ' + n + ' corte' + (n > 1 ? 's' : '') + ' desta pregação são apagados (a minutagem muda).' : '.')
+        : '';
+    };
+    var sync = function () {
+      var d = dest();
+      box.querySelectorAll('[data-for]').forEach(function (e) {
+        e.hidden = e.getAttribute('data-for') !== d;
+      });
+      $('[data-for-not]').hidden = d === 'none';
+      $('[data-go]').textContent = d === 'none' ? 'Baixar' : 'Enviar pro Studio';
+      if (d === 'replace' && !ups.length)
+        api('/api/uploads')
+          .then(function (l) {
+            ups = l
+              .filter(function (x) {
+                return x.kind !== 'aud' && ['done', 'error'].indexOf(x.status) >= 0;
+              })
+              .sort(function (a, b) {
+                return (b.createdAt || 0) - (a.createdAt || 0);
+              });
+            $('#invb-up').innerHTML = ups.length
+              ? ups
+                  .map(function (x) {
+                    return '<option value="' + esc(x.id) + '">' + esc(x.title || x.name) + '</option>';
+                  })
+                  .join('')
+              : '<option value="">Nenhuma pregação pronta no Studio</option>';
+            warn();
+          })
+          .catch(function (e) {
+            $('#invb-up').innerHTML =
+              '<option value="">' +
+              (e.message === 'login' ? 'Entre no Studio primeiro' : 'Não consegui ler as pregações') +
+              '</option>';
+          });
+    };
+    box.querySelectorAll('input[name="invb-dest"]').forEach(function (r) {
+      r.onchange = sync;
+    });
+    $('#invb-up').onchange = warn;
+    var close = function () {
+      box.remove();
+    };
+    $('[data-x]').onclick = close;
+    box.addEventListener('keydown', function (e) {
+      e.stopPropagation(); // os atalhos do editor não valem enquanto a janela está aberta
+      if (e.key === 'Escape') close();
+    });
+    $('[data-go]').onclick = function () {
+      var d = dest(),
+        msg = $('.invb-msg');
+      if (d === 'none') {
+        saveLocal(blob, fileName);
+        return close();
+      }
+      var url;
+      if (d === 'new') {
+        var t = ($('#invb-title').value || '').trim() || title;
+        url = '/api/uploads?name=' + encodeURIComponent(t + ext);
+      } else {
+        var id = $('#invb-up').value;
+        if (!id) return (msg.textContent = 'Escolha a pregação.');
+        var u = ups.find(function (x) {
+          return x.id === id;
+        });
+        var n = u && u.cuts ? u.cuts.total : 0;
+        if (
+          n &&
+          !window.confirm(
+            'Os ' +
+              n +
+              ' corte(s) de “' +
+              (u.title || u.name) +
+              '” vão ser apagados, porque a minutagem muda. Continuar?',
+          )
+        )
+          return;
+        url = '/api/uploads/' + encodeURIComponent(id) + '/edited?name=' + encodeURIComponent(fileName);
+      }
+      if ($('#invb-dl').checked) saveLocal(blob, fileName);
+      var go = $('[data-go]'),
+        bar = $('.invb-bar');
+      go.disabled = true;
+      bar.hidden = false;
+      msg.textContent = 'Enviando pro Studio…';
+      var x = new XMLHttpRequest();
+      x.open('POST', url);
+      x.setRequestHeader('x-invb', '1');
+      x.upload.onprogress = function (e) {
+        if (e.lengthComputable) bar.firstChild.style.width = Math.round((e.loaded / e.total) * 100) + '%';
+      };
+      x.onload = function () {
+        var j = {};
+        try {
+          j = JSON.parse(x.responseText);
+        } catch (e) {
+          /* sem corpo */
+        }
+        if (x.status >= 200 && x.status < 300 && j.id) {
+          bar.firstChild.style.width = '100%';
+          msg.innerHTML =
+            '✓ Enviado. O Studio está processando. <a href="/app/uploads/' +
+            esc(j.id) +
+            '/transcription" target="_blank" rel="noopener">Abrir no Studio</a>';
+          go.hidden = true;
+          return;
+        }
+        go.disabled = false;
+        msg.textContent =
+          x.status === 401
+            ? 'Entre no Studio primeiro (abra o Studio e faça login) e tente de novo.'
+            : j.error || 'Não consegui enviar.';
+      };
+      x.onerror = function () {
+        go.disabled = false;
+        msg.textContent = 'Não consegui falar com o Studio. Ele está aberto?';
+      };
+      x.send(blob);
+    };
+    sync();
+  }
 })();

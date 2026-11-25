@@ -72,6 +72,12 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   arraste o vídeo na prévia (ou use Esquerda/Centro/Direita) para escolher que parte fica no quadro; a exportação usa
   a mesma posição. “Usar … nos cortes novos” deixa um formato como padrão (`data/editor-prefs.json`), inclusive para
   quem exporta pela lista sem abrir o editor. Velocidade de 0,5x a 2x; sincronia em segundos.
+- **Editor avançado → Studio**: ao exportar no Editor avançado, abre a janela **Vídeo exportado** com três saídas:
+  enviar pro Studio como **pregação nova**, **substituir o vídeo de uma pregação** (a versão editada vira a base da
+  transcrição e dos cortes, a minutagem começa no início dela, e os cortes antigos saem) ou **só baixar**. A versão
+  editada fica marcada como vinda do editor e não entra na limpeza dos 7 dias (não há link para baixá-la de novo).
+  Isso fica em `public/app/editor-avancado-tema.js` (o mesmo script que dá ao editor a cara do Studio) e na rota
+  `POST /api/uploads/<id>/edited`.
 - **Barra da prévia**: Ímã, Raio-X (X), Guias (G: centro, terços e, no 9:16, a área que o Instagram/TikTok cobre) e
   Centralizar. A legenda se arrasta direto no vídeo.
 
