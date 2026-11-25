@@ -74,16 +74,19 @@
         draw();
       }, 800);
     };
-    // "Compartilhar": o link público só deste corte (/v/<código>), sem login, e de onde ele abre.
-    const shareModal = (c, k, path) => {
+    // "Compartilhar": o link público só deste corte (/v/<código>), sem login, e de onde ele abre
+    // (na Vercel, quando o Studio tem a chave dela; senão, no próprio Studio).
+    const shareModal = (c, k, r) => {
       const base = (S.status && S.status.shareBase) || location.origin;
-      const url = base + path;
+      const url = r.url || base + r.path;
       const local = !(S.status && S.status.shareBase);
-      const where = local
-        ? 'Este link só abre <b>neste computador</b>. Para outras pessoas abrirem, o Studio precisa estar aberto para a rede (mesmo Wi-Fi) ou ter um endereço público (PUBLIC_URL). Veja o README.'
-        : /^http:\/\/(10|172|192\.168)\./.test(base)
-          ? 'Abre para quem estiver <b>no mesmo Wi-Fi</b>, enquanto este computador estiver ligado com o Studio aberto.'
-          : 'Abre <b>de qualquer lugar</b>, enquanto este computador estiver ligado com o Studio aberto.';
+      const where = r.cloud
+        ? 'Abre <b>de qualquer lugar</b>, no celular ou no computador, mesmo com o computador da igreja desligado.'
+        : local
+          ? 'Este link só abre <b>neste computador</b>. Para outras pessoas abrirem, o Studio precisa estar aberto para a rede (mesmo Wi-Fi) ou ter um endereço público (PUBLIC_URL). Veja o README.'
+          : /^http:\/\/(10|172|192\.168)\./.test(base)
+            ? 'Abre para quem estiver <b>no mesmo Wi-Fi</b>, enquanto este computador estiver ligado com o Studio aberto.'
+            : 'Abre <b>de qualquer lugar</b>, enquanto este computador estiver ligado com o Studio aberto.';
       const m = document.createElement('div');
       m.className = 'modal-bg';
       m.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="sh-t"><h3 id="sh-t">Compartilhar “${esc(k.title)}”</h3><p class="sub2" style="margin:0 0 12px">Quem tiver o link vê <b>só este corte</b>, sem login e sem acesso ao resto do Studio.</p><div class="sh-row"><input id="sh-url" readonly value="${esc(url)}" aria-label="Link do corte"><button class="ap-btn pri" id="sh-copy">Copiar</button></div><p class="sub2 sh-where">${where}</p><div class="ft"><button class="ap-btn" id="sh-stop" style="color:#c0262d">Parar de compartilhar</button><a class="ap-btn" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a><button class="ap-btn" data-x>Fechar</button></div></div>`;
@@ -334,8 +337,9 @@
               } else if (a === 'share') {
                 if (!(k.render && k.render.status === 'done'))
                   return toast('Exporte o corte antes de compartilhar (botão Baixar corte).');
+                if (S.status && S.status.cloudShare) toast('Enviando o corte para a internet…');
                 const r = await api(`/uploads/${c.id}/clips/${k.id}/share`, { json: {} });
-                shareModal(c, k, r.path);
+                shareModal(c, k, r);
               } else if (a === 'del') {
                 const msg = `Excluir o corte “${k.title}”? O vídeo exportado dele também é apagado deste computador.${k.drive ? ' O que já foi enviado ao Drive continua lá.' : ''}`;
                 if (!window.confirm(msg)) return;
