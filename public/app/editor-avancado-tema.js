@@ -8,7 +8,8 @@
 (function () {
   var KEY = 'invb-tema';
   var TITLE = 'Editor avançado · INVB Studio';
-  var ICON = '/img/nv-v.png';
+  var ICON = '/img/nv-v.png?v=2';
+  var TOUCH = '/apple-touch-icon.png?v=2';
   var saved = null;
   try {
     saved = localStorage.getItem(KEY);
@@ -39,8 +40,15 @@
   function tab() {
     if (document.title !== TITLE) document.title = TITLE;
     var links = document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]');
-    for (var i = 0; i < links.length; i++)
-      if (links[i].getAttribute('href') !== ICON) links[i].setAttribute('href', ICON);
+    for (var i = 0; i < links.length; i++) {
+      var want =
+        links[i].rel === 'apple-touch-icon'
+          ? TOUCH
+          : /\.ico/.test(links[i].getAttribute('href') || '')
+            ? '/favicon.ico?v=2'
+            : ICON;
+      if (links[i].getAttribute('href') !== want) links[i].setAttribute('href', want);
+    }
   }
   var queued = false;
   function start() {

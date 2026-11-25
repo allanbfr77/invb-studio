@@ -11,7 +11,14 @@ const { readJson, log, detectTools, listMeta, update } = require('./lib/store');
 const { authFile, initAuth, send } = require('./lib/http');
 const { sweepOriginals, makePreview } = require('./lib/media');
 const { api } = require('./lib/routes');
-const { resolveEditorFile, editorInstalled, sendEditorFile, brandEditorHtml } = require('./lib/editor-static');
+const {
+  resolveEditorFile,
+  editorInstalled,
+  sendEditorFile,
+  brandEditorHtml,
+  brandIconFile,
+  brandManifest,
+} = require('./lib/editor-static');
 
 const publicDir = path.join(ROOT, 'public');
 const staticTypes = {
@@ -50,10 +57,30 @@ function serveEditor(res, url) {
   };
   if (!editorInstalled(cfg.editorDir))
     return plain(404, 'Editor avançado não instalado. Rode o build:studio no invb-editor.');
-  const hit = resolveEditorFile(url.slice(EDITOR.length), cfg.editorDir);
+  const sub = url.slice(EDITOR.length).split('?')[0];
+  // ícones do OpenCut: entregam o "V" da igreja (o Safari pede esses arquivos direto)
+  const icon = brandIconFile(sub);
+  if (icon)
+    return fs.readFile(icon, (e, buf) => {
+      if (e) return plain(404, 'Não encontrado');
+      res.writeHead(200, {
+        'content-type': icon.endsWith('.ico') ? 'image/x-icon' : 'image/png',
+        'cache-control': 'no-cache',
+        'x-content-type-options': 'nosniff',
+      });
+      res.end(buf);
+    });
+  const hit = resolveEditorFile(sub, cfg.editorDir);
   if (!hit) return plain(403, 'Proibido');
   fs.stat(hit.file, (e, st) => {
     if (e || !st.isFile()) return plain(404, 'Não encontrado');
+    // nome e ícone do app (manifesto): os do Studio
+    if (sub === '/manifest.json')
+      return fs.readFile(hit.file, 'utf8', (e2, txt) => {
+        if (e2) return plain(404, 'Não encontrado');
+        res.writeHead(200, { 'content-type': 'application/manifest+json', 'cache-control': 'no-cache' });
+        res.end(brandManifest(txt));
+      });
     // páginas: com o nome, o ícone e o tema do INVB Studio
     if (path.extname(hit.file) === '.html')
       return fs.readFile(hit.file, 'utf8', (e2, html) => {
