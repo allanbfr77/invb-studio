@@ -1,2 +1,4 @@
 *.bat text eol=crlf
 *.command text eol=lf
+# Editor avançado: arquivos gerados pelo build:studio, guardados byte a byte (sem conversão de quebra de linha)
+public/editor-avancado/** -text
