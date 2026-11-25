@@ -81,7 +81,9 @@
       const local = !(S.status && S.status.shareBase);
       const where = local
         ? 'Este link só abre <b>neste computador</b>. Para outras pessoas abrirem, o Studio precisa estar aberto para a rede (mesmo Wi-Fi) ou ter um endereço público (PUBLIC_URL). Veja o README.'
-        : /^http:\/\/(10|172|192\.168)\./.test(base)
+        : /trycloudflare\.com/.test(base)
+          ? 'Abre <b>de qualquer lugar</b>, enquanto este computador estiver ligado com o Studio aberto. Atenção: este endereço da Cloudflare <b>muda quando o Studio é reaberto</b>, e aí os links compartilhados antes deixam de abrir (para um endereço fixo, veja o README).'
+          : /^http:\/\/(10|172|192\.168)\./.test(base)
           ? 'Abre para quem estiver <b>no mesmo Wi-Fi</b>, enquanto este computador estiver ligado com o Studio aberto.'
           : 'Abre <b>de qualquer lugar</b>, enquanto este computador estiver ligado com o Studio aberto.';
       const m = document.createElement('div');

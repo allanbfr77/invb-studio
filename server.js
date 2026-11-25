@@ -203,6 +203,16 @@ server.headersTimeout = 60000;
     .sync()
     .catch((e) => log('falha ao ler as fontes da equipe', e.message));
   server.listen(cfg.port, cfg.host, () => {
+    // túnel da Cloudflare (TUNNEL=cloudflare ou CLOUDFLARE_TUNNEL_TOKEN): links de compartilhar de qualquer lugar
+    require('./lib/tunnel').start((m) => log(m));
+    // ao fechar o Studio, o túnel fecha junto (senão o cloudflared ficaria rodando sozinho)
+    const bye = () => require('./lib/tunnel').stop();
+    process.on('exit', bye);
+    for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'])
+      process.on(sig, () => {
+        bye();
+        process.exit(0);
+      });
     console.log(`INVB Studio em http://${cfg.host === '0.0.0.0' ? 'localhost' : cfg.host}:${cfg.port}`);
     console.log(
       `  ffmpeg: ${tools.ffmpeg || 'NÃO ENCONTRADO'} | transcrição: ${isCloud() ? cloud().name + ' ' + cloud().model + (cloud().key ? '' : ' (SEM CHAVE)') : cfg.provider}${cfg.provider === 'local' ? ` (faster-whisper ${tools.whisper ? 'ok' : 'AUSENTE'}, modelo ${cfg.whisperModel})` : ''} | IA: ${AI ? AI.label : 'desligada (sem chave do Claude ou da OpenAI)'} | yt-dlp: ${tools.ytdlp ? 'ok' : 'ausente'}`,
