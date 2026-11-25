@@ -69,6 +69,56 @@
       setTimeout(start, 300);
     });
 
+  /* ----- Exportação protegida -----
+     O painel de exportar do editor é um balão que fecha ao clicar fora dele, e fechar o balão cancela a exportação.
+     Enquanto ele mostra "Exportando projeto", cliques e toques fora do balão e a tecla Esc não chegam ao editor
+     (o balão fica aberto, a exportação segue) e aparece um aviso. Dentro do balão tudo funciona, inclusive "Cancelar".
+     Fechar ou recarregar a aba pede confirmação. */
+  function exportPanel() {
+    var hs = document.querySelectorAll('[data-radix-popper-content-wrapper] h3');
+    for (var i = 0; i < hs.length; i++)
+      if (/^Exportando projeto/.test((hs[i].textContent || '').trim()))
+        return hs[i].closest('[data-radix-popper-content-wrapper]');
+    return null;
+  }
+  var noteT = null;
+  function note() {
+    var n = document.getElementById('invb-note');
+    if (!n) {
+      n = document.createElement('div');
+      n.id = 'invb-note';
+      n.className = 'invb-note';
+      n.setAttribute('role', 'status');
+      n.textContent = 'Aguarde a exportação terminar. Para parar, use “Cancelar” no painel de exportar.';
+      document.body.appendChild(n);
+    }
+    n.classList.add('on');
+    clearTimeout(noteT);
+    noteT = setTimeout(function () {
+      n.classList.remove('on');
+    }, 2600);
+  }
+  function guard(e) {
+    var panel = exportPanel();
+    if (!panel) return;
+    if (e.type === 'keydown') {
+      if (e.key !== 'Escape') return;
+    } else if (panel.contains(e.target) || (e.target.closest && e.target.closest('#invb-send, #invb-note'))) return;
+    e.stopImmediatePropagation();
+    e.stopPropagation();
+    // no mousedown, impedir o padrão também impede o foco de sair do balão (o que também o fecharia)
+    if (e.type !== 'focusin' && e.cancelable) e.preventDefault();
+    if (e.type === 'pointerdown' || e.type === 'keydown') note();
+  }
+  ['pointerdown', 'mousedown', 'touchstart', 'click', 'focusin', 'keydown'].forEach(function (t) {
+    window.addEventListener(t, guard, { capture: true, passive: false });
+  });
+  window.addEventListener('beforeunload', function (e) {
+    if (!exportPanel()) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
   /* ----- Exportar → "Enviar pro Studio" -----
      O editor entrega o arquivo exportado sempre do mesmo jeito: cria um endereço temporário para o vídeo
      (URL.createObjectURL) e clica num link de download. Aqui esse clique, quando é de um vídeo, abre a janela
