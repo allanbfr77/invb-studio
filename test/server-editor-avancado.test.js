@@ -111,3 +111,20 @@ test('páginas do editor abrem sem login', async (t) => {
   assert.equal(r.status, 200);
   assert.equal(await r.text(), '<p>lista</p>');
 });
+
+test('GET /api/sounds/search exige login e busca com a chave do .env', async (t) => {
+  const http = require('node:http');
+  const srv = http.createServer((req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ count: 0, next: null, previous: null, results: [] }));
+  });
+  await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
+  t.after(() => srv.close());
+  const s = await boot(t, tmp(t), {
+    env: { FREESOUND_API_KEY: 'k', INVB_FREESOUND_API_BASE: `http://127.0.0.1:${srv.address().port}/apiv2` },
+  });
+  assert.equal((await fetch(s.url + '/api/sounds/search?q=x')).status, 401);
+  const r = await s.api('/sounds/search?q=x');
+  assert.equal(r.status, 200);
+  assert.equal(r.body.count, 0);
+});
