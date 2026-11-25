@@ -74,6 +74,41 @@
         draw();
       }, 800);
     };
+    // "Compartilhar": o link público só deste corte (/v/<código>), sem login, e de onde ele abre.
+    const shareModal = (c, k, path) => {
+      const base = (S.status && S.status.shareBase) || location.origin;
+      const url = base + path;
+      const local = !(S.status && S.status.shareBase);
+      const where = local
+        ? 'Este link só abre <b>neste computador</b>. Para outras pessoas abrirem, o Studio precisa estar aberto para a rede (mesmo Wi-Fi) ou ter um endereço público (PUBLIC_URL). Veja o README.'
+        : /^http:\/\/(10|172|192\.168)\./.test(base)
+          ? 'Abre para quem estiver <b>no mesmo Wi-Fi</b>, enquanto este computador estiver ligado com o Studio aberto.'
+          : 'Abre <b>de qualquer lugar</b>, enquanto este computador estiver ligado com o Studio aberto.';
+      const m = document.createElement('div');
+      m.className = 'modal-bg';
+      m.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="sh-t"><h3 id="sh-t">Compartilhar “${esc(k.title)}”</h3><p class="sub2" style="margin:0 0 12px">Quem tiver o link vê <b>só este corte</b>, sem login e sem acesso ao resto do Studio.</p><div class="sh-row"><input id="sh-url" readonly value="${esc(url)}" aria-label="Link do corte"><button class="ap-btn pri" id="sh-copy">Copiar</button></div><p class="sub2 sh-where">${where}</p><div class="ft"><button class="ap-btn" id="sh-stop" style="color:#c0262d">Parar de compartilhar</button><a class="ap-btn" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a><button class="ap-btn" data-x>Fechar</button></div></div>`;
+      document.body.appendChild(m);
+      const close = () => m.remove();
+      m.onclick = (e) => {
+        if (e.target === m || e.target.dataset.x !== undefined) close();
+      };
+      $('#sh-url', m).onfocus = (e) => e.target.select();
+      $('#sh-copy', m).onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(url);
+        } catch {
+          $('#sh-url', m).select();
+          document.execCommand('copy');
+        }
+        toast('Link copiado.');
+      };
+      $('#sh-stop', m).onclick = guard(async () => {
+        if (!window.confirm('Parar de compartilhar? O link deixa de abrir para todo mundo.')) return;
+        await api(`/uploads/${c.id}/clips/${k.id}/share`, { method: 'DELETE' });
+        toast('O link deixou de funcionar.');
+        close();
+      });
+    };
     // Exportação de um corte: com a edição salva dele, ou no formato do vídeo e sem legenda.
     // Sem edição, usa o formato padrão da equipe (painel Formato do editor), se houver.
     let prefsP = null;
@@ -270,7 +305,7 @@
             (k) => `<div class="cut ${k.hid ? 'hid' : ''}" data-c="${k.id}">${mediaTag(k)}
         <div class="sc">${k.score ? `<span class="chipx">⚡ ${k.score}</span>` : ''}<span class="chipx ok">${k.render && k.render.status === 'rendering' ? '⏳ Renderizando' : k.downloaded ? '✓ Baixado' : k.render && k.render.status === 'done' ? 'Pronto' : 'Novo'}</span><button class="tlink" data-a="ed" title="Ajustar título e tempos" aria-label="Ajustar título e tempos do corte">${tm(k.start)} → ${tm(k.end)} · ${Math.round(dur(k))}s${k.render && k.render.status === 'done' && k.render.speed && k.render.speed !== 1 ? ` · exportado em ${String(k.render.speed).replace('.', ',')}x: ${Math.round(k.render.seconds)}s` : ''} ${ic.edit}</button></div><h4>${esc(k.title)}</h4>${k.manual && /^Corte criado manualmente/.test(k.description || '') ? '' : `<p class="ds">${esc(k.description)}</p>`}
         <div class="tg" style="display:flex;gap:6px;flex-wrap:wrap">${[...new Set([k.type, k.emotion, ...(k.tags || [])].filter(Boolean))].map((t, i) => `<span class="tag2 ${'abc'[i % 3]}">${esc(t)}</span>`).join('')}</div>
-        ${driveOn && k.driveError && !k.drive ? `<div class="drv-err" role="alert">Envio ao Drive falhou: ${esc(k.driveError.msg)}</div>` : ''}${overlapNote(k)}<div class="bt"><div class="bt1"><button class="ap-btn pri" data-a="dl">Baixar corte</button><button class="ap-btn" data-a="open" aria-label="Abrir o editor do corte" title="Abrir o editor do corte">${ic.scissors} Editar</button></div><div class="bt2">${driveBtn(k)}${S.status && S.status.ai ? `<button class="ap-btn ${k.post ? 'has' : ''}" data-a="post" title="Título, descrição e hashtags para publicar">✨ Texto</button>` : ''}<button class="ap-btn" data-a="adj" title="Aumentar, encurtar ou trocar o título deste corte">Ajustar ⌄</button><span class="sp"></span><button class="ap-btn ${k.fav ? 'on' : ''}" data-a="fav" aria-label="Favoritar" title="Favoritar">${ic.heartS}</button><button class="ap-btn" data-a="hid" aria-label="${k.hid ? 'Mostrar' : 'Ocultar'}" title="${k.hid ? 'Mostrar este corte' : 'Ocultar este corte'}">${ic.eye}</button><button class="ap-btn del" data-a="del" aria-label="Excluir este corte" title="Excluir este corte">${ic.trash}</button></div></div></div>`,
+        ${driveOn && k.driveError && !k.drive ? `<div class="drv-err" role="alert">Envio ao Drive falhou: ${esc(k.driveError.msg)}</div>` : ''}${overlapNote(k)}<div class="bt"><div class="bt1"><button class="ap-btn pri" data-a="dl">Baixar corte</button><button class="ap-btn" data-a="open" aria-label="Abrir o editor do corte" title="Abrir o editor do corte">${ic.scissors} Editar</button></div><div class="bt2">${driveBtn(k)}${S.status && S.status.ai ? `<button class="ap-btn ${k.post ? 'has' : ''}" data-a="post" title="Título, descrição e hashtags para publicar">✨ Texto</button>` : ''}<button class="ap-btn" data-a="adj" title="Aumentar, encurtar ou trocar o título deste corte">Ajustar ⌄</button><span class="sp"></span><button class="ap-btn ${k.fav ? 'on' : ''}" data-a="fav" aria-label="Favoritar" title="Favoritar">${ic.heartS}</button><button class="ap-btn" data-a="hid" aria-label="${k.hid ? 'Mostrar' : 'Ocultar'}" title="${k.hid ? 'Mostrar este corte' : 'Ocultar este corte'}">${ic.eye}</button><button class="ap-btn" data-a="share" aria-label="Compartilhar este corte por link" title="Compartilhar por link (sem login)">${ic.link}</button><button class="ap-btn del" data-a="del" aria-label="Excluir este corte" title="Excluir este corte">${ic.trash}</button></div></div></div>`,
           )
           .join('') ||
         `<div class="empty" style="grid-column:1/-1"><h3>${shared.mode === 0 ? 'Nenhum corte automático' : 'Nenhum corte manual'}</h3><p>${q || Object.values(f).some(Boolean) ? 'Nada bate com a busca ou os filtros.' : shared.mode === 0 ? (S.status && S.status.ai ? 'Use “Sugerir cortes com IA”, ou crie os seus na aba Manuais.' : 'Sem IA neste computador, os cortes são feitos por você: use “Colar minutagens” ou “+ Novo corte”.') : 'Use “Colar minutagens” ou “+ Novo corte”. Na Transcrição também dá para selecionar linhas e criar um corte.'}</p></div>`;
@@ -296,6 +331,11 @@
                 await api(`/uploads/${c.id}/clips/${k.id}`, { method: 'PATCH', json: { hid: !k.hid } });
                 k.hid = !k.hid;
                 draw();
+              } else if (a === 'share') {
+                if (!(k.render && k.render.status === 'done'))
+                  return toast('Exporte o corte antes de compartilhar (botão Baixar corte).');
+                const r = await api(`/uploads/${c.id}/clips/${k.id}/share`, { json: {} });
+                shareModal(c, k, r.path);
               } else if (a === 'del') {
                 const msg = `Excluir o corte “${k.title}”? O vídeo exportado dele também é apagado deste computador.${k.drive ? ' O que já foi enviado ao Drive continua lá.' : ''}`;
                 if (!window.confirm(msg)) return;

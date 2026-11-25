@@ -101,6 +101,16 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   editada fica marcada como vinda do editor e não entra na limpeza dos 7 dias (não há link para baixá-la de novo).
   Isso fica em `public/app/editor-avancado-tema.js` (o mesmo script que dá ao editor a cara do Studio) e na rota
   `POST /api/uploads/<id>/edited`.
+- **Compartilhar um corte por link** (🔗 no cartão do corte exportado): gera um link `/v/<código>` que mostra **só
+  aquele corte**, sem login e sem acesso ao resto do Studio. "Parar de compartilhar" (ou apagar o corte) derruba o
+  link. Os códigos ficam em `data/shares.json` (`lib/shares.js`); a página é `public/assistir.html`. O link só abre
+  enquanto o computador que guarda o vídeo está ligado com o Studio aberto, e de onde ele abre depende de como o Studio
+  está aberto:
+  - **só neste computador** (o padrão);
+  - **no mesmo Wi-Fi**: acrescente `HOST=0.0.0.0` no `install/pessoal.env` e reabra o Studio (o resto continua
+    protegido pela senha);
+  - **de qualquer lugar**: um túnel (ex.: `cloudflared tunnel --url http://localhost:4321`) e o endereço dele em
+    `PUBLIC_URL=` no `install/pessoal.env`.
 - **Barra da prévia**: Ímã, Raio-X (X), Guias (G: centro, terços e, no 9:16, a área que o Instagram/TikTok cobre) e
   Centralizar. A legenda se arrasta direto no vídeo.
 

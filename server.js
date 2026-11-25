@@ -103,6 +103,17 @@ function serveEditor(res, url) {
 }
 function serveStatic(req, res, url) {
   if (url === EDITOR || url.startsWith(EDITOR + '/')) return serveEditor(res, url);
+  // link público de um corte: a página que mostra só aquele vídeo (o código é conferido pela API, lib/shares.js)
+  if (/^\/v\/[A-Za-z0-9_-]{20,40}\/?$/.test(url)) {
+    res.writeHead(200, {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-cache',
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'no-referrer',
+      'x-robots-tag': 'noindex, nofollow',
+    });
+    return fs.createReadStream(path.join(publicDir, 'assistir.html')).pipe(res);
+  }
   if (url === '/') {
     res.writeHead(302, { location: '/entrar' });
     return res.end();
