@@ -11,7 +11,7 @@ const { readJson, log, detectTools, listMeta, update } = require('./lib/store');
 const { authFile, initAuth, send } = require('./lib/http');
 const { sweepOriginals, makePreview } = require('./lib/media');
 const { api } = require('./lib/routes');
-const { resolveEditorFile, editorInstalled, sendEditorFile } = require('./lib/editor-static');
+const { resolveEditorFile, editorInstalled, sendEditorFile, brandEditorHtml } = require('./lib/editor-static');
 
 const publicDir = path.join(ROOT, 'public');
 const staticTypes = {
@@ -54,6 +54,18 @@ function serveEditor(res, url) {
   if (!hit) return plain(403, 'Proibido');
   fs.stat(hit.file, (e, st) => {
     if (e || !st.isFile()) return plain(404, 'Não encontrado');
+    // páginas: com o nome, o ícone e o tema do INVB Studio
+    if (path.extname(hit.file) === '.html')
+      return fs.readFile(hit.file, 'utf8', (e2, html) => {
+        if (e2) return plain(404, 'Não encontrado');
+        res.writeHead(200, {
+          'content-type': 'text/html; charset=utf-8',
+          'x-content-type-options': 'nosniff',
+          'referrer-policy': 'same-origin',
+          'cache-control': 'no-cache',
+        });
+        res.end(brandEditorHtml(html));
+      });
     sendEditorFile(res, hit.file, {
       'content-type': staticTypes[path.extname(hit.file)] || 'application/octet-stream',
       'x-content-type-options': 'nosniff',
