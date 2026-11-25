@@ -11,6 +11,7 @@ const { readJson, log, detectTools, listMeta, update } = require('./lib/store');
 const { authFile, initAuth, send } = require('./lib/http');
 const { sweepOriginals, makePreview } = require('./lib/media');
 const { api } = require('./lib/routes');
+const { resolveEditorFile, editorInstalled } = require('./lib/editor-static');
 
 const publicDir = path.join(ROOT, 'public');
 const staticTypes = {
@@ -23,8 +24,45 @@ const staticTypes = {
   '.ico': 'image/x-icon',
   '.ttf': 'font/ttf',
   '.txt': 'text/plain; charset=utf-8',
+  // usados pelo Editor avançado
+  '.wasm': 'application/wasm',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.otf': 'font/otf',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.mp3': 'audio/mpeg',
+  '.mp4': 'video/mp4',
+  '.webmanifest': 'application/manifest+json',
+  '.map': 'application/json',
+  '.xml': 'application/xml',
 };
+const EDITOR = '/editor-avancado';
+// Editor avançado: só os arquivos da exportação; o que não existe dá 404, nunca a tela do INVB Studio.
+function serveEditor(res, url) {
+  const plain = (status, text) => {
+    res.writeHead(status, { 'content-type': 'text/plain; charset=utf-8', 'x-content-type-options': 'nosniff' });
+    res.end(text);
+  };
+  if (!editorInstalled(cfg.editorDir))
+    return plain(404, 'Editor avançado não instalado. Rode o build:studio no invb-editor.');
+  const hit = resolveEditorFile(url.slice(EDITOR.length), cfg.editorDir);
+  if (!hit) return plain(403, 'Proibido');
+  fs.stat(hit.file, (e, st) => {
+    if (e || !st.isFile()) return plain(404, 'Não encontrado');
+    res.writeHead(200, {
+      'content-type': staticTypes[path.extname(hit.file)] || 'application/octet-stream',
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'same-origin',
+      'cache-control': hit.cache === 'long' ? 'public, max-age=31536000, immutable' : 'no-cache',
+    });
+    fs.createReadStream(hit.file).pipe(res);
+  });
+}
 function serveStatic(req, res, url) {
+  if (url === EDITOR || url.startsWith(EDITOR + '/')) return serveEditor(res, url);
   if (url === '/') {
     res.writeHead(302, { location: '/entrar' });
     return res.end();
