@@ -72,6 +72,22 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   arraste o vídeo na prévia (ou use Esquerda/Centro/Direita) para escolher que parte fica no quadro; a exportação usa
   a mesma posição. “Usar … nos cortes novos” deixa um formato como padrão (`data/editor-prefs.json`), inclusive para
   quem exporta pela lista sem abrir o editor. Velocidade de 0,5x a 2x; sincronia em segundos.
+- **Da live ao YouTube** (o fluxo recomendado):
+  1. Em **Nova pregação**, cole o link da live inteira. Com **"Depois de baixar: cortar no Editor avançado antes de
+     transcrever"** (o padrão, lembrado), o Studio só baixa e fica **Aguardando o editor**. "Transcrever agora"
+     segue direto, como antes.
+  2. No **Editor avançado**, a seção **Pregações do Studio** (ou "Abrir no Editor avançado" na pregação) abre o
+     projeto dela: na primeira vez o vídeo vem sozinho do Studio para o começo da linha do tempo; depois, o mesmo
+     projeto com as edições. A ligação pregação → projeto fica no navegador.
+  3. Corte o louvor e os avisos, edite e **exporte**. A janela **Vídeo exportado** já sugere **substituir o vídeo
+     desta pregação** (o Studio transcreve só a pregação, minutagem a partir de 0:00) e pode **publicar no YouTube**:
+     título, descrição, visibilidade e **thumbnail** (modelo da igreja, quadro do vídeo ou imagem pronta).
+  4. O link do YouTube fica na pregação ("Ver no YouTube"). Pública ou não listada, a versão editada volta à
+     limpeza dos 7 dias (o link do YouTube vira a fonte); privada, fica guardada.
+- **Configurar o YouTube (uma vez)**: no projeto do Google Cloud do `GOOGLE_CLIENT_ID` (o mesmo do Drive), ative a
+  **YouTube Data API v3** e acrescente o escopo `https://www.googleapis.com/auth/youtube.upload` na tela de
+  consentimento. Projetos não verificados pelo Google podem ter os vídeos limitados a **privado** até passarem pela
+  auditoria gratuita do YouTube. Thumbnail personalizada exige o canal **verificado por telefone**.
 - **Editor avançado → Studio**: ao exportar no Editor avançado, abre a janela **Vídeo exportado** com três saídas:
   enviar pro Studio como **pregação nova**, **substituir o vídeo de uma pregação** (a versão editada vira a base da
   transcrição e dos cortes, a minutagem começa no início dela, e os cortes antigos saem) ou **só baixar**. A versão

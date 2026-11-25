@@ -395,3 +395,97 @@ img[src*='/logos/opencut/'] {
   color: var(--invb-gold);
   font-weight: 600;
 }
+
+/* janela "Vídeo exportado": publicar no YouTube */
+.invb-yt {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.invb-ytchk b {
+  color: var(--foreground);
+}
+.invb-f textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--input);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+.invb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.invb-chips label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--foreground) !important;
+  cursor: pointer;
+  margin: 0 !important;
+}
+.invb-chips label:has(input:checked) {
+  border-color: var(--invb-gold);
+  background: var(--secondary);
+}
+.invb-chips input {
+  accent-color: var(--invb-gold);
+  margin: 0;
+}
+.invb-th {
+  margin-top: 10px;
+}
+.invb-th canvas {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: block;
+  background: #16140f;
+}
+.invb-thc {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.invb-thc label {
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+}
+.invb-thc input[type='range'] {
+  accent-color: var(--invb-gold);
+  width: 100%;
+}
+.invb-thc input:not([type='range']) {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--input);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13.5px;
+}
+.invb-card {
+  width: min(560px, 100%);
+}
+.invb-f .invb-chips input[type='radio'] {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  flex: none;
+}

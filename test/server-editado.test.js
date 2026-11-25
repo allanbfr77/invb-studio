@@ -2,6 +2,15 @@
 const { test, assert, fs, path, spawnSync, HAS_FFMPEG, boot, tmp, seedTone, meta } = require('./helpers');
 const { canRefetch, staleOriginals } = require('../lib/cleanup');
 
+// espera o servidor terminar de processar (aqui a transcrição falha logo, sem chave): a pasta do teste só pode
+// ser apagada depois, senão o servidor ainda está escrevendo nela
+const idle = async (s, id) => {
+  for (let i = 0; i < 100; i++) {
+    const m = (await s.api('/uploads/' + id)).body;
+    if (!m || !['queued', 'processing'].includes(m.status)) return m;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+};
 const sendEdited = (s, id, buf, name = 'editado.mp4') =>
   fetch(s.url + `/api/uploads/${id}/edited?name=` + encodeURIComponent(name), {
     method: 'POST',
@@ -50,6 +59,7 @@ test(
     // a limpeza dos 7 dias não apaga: não há link para baixar a versão editada de novo
     assert.equal(canRefetch(m), false);
     assert.deepEqual(staleOriginals([{ ...m, status: 'done', lastUsedAt: 0 }], Date.now(), 1000), []);
+    await idle(s, 'kkkkkkkkkkk8');
   },
 );
 
@@ -96,6 +106,7 @@ test(
     assert.equal(r.status, 200, JSON.stringify(r.body));
     assert.equal(r.body.later, false);
     assert.ok(['queued', 'processing', 'error'].includes(r.body.status));
+    await idle(s, up.id);
   },
 );
 
@@ -108,4 +119,30 @@ test('"Transcrever agora" tira a pregação da espera', async (t) => {
   const m = meta(dir);
   assert.equal(m.later, false);
   assert.notEqual(m.status, 'waiting');
+  await idle(s, 'kkkkkkkkkkk9');
+});
+
+test('publicada no YouTube: guarda o link; pública ou não listada volta para a limpeza dos 7 dias, privada não', async (t) => {
+  const d = tmp(t);
+  const dir = seedTone(d, 'kkkkkkkkkkka');
+  fs.writeFileSync(
+    path.join(dir, 'meta.json'),
+    JSON.stringify({ ...meta(dir), status: 'done', source: 'editor', url: null }),
+  );
+  const s = await boot(t, d);
+  assert.equal((await s.api('/uploads/kkkkkkkkkkka/youtube', { json: { videoId: 'x y' } })).status, 400);
+  // privada: guarda o link, mas o vídeo continua só no computador (não sai na limpeza)
+  let r = await s.api('/uploads/kkkkkkkkkkka/youtube', { json: { videoId: 'abcDEF12345', privacy: 'private' } });
+  assert.equal(r.body.youtube.url, 'https://www.youtube.com/watch?v=abcDEF12345');
+  assert.equal(r.body.source, 'editor');
+  assert.equal(canRefetch(r.body), false);
+  // não listada: o link do YouTube vira a fonte
+  r = await s.api('/uploads/kkkkkkkkkkka/youtube', { json: { videoId: 'abcDEF12345', privacy: 'unlisted' } });
+  assert.equal(r.body.source, 'youtube');
+  assert.equal(r.body.url, 'https://www.youtube.com/watch?v=abcDEF12345');
+  assert.equal(canRefetch(r.body), true);
+  assert.deepEqual(
+    staleOriginals([{ ...r.body, file: 'original.mp4', lastUsedAt: 1, createdAt: 1 }], Date.now(), 1000),
+    ['kkkkkkkkkkka'],
+  );
 });

@@ -175,6 +175,262 @@
       return r.json();
     });
   }
+
+  /* ----- YouTube: login, envio e thumbnail (tudo direto do navegador para o YouTube) ----- */
+  var YT_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
+  function loadGsi() {
+    return new Promise(function (ok, bad) {
+      if (window.google && google.accounts && google.accounts.oauth2) return ok();
+      var sc = document.createElement('script');
+      sc.src = 'https://accounts.google.com/gsi/client';
+      sc.async = true;
+      sc.onload = ok;
+      sc.onerror = function () {
+        bad(new Error('Não foi possível carregar o login do Google.'));
+      };
+      document.head.appendChild(sc);
+    });
+  }
+  function ytToken(clientId) {
+    return loadGsi().then(function () {
+      return new Promise(function (ok, bad) {
+        google.accounts.oauth2
+          .initTokenClient({
+            client_id: clientId,
+            scope: YT_SCOPE,
+            callback: function (t) {
+              t && t.access_token ? ok(t.access_token) : bad(new Error('Não foi possível entrar com o Google.'));
+            },
+            error_callback: function () {
+              bad(new Error('Login do Google cancelado ou bloqueado pelo navegador.'));
+            },
+          })
+          .requestAccessToken({ prompt: '' });
+      });
+    });
+  }
+  // envio com andamento: devolve { status, json, xhr }
+  function send(url, body, headers, onprog, method) {
+    return new Promise(function (ok, bad) {
+      var x = new XMLHttpRequest();
+      x.open(method || 'POST', url);
+      for (var h in headers || {}) x.setRequestHeader(h, headers[h]);
+      if (onprog)
+        x.upload.onprogress = function (e) {
+          if (e.lengthComputable) onprog(e.loaded / e.total);
+        };
+      x.onload = function () {
+        var j = {};
+        try {
+          j = JSON.parse(x.responseText || '{}');
+        } catch (e) {
+          /* sem corpo */
+        }
+        ok({ status: x.status, json: j, xhr: x });
+      };
+      x.onerror = function () {
+        bad(new Error('Sem conexão (' + url.split('?')[0].replace(/^https?:\/\//, '') + ').'));
+      };
+      x.send(body);
+    });
+  }
+  var ytErr = function (j, def) {
+    var e = j && j.error;
+    var reason = e && e.errors && e.errors[0] && e.errors[0].reason;
+    if (reason === 'quotaExceeded') return 'O limite diário de envios da API do YouTube acabou. Tente amanhã.';
+    if (reason === 'youtubeSignupRequired' || reason === 'channelNotFound')
+      return 'Esta conta do Google não tem canal no YouTube. Entre com a conta do canal da igreja.';
+    if (/accessNotConfigured|SERVICE_DISABLED/.test(JSON.stringify(e || '')))
+      return 'A API do YouTube não está ativada no projeto do Google (YouTube Data API v3).';
+    if (reason === 'forbidden' && def === 'thumb')
+      return 'O YouTube não aceitou a thumbnail: o canal precisa estar verificado por telefone.';
+    return (e && e.message) || 'O YouTube recusou o envio.';
+  };
+  // envio retomável (o jeito do YouTube para arquivos grandes): abre a sessão e manda o vídeo
+  async function ytUpload(token, blob, meta, onprog) {
+    var body = JSON.stringify({
+      snippet: {
+        title: meta.title.slice(0, 100),
+        description: meta.description || '',
+        categoryId: '29',
+        defaultLanguage: 'pt-BR',
+        defaultAudioLanguage: 'pt-BR',
+      },
+      status: { privacyStatus: meta.privacy || 'private', selfDeclaredMadeForKids: false },
+    });
+    var r = await send(
+      'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
+      body,
+      {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': blob.type || 'video/mp4',
+        'X-Upload-Content-Length': String(blob.size),
+      },
+    );
+    var loc = r.xhr.getResponseHeader('Location') || r.xhr.getResponseHeader('location');
+    if (r.status !== 200 || !loc) throw new Error(ytErr(r.json));
+    var up = await send(loc, blob, { 'Content-Type': blob.type || 'video/mp4' }, onprog, 'PUT');
+    if ((up.status !== 200 && up.status !== 201) || !up.json.id) throw new Error(ytErr(up.json));
+    return up.json.id;
+  }
+  async function ytThumb(token, videoId, jpg) {
+    var r = await send(
+      'https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=' + encodeURIComponent(videoId),
+      jpg,
+      {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'image/jpeg',
+      },
+    );
+    if (r.status !== 200) throw new Error(ytErr(r.json, 'thumb'));
+  }
+  // thumbnail: um quadro do vídeo, ou o modelo da igreja por cima dele
+  function videoFrom(blob) {
+    return new Promise(function (ok, bad) {
+      var v = document.createElement('video');
+      v.muted = true;
+      v.playsInline = true;
+      v.preload = 'auto';
+      v.src = createURL.call(URL, blob);
+      v.onloadedmetadata = function () {
+        ok(v);
+      };
+      v.onerror = function () {
+        bad(new Error('Não consegui abrir o vídeo para a thumbnail.'));
+      };
+    });
+  }
+  function seek(v, t) {
+    return new Promise(function (ok) {
+      var done = function () {
+        v.removeEventListener('seeked', done);
+        ok();
+      };
+      v.addEventListener('seeked', done);
+      v.currentTime = Math.max(0, Math.min((v.duration || 1) - 0.05, t));
+      setTimeout(done, 1500);
+    });
+  }
+  function loadImg(src) {
+    return new Promise(function (ok, bad) {
+      var i = new Image();
+      i.onload = function () {
+        ok(i);
+      };
+      i.onerror = bad;
+      i.src = src;
+    });
+  }
+  function clearCanvas(cv) {
+    var g = cv.getContext('2d');
+    g.fillStyle = '#16140f';
+    g.fillRect(0, 0, cv.width, cv.height);
+  }
+  function drawCover(cv, src) {
+    var g = cv.getContext('2d'),
+      W = cv.width,
+      H = cv.height;
+    var sw = src.videoWidth || src.naturalWidth || src.width,
+      sh = src.videoHeight || src.naturalHeight || src.height;
+    var k = Math.max(W / sw, H / sh);
+    clearCanvas(cv);
+    g.drawImage(src, (W - sw * k) / 2, (H - sh * k) / 2, sw * k, sh * k);
+  }
+  var fontsReady = null;
+  function thumbFonts() {
+    if (!fontsReady)
+      fontsReady = Promise.all([
+        new FontFace('INVB Thumb', 'url(/fonts/Montserrat-ExtraBold.ttf)').load(),
+        new FontFace('INVB Thumb 2', 'url(/fonts/Poppins-SemiBold.ttf)').load(),
+      ]).then(function (fs) {
+        fs.forEach(function (f) {
+          document.fonts.add(f);
+        });
+      });
+    return fontsReady;
+  }
+  function wrapLines(g, text, maxW, maxLines) {
+    var words = String(text).split(/\s+/),
+      lines = [],
+      cur = '';
+    for (var i = 0; i < words.length; i++) {
+      var tryL = cur ? cur + ' ' + words[i] : words[i];
+      if (g.measureText(tryL).width > maxW && cur) {
+        lines.push(cur);
+        cur = words[i];
+      } else cur = tryL;
+    }
+    if (cur) lines.push(cur);
+    if (lines.length > maxLines) {
+      lines = lines.slice(0, maxLines);
+      lines[maxLines - 1] = lines[maxLines - 1].replace(/\s*\S*$/, '') + '…';
+    }
+    return lines;
+  }
+  // modelo da igreja: o quadro escurecido à esquerda, a logo, o título em letras grandes e a linha dourada
+  async function churchThumb(cv, video, title, sub) {
+    await thumbFonts().catch(function () {});
+    var g = cv.getContext('2d'),
+      W = cv.width,
+      H = cv.height;
+    drawCover(cv, video);
+    var grd = g.createLinearGradient(0, 0, W * 0.85, 0);
+    grd.addColorStop(0, 'rgba(10,10,11,0.92)');
+    grd.addColorStop(0.55, 'rgba(10,10,11,0.6)');
+    grd.addColorStop(1, 'rgba(10,10,11,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, W, H);
+    try {
+      var logo = await loadImg('/img/nv-logo-noturno.png');
+      g.drawImage(logo, 70, 60, 200, 79);
+    } catch (e) {
+      /* sem logo */
+    }
+    g.fillStyle = '#f0b93a';
+    g.fillRect(70, 190, 120, 10);
+    g.fillStyle = '#ffffff';
+    var size = 92;
+    g.font = size + "px 'INVB Thumb', 'Montserrat', sans-serif";
+    var lines = wrapLines(g, String(title || '').toUpperCase(), W * 0.62, 3);
+    if (lines.length === 3) {
+      size = 78;
+      g.font = size + "px 'INVB Thumb', 'Montserrat', sans-serif";
+      lines = wrapLines(g, String(title || '').toUpperCase(), W * 0.62, 3);
+    }
+    g.textBaseline = 'top';
+    g.shadowColor = 'rgba(0,0,0,0.5)';
+    g.shadowBlur = 12;
+    lines.forEach(function (l, i) {
+      g.fillText(l, 70, 230 + i * (size * 1.08));
+    });
+    if (sub) {
+      g.font = "40px 'INVB Thumb 2', 'Poppins', sans-serif";
+      g.fillStyle = '#f6d27a';
+      g.fillText(sub, 72, 230 + lines.length * (size * 1.08) + 24);
+    }
+    g.shadowBlur = 0;
+  }
+  function canvasJpeg(cv) {
+    return new Promise(function (ok, bad) {
+      var q = 0.9;
+      (function go() {
+        cv.toBlob(
+          function (b) {
+            if (!b) return bad(new Error('Não consegui gerar a imagem.'));
+            if (b.size > 2 * 1048576 && q > 0.5) {
+              q -= 0.1;
+              return go();
+            }
+            ok(b);
+          },
+          'image/jpeg',
+          q,
+        );
+      })();
+    });
+  }
+
   function offer(blob, fileName) {
     var old = document.getElementById('invb-send');
     if (old) old.remove();
@@ -194,13 +450,29 @@
       '<div class="invb-opts">' +
       '<label class="invb-opt"><input type="radio" name="invb-dest" value="new" checked><span><b>Enviar pro Studio como pregação nova</b><small>Aparece em Pregações e é transcrita.</small></span></label>' +
       '<label class="invb-opt"><input type="radio" name="invb-dest" value="replace"><span><b>Substituir o vídeo de uma pregação</b><small>A versão editada passa a ser a base da transcrição e dos cortes. A minutagem começa no início deste vídeo.</small></span></label>' +
-      '<label class="invb-opt"><input type="radio" name="invb-dest" value="none"><span><b>Só baixar no computador</b><small>Como antes.</small></span></label>' +
+      '<label class="invb-opt"><input type="radio" name="invb-dest" value="none"><span><b>Não enviar pro Studio</b><small>Só baixa no computador (e publica no YouTube, se marcar abaixo).</small></span></label>' +
       '</div>' +
       '<div class="invb-f" data-for="new"><label for="invb-title">Nome da pregação</label><input id="invb-title" value="' +
       esc(title) +
       '"></div>' +
       '<div class="invb-f" data-for="replace" hidden><label for="invb-up">Qual pregação</label><select id="invb-up"><option value="">Carregando…</option></select><p class="invb-warn" id="invb-warn"></p></div>' +
       '<label class="invb-chk" data-for-not="none"><input type="checkbox" id="invb-dl"> Baixar também no computador</label>' +
+      '<div class="invb-yt"><label class="invb-chk invb-ytchk"><input type="checkbox" id="invb-yt"> <b>Publicar no YouTube</b></label>' +
+      '<div class="invb-ytf" hidden>' +
+      '<div class="invb-f"><label for="invb-yt-title">Título</label><input id="invb-yt-title" maxlength="100"></div>' +
+      '<div class="invb-f"><label for="invb-yt-desc">Descrição</label><textarea id="invb-yt-desc" rows="4" maxlength="5000"></textarea></div>' +
+      '<div class="invb-f"><label for="invb-yt-priv">Visibilidade</label><select id="invb-yt-priv"><option value="private">Privado (só quem você convidar)</option><option value="unlisted">Não listado (quem tiver o link)</option><option value="public">Público</option></select></div>' +
+      '<div class="invb-f"><label>Thumbnail</label><div class="invb-chips">' +
+      '<label><input type="radio" name="invb-th" value="tpl" checked> Modelo da igreja</label>' +
+      '<label><input type="radio" name="invb-th" value="frame"> Quadro do vídeo</label>' +
+      '<label><input type="radio" name="invb-th" value="file"> Imagem pronta</label>' +
+      '<label><input type="radio" name="invb-th" value="none"> O YouTube escolhe</label></div>' +
+      '<div class="invb-th" data-th><canvas id="invb-th-cv" width="1280" height="720"></canvas>' +
+      '<div class="invb-thc"><label data-th-t>Momento do vídeo <input type="range" id="invb-th-t" min="0" max="1000" value="250"></label>' +
+      '<label data-th-sub>Linha de baixo (ex.: nome do pregador) <input id="invb-th-sub" maxlength="60" placeholder="Pr. Nome · Nova Vida Botafogo"></label>' +
+      '<label data-th-file hidden>Imagem (JPG ou PNG, até 2 MB) <input type="file" id="invb-th-file" accept="image/jpeg,image/png"></label></div></div>' +
+      '<p class="invb-sub" style="margin:6px 0 0">A thumbnail personalizada só funciona com o canal verificado por telefone.</p></div>' +
+      '</div></div>' +
       '<div class="invb-bar" hidden><i></i></div><p class="invb-msg" role="status"></p>' +
       '<div class="invb-act"><button type="button" class="invb-btn" data-x>Fechar</button><button type="button" class="invb-btn pri" data-go>Enviar pro Studio</button></div>' +
       '</div>';
@@ -231,7 +503,9 @@
         e.hidden = e.getAttribute('data-for') !== d;
       });
       $('[data-for-not]').hidden = d === 'none';
-      $('[data-go]').textContent = d === 'none' ? 'Baixar' : 'Enviar pro Studio';
+      var ytOn = $('#invb-yt') && $('#invb-yt').checked;
+      $('[data-go]').textContent =
+        d === 'none' ? (ytOn ? 'Publicar no YouTube' : 'Baixar') : ytOn ? 'Enviar e publicar' : 'Enviar pro Studio';
       if (d === 'replace' && !ups.length)
         api('/api/uploads')
           .then(function (l) {
@@ -279,20 +553,90 @@
       e.stopPropagation(); // os atalhos do editor não valem enquanto a janela está aberta
       if (e.key === 'Escape') close();
     });
-    $('[data-go]').onclick = function () {
+    // ----- YouTube: campos, thumbnail e o envio -----
+    var cid = null;
+    api('/api/status')
+      .then(function (st) {
+        cid = st.driveClientId || null;
+      })
+      .catch(function () {});
+    loadGsi().catch(function () {}); // já carrega o login do Google, para o clique abrir a janela sem bloqueio
+    var projName = ((document.querySelector('header input') || {}).value || '').trim();
+    $('#invb-yt-title').value = projName && projName !== 'Novo projeto' ? projName : title;
+    $('#invb-yt-desc').value = ($('#invb-yt-title').value || title) + '\n\nNova Vida Botafogo';
+    var vid = null;
+    var thumbFile = null;
+    var drawThumb = async function () {
+      var kind = (box.querySelector('input[name="invb-th"]:checked') || {}).value || 'none';
+      var area = $('[data-th]');
+      area.hidden = kind === 'none';
+      $('[data-th-t]').hidden = kind === 'file' || kind === 'none';
+      $('[data-th-sub]').hidden = kind !== 'tpl';
+      $('[data-th-file]').hidden = kind !== 'file';
+      if (kind === 'none') return;
+      var cv = $('#invb-th-cv');
+      try {
+        if (kind === 'file') {
+          if (thumbFile) await drawCover(cv, await loadImg(URL.createObjectURL(thumbFile)));
+          else clearCanvas(cv);
+          return;
+        }
+        if (!vid) vid = await videoFrom(blob);
+        var t = (vid.duration || 0) * (+$('#invb-th-t').value / 1000);
+        await seek(vid, t);
+        if (kind === 'frame') return drawCover(cv, vid);
+        await churchThumb(cv, vid, $('#invb-yt-title').value || title, $('#invb-th-sub').value);
+      } catch (e) {
+        clearCanvas(cv);
+      }
+    };
+    var ytSync = function () {
+      $('.invb-ytf').hidden = !$('#invb-yt').checked;
+      if ($('#invb-yt').checked) drawThumb();
+      sync();
+    };
+    $('#invb-yt').onchange = ytSync;
+    box.querySelectorAll('input[name="invb-th"]').forEach(function (r) {
+      r.onchange = drawThumb;
+    });
+    var redraw = null;
+    ['#invb-th-t', '#invb-th-sub', '#invb-yt-title'].forEach(function (sel) {
+      $(sel).addEventListener('input', function () {
+        clearTimeout(redraw);
+        redraw = setTimeout(drawThumb, 200);
+      });
+    });
+    $('#invb-th-file').onchange = function () {
+      thumbFile = this.files[0] || null;
+      drawThumb();
+    };
+
+    $('[data-go]').onclick = async function () {
       var d = dest(),
-        msg = $('.invb-msg');
-      if (d === 'none') {
+        yt = $('#invb-yt').checked,
+        msg = $('.invb-msg'),
+        go = $('[data-go]'),
+        bar = $('.invb-bar');
+      var say = function (t, html) {
+        msg[html ? 'innerHTML' : 'textContent'] = t;
+      };
+      var prog = function (f) {
+        bar.hidden = false;
+        bar.firstChild.style.width = Math.round(Math.max(0, Math.min(1, f)) * 100) + '%';
+      };
+      if (d === 'none' && !yt) {
         saveLocal(blob, fileName);
         return close();
       }
-      var url;
+      // o que vai para o Studio
+      var url = null,
+        target = null;
       if (d === 'new') {
         var t = ($('#invb-title').value || '').trim() || title;
         url = '/api/uploads?name=' + encodeURIComponent(t + ext);
-      } else {
+      } else if (d === 'replace') {
         var id = $('#invb-up').value;
-        if (!id) return (msg.textContent = 'Escolha a pregação.');
+        if (!id) return say('Escolha a pregação.');
         var u = ups.find(function (x) {
           return x.id === id;
         });
@@ -309,46 +653,89 @@
         )
           return;
         url = '/api/uploads/' + encodeURIComponent(id) + '/edited?name=' + encodeURIComponent(fileName);
+        target = id;
       }
-      if ($('#invb-dl').checked) saveLocal(blob, fileName);
-      var go = $('[data-go]'),
-        bar = $('.invb-bar');
-      go.disabled = true;
-      bar.hidden = false;
-      msg.textContent = 'Enviando pro Studio…';
-      var x = new XMLHttpRequest();
-      x.open('POST', url);
-      x.setRequestHeader('x-invb', '1');
-      x.upload.onprogress = function (e) {
-        if (e.lengthComputable) bar.firstChild.style.width = Math.round((e.loaded / e.total) * 100) + '%';
-      };
-      x.onload = function () {
-        var j = {};
+      // o login do Google primeiro, ainda dentro do clique (senão o navegador bloqueia a janela de login)
+      var token = null;
+      if (yt) {
+        if (!cid) return say('O login do Google não está configurado no Studio (GOOGLE_CLIENT_ID).');
+        if (!($('#invb-yt-title').value || '').trim()) return say('Dê um título ao vídeo do YouTube.');
+        go.disabled = true;
+        say('Entrando no Google…');
         try {
-          j = JSON.parse(x.responseText);
+          token = await ytToken(cid);
         } catch (e) {
-          /* sem corpo */
+          go.disabled = false;
+          return say(e.message);
         }
-        if (x.status >= 200 && x.status < 300 && j.id) {
-          bar.firstChild.style.width = '100%';
-          msg.innerHTML =
-            '✓ Enviado. O Studio está processando. <a href="/app/uploads/' +
-            esc(j.id) +
-            '/transcription" target="_blank" rel="noopener">Abrir no Studio</a>';
-          go.hidden = true;
-          return;
+      }
+      go.disabled = true;
+      if (d === 'none' || $('#invb-dl').checked) saveLocal(blob, fileName);
+      var lines = [];
+      try {
+        if (url) {
+          say('Enviando pro Studio…');
+          var r = await send(url, blob, { 'x-invb': '1' }, prog);
+          if (r.status === 401)
+            throw new Error('Entre no Studio primeiro (abra o Studio e faça login) e tente de novo.');
+          if (r.status < 200 || r.status >= 300 || !r.json.id)
+            throw new Error(r.json.error || 'Não consegui enviar pro Studio.');
+          target = target || r.json.id;
+          lines.push(
+            '✓ No Studio: <a href="/app/uploads/' +
+              esc(r.json.id) +
+              '/transcription" target="_blank" rel="noopener">abrir</a>',
+          );
+          say(lines.join('<br>'), true);
         }
+        if (yt) {
+          prog(0);
+          say(lines.concat('Enviando pro YouTube… (não feche esta aba)').join('<br>'), true);
+          var v = await ytUpload(
+            token,
+            blob,
+            {
+              title: $('#invb-yt-title').value.trim(),
+              description: $('#invb-yt-desc').value,
+              privacy: $('#invb-yt-priv').value,
+            },
+            prog,
+          );
+          var link = 'https://youtu.be/' + v;
+          lines.push('✓ No YouTube: <a href="' + link + '" target="_blank" rel="noopener">' + link + '</a>');
+          // thumbnail
+          var kind = (box.querySelector('input[name="invb-th"]:checked') || {}).value;
+          if (kind && kind !== 'none' && (kind !== 'file' || thumbFile)) {
+            say(lines.concat('Enviando a thumbnail…').join('<br>'), true);
+            try {
+              await drawThumb();
+              var jpg = await canvasJpeg($('#invb-th-cv'));
+              await ytThumb(token, v, jpg);
+              lines.push('✓ Thumbnail enviada');
+            } catch (e) {
+              lines.push('⚠ Thumbnail: ' + esc(e.message));
+            }
+          }
+          // a pregação do Studio guarda o link do YouTube (e a limpeza passa a contar com ele)
+          var who = target || linked;
+          if (who)
+            await fetch('/api/uploads/' + encodeURIComponent(who) + '/youtube', {
+              method: 'POST',
+              headers: { 'x-invb': '1', 'content-type': 'application/json' },
+              body: JSON.stringify({
+                videoId: v,
+                privacy: $('#invb-yt-priv').value,
+                title: $('#invb-yt-title').value.trim(),
+              }),
+            }).catch(function () {});
+        }
+        prog(1);
+        say(lines.join('<br>') || '✓ Pronto.', true);
+        go.hidden = true;
+      } catch (e) {
         go.disabled = false;
-        msg.textContent =
-          x.status === 401
-            ? 'Entre no Studio primeiro (abra o Studio e faça login) e tente de novo.'
-            : j.error || 'Não consegui enviar.';
-      };
-      x.onerror = function () {
-        go.disabled = false;
-        msg.textContent = 'Não consegui falar com o Studio. Ele está aberto?';
-      };
-      x.send(blob);
+        say(lines.concat('⚠ ' + esc(e.message)).join('<br>'), true);
+      }
     };
     sync();
   }
