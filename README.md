@@ -86,6 +86,21 @@ um aviso com o botão **Baixar de novo**.
 - Arquivos enviados direto do computador (sem link) nunca são apagados automaticamente.
 - Se o vídeo sair do ar na origem, os cortes já feitos continuam, mas não dá para baixar de novo.
 
+## Editor avançado
+
+Um editor de vídeo livre, para quando alguém quiser editar um vídeo qualquer: importar mídias, montar na linha do
+tempo, pôr textos, legendas, sons e efeitos, e exportar. Ele soma ao fluxo de cortes; a edição dos cortes continua no
+CapCut.
+
+- Abre pelo item **Editor avançado** na barra lateral, numa aba nova (`/editor-avancado/`).
+- Os projetos e as mídias ficam salvos no navegador daquele computador. Não vão para o Drive nem para outros
+  computadores; o vídeo exportado é baixado como qualquer arquivo.
+- A aba **Sons** busca efeitos sonoros no Freesound com a chave `FREESOUND_API_KEY` do `equipe.env`. Sem a chave, só
+  essa aba fica sem busca.
+- O editor é o projeto [invb-editor](https://github.com/allanbfr77/invb-editor) (baseado no OpenCut). Os arquivos
+  dele ficam prontos em `public/editor-avancado/`, gerados, nunca editados à mão. Para atualizar: no invb-editor, rode
+  `bun run build:studio` (com o invb-studio na pasta ao lado); depois commite `public/editor-avancado/` aqui.
+
 ## Instalação em cada computador
 
 1. Baixe o projeto (botão **Code → Download ZIP** no GitHub) e descompacte.

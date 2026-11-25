@@ -378,7 +378,7 @@
       ? `<a class="ap-link" href="/app/uploads">${ic.back}Todas as pregações</a>${link(up + '/overview', ic.files, 'Resumo', path)}
          <div class="ap-sec">Passo a passo</div>${link(up + '/transcription', ic.doc, '1. Transcrição', path)}${link(up + '/clips', ic.cut, '2. Cortes', path)}
          <div class="ap-sec">Sobre a pregação</div>${link(up + '/chapters', ic.book, 'Capítulos', path)}${link(up + '/emotions', ic.heart, 'Emoções', path)}${link(up + '/diagrams', ic.dia, 'Diagramas', path)}`
-      : `${path === '/app' || path === '/app/uploads/new' ? '' : '<a class="ap-new" href="/app/uploads/new"><span aria-hidden="true">+</span> Nova pregação</a>'}${link('/app', ic.home, 'Início', path)}${link('/app/uploads', ic.files, 'Pregações', path)}`;
+      : `${path === '/app' || path === '/app/uploads/new' ? '' : '<a class="ap-new" href="/app/uploads/new"><span aria-hidden="true">+</span> Nova pregação</a>'}${link('/app', ic.home, 'Início', path)}${link('/app/uploads', ic.files, 'Pregações', path)}<a class="ap-link" href="/editor-avancado/" target="_blank" rel="noopener" title="Abre o editor de vídeo numa aba nova">${ic.clap}Editor avançado</a>`;
     return `<div class="ap">
       <div class="ap-top"><a href="/app"><b>INVB Studio</b></a><button id="ap-burger" aria-label="Abrir menu">☰</button></div>
       <aside class="ap-side" id="ap-side"><a class="ap-brand" href="/app" aria-label="INVB Studio, início"><img class="lg-c" src="/img/nv-logo-claro.png" alt="Nova Vida Botafogo"><img class="lg-n" src="/img/nv-logo-noturno.png" alt="Nova Vida Botafogo"><span class="ap-brand-sub">INVB<br>Studio</span></a>${nav}<div class="ap-grow"></div>
