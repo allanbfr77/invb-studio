@@ -11,7 +11,7 @@ const { readJson, log, detectTools, listMeta, update } = require('./lib/store');
 const { authFile, initAuth, send } = require('./lib/http');
 const { sweepOriginals, makePreview } = require('./lib/media');
 const { api } = require('./lib/routes');
-const { resolveEditorFile, editorInstalled } = require('./lib/editor-static');
+const { resolveEditorFile, editorInstalled, sendEditorFile } = require('./lib/editor-static');
 
 const publicDir = path.join(ROOT, 'public');
 const staticTypes = {
@@ -38,6 +38,8 @@ const staticTypes = {
   '.webmanifest': 'application/manifest+json',
   '.map': 'application/json',
   '.xml': 'application/xml',
+  '.avif': 'image/avif',
+  '.mjs': 'text/javascript; charset=utf-8',
 };
 const EDITOR = '/editor-avancado';
 // Editor avançado: só os arquivos da exportação; o que não existe dá 404, nunca a tela do INVB Studio.
@@ -52,13 +54,12 @@ function serveEditor(res, url) {
   if (!hit) return plain(403, 'Proibido');
   fs.stat(hit.file, (e, st) => {
     if (e || !st.isFile()) return plain(404, 'Não encontrado');
-    res.writeHead(200, {
+    sendEditorFile(res, hit.file, {
       'content-type': staticTypes[path.extname(hit.file)] || 'application/octet-stream',
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'same-origin',
       'cache-control': hit.cache === 'long' ? 'public, max-age=31536000, immutable' : 'no-cache',
     });
-    fs.createReadStream(hit.file).pipe(res);
   });
 }
 function serveStatic(req, res, url) {

@@ -13,6 +13,8 @@ function fakeEditor(t) {
   put('editor.html', '<p>editor</p>');
   put('_next/static/app-abc.js', 'console.log(1)');
   put('wasm/core.wasm', Buffer.from([0x00, 0x61, 0x73, 0x6d]));
+  put('fonts/font-chunk-0.avif', Buffer.from([0]));
+  put('_next/static/media/ort.bundle.min.mjs', 'export {}');
   return dir;
 }
 const bootEditor = async (t, editorDir) => boot(t, tmp(t), { env: { INVB_EDITOR_DIR: editorDir } });
@@ -86,6 +88,12 @@ test('wasm vai com application/wasm', async (t) => {
   const r = await get(s, '/editor-avancado/wasm/core.wasm');
   assert.equal(r.status, 200);
   assert.equal(r.headers.get('content-type'), 'application/wasm');
+});
+
+test('avif e mjs vão com o tipo certo', async (t) => {
+  const s = await bootEditor(t, fakeEditor(t));
+  assert.equal((await get(s, '/editor-avancado/fonts/font-chunk-0.avif')).headers.get('content-type'), 'image/avif');
+  assert.match((await get(s, '/editor-avancado/_next/static/media/ort.bundle.min.mjs')).headers.get('content-type'), /^text\/javascript/);
 });
 
 test('arquivos de _next/static têm cache longo', async (t) => {
