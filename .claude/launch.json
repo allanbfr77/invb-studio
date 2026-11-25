@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "invb-editor",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd=C:/Projetos/invb-editor", "dev:web"],
+      "port": 3000
+    }
+  ]
+}
