@@ -306,7 +306,7 @@
         l
           .map(
             (k) => `<div class="cut ${k.hid ? 'hid' : ''}" data-c="${k.id}">${mediaTag(k)}
-        <div class="sc">${k.score ? `<span class="chipx">⚡ ${k.score}</span>` : ''}<span class="chipx ok">${k.render && k.render.status === 'rendering' ? '⏳ Renderizando' : k.downloaded ? '✓ Baixado' : k.render && k.render.status === 'done' ? 'Pronto' : 'Novo'}</span><button class="tlink" data-a="ed" title="Ajustar título e tempos" aria-label="Ajustar título e tempos do corte">${tm(k.start)} → ${tm(k.end)} · ${Math.round(dur(k))}s${k.render && k.render.status === 'done' && k.render.speed && k.render.speed !== 1 ? ` · exportado em ${String(k.render.speed).replace('.', ',')}x: ${Math.round(k.render.seconds)}s` : ''} ${ic.edit}</button></div><h4>${esc(k.title)}</h4>${k.manual && /^Corte criado manualmente/.test(k.description || '') ? '' : `<p class="ds">${esc(k.description)}</p>`}
+        <div class="sc">${k.score ? `<span class="chipx">⚡ ${k.score}</span>` : ''}<span class="chipx ok">${k.render && k.render.status === 'rendering' ? '⏳ Renderizando' : k.downloaded && k.render && k.render.status === 'done' ? '✓ Baixado' : k.downloaded ? 'Editado' : k.render && k.render.status === 'done' ? 'Pronto' : 'Novo'}</span><button class="tlink" data-a="ed" title="Ajustar título e tempos" aria-label="Ajustar título e tempos do corte">${tm(k.start)} → ${tm(k.end)} · ${Math.round(dur(k))}s${k.render && k.render.status === 'done' && k.render.speed && k.render.speed !== 1 ? ` · exportado em ${String(k.render.speed).replace('.', ',')}x: ${Math.round(k.render.seconds)}s` : ''} ${ic.edit}</button></div><h4>${esc(k.title)}</h4>${k.manual && /^Corte criado manualmente/.test(k.description || '') ? '' : `<p class="ds">${esc(k.description)}</p>`}
         <div class="tg" style="display:flex;gap:6px;flex-wrap:wrap">${[...new Set([k.type, k.emotion, ...(k.tags || [])].filter(Boolean))].map((t, i) => `<span class="tag2 ${'abc'[i % 3]}">${esc(t)}</span>`).join('')}</div>
         ${driveOn && k.driveError && !k.drive ? `<div class="drv-err" role="alert">Envio ao Drive falhou: ${esc(k.driveError.msg)}</div>` : ''}${overlapNote(k)}<div class="bt"><div class="bt1"><button class="ap-btn pri" data-a="dl">Baixar corte</button><button class="ap-btn" data-a="open" aria-label="Abrir o editor do corte" title="Abrir o editor do corte">${ic.scissors} Editar</button></div><div class="bt2">${driveBtn(k)}${S.status && S.status.ai ? `<button class="ap-btn ${k.post ? 'has' : ''}" data-a="post" title="Título, descrição e hashtags para publicar">✨ Texto</button>` : ''}<button class="ap-btn" data-a="adj" title="Aumentar, encurtar ou trocar o título deste corte">Ajustar ⌄</button><span class="sp"></span><button class="ap-btn ${k.fav ? 'on' : ''}" data-a="fav" aria-label="Favoritar" title="Favoritar">${ic.heartS}</button><button class="ap-btn" data-a="hid" aria-label="${k.hid ? 'Mostrar' : 'Ocultar'}" title="${k.hid ? 'Mostrar este corte' : 'Ocultar este corte'}">${ic.eye}</button><button class="ap-btn" data-a="share" aria-label="Compartilhar este corte por link" title="Compartilhar por link (sem login)">${ic.link}</button><button class="ap-btn del" data-a="del" aria-label="Excluir este corte" title="Excluir este corte">${ic.trash}</button></div></div></div>`,
           )
@@ -335,11 +335,16 @@
                 k.hid = !k.hid;
                 draw();
               } else if (a === 'share') {
-                if (!(k.render && k.render.status === 'done'))
-                  return toast('Exporte o corte antes de compartilhar (botão Baixar corte).');
+                // ainda não exportado (ou editado depois do download): exporta agora com a edição salva e compartilha
+                let kk = k;
+                if (!(k.render && k.render.status === 'done')) {
+                  toast('Exportando o corte com a sua edição para compartilhar…');
+                  kk = await rendered(k);
+                  if (!kk) return toast('A exportação do corte falhou. Tente “Baixar corte” para ver o erro.');
+                }
                 if (S.status && S.status.cloudShare) toast('Enviando o corte para a internet…');
-                const r = await api(`/uploads/${c.id}/clips/${k.id}/share`, { json: {} });
-                shareModal(c, k, r);
+                const r = await api(`/uploads/${c.id}/clips/${kk.id}/share`, { json: {} });
+                shareModal(c, kk, r);
               } else if (a === 'del') {
                 const msg = `Excluir o corte “${k.title}”? O vídeo exportado dele também é apagado deste computador.${k.drive ? ' O que já foi enviado ao Drive continua lá.' : ''}`;
                 if (!window.confirm(msg)) return;
