@@ -49,6 +49,13 @@
         ? `<video class="vid" controls preload="metadata" src="${src}" style="width:100%;aspect-ratio:16/9;background:#000"></video>`
         : `<audio controls preload="metadata" src="${src}" style="width:100%"></audio>`;
     };
+    // selo "Na fila" / "Renderizando 42%" atualizado sem redesenhar os cartões (o vídeo que está tocando não para)
+    const renderTag = (k) =>
+      k.render.queued ? '⏳ Na fila' : `⏳ Renderizando${k.render.progress ? ' ' + k.render.progress + '%' : ''}`;
+    const tick = (k) => {
+      const el = document.querySelector(`[data-c="${k.id}"] .chipx.ok`);
+      if (el && k.render && k.render.status === 'rendering') el.textContent = renderTag(k);
+    };
     const pollRender = guard(async (id) => {
       for (let i = 0; i < 600; i++) {
         await new Promise((r) => setTimeout(r, 1500));
@@ -63,6 +70,7 @@
           } else if (k && k.render) toast('Falha ao renderizar: ' + (k.render.error || ''));
           return;
         }
+        tick(k);
       }
     });
     const fileDl = (k) => {
@@ -137,6 +145,7 @@
           return k && k.render && k.render.status === 'done' ? k : null;
         }
         if (i === 0) draw();
+        else tick(k);
       }
       return null;
     };
@@ -306,7 +315,7 @@
         l
           .map(
             (k) => `<div class="cut ${k.hid ? 'hid' : ''}" data-c="${k.id}">${mediaTag(k)}
-        <div class="sc">${k.score ? `<span class="chipx">⚡ ${k.score}</span>` : ''}<span class="chipx ok">${k.render && k.render.status === 'rendering' ? '⏳ Renderizando' : k.downloaded && k.render && k.render.status === 'done' ? '✓ Baixado' : k.downloaded ? 'Editado' : k.render && k.render.status === 'done' ? 'Pronto' : 'Novo'}</span><button class="tlink" data-a="ed" title="Ajustar título e tempos" aria-label="Ajustar título e tempos do corte">${tm(k.start)} → ${tm(k.end)} · ${Math.round(dur(k))}s${k.render && k.render.status === 'done' && k.render.speed && k.render.speed !== 1 ? ` · exportado em ${String(k.render.speed).replace('.', ',')}x: ${Math.round(k.render.seconds)}s` : ''} ${ic.edit}</button></div><h4>${esc(k.title)}</h4>${k.manual && /^Corte criado manualmente/.test(k.description || '') ? '' : `<p class="ds">${esc(k.description)}</p>`}
+        <div class="sc">${k.score ? `<span class="chipx">⚡ ${k.score}</span>` : ''}<span class="chipx ok">${k.render && k.render.status === 'rendering' ? renderTag(k) : k.downloaded && k.render && k.render.status === 'done' ? '✓ Baixado' : k.downloaded ? 'Editado' : k.render && k.render.status === 'done' ? 'Pronto' : 'Novo'}</span><button class="tlink" data-a="ed" title="Ajustar título e tempos" aria-label="Ajustar título e tempos do corte">${tm(k.start)} → ${tm(k.end)} · ${Math.round(dur(k))}s${k.render && k.render.status === 'done' && k.render.speed && k.render.speed !== 1 ? ` · exportado em ${String(k.render.speed).replace('.', ',')}x: ${Math.round(k.render.seconds)}s` : ''} ${ic.edit}</button></div><h4>${esc(k.title)}</h4>${k.manual && /^Corte criado manualmente/.test(k.description || '') ? '' : `<p class="ds">${esc(k.description)}</p>`}
         <div class="tg" style="display:flex;gap:6px;flex-wrap:wrap">${[...new Set([k.type, k.emotion, ...(k.tags || [])].filter(Boolean))].map((t, i) => `<span class="tag2 ${'abc'[i % 3]}">${esc(t)}</span>`).join('')}</div>
         ${driveOn && k.driveError && !k.drive ? `<div class="drv-err" role="alert">Envio ao Drive falhou: ${esc(k.driveError.msg)}</div>` : ''}${overlapNote(k)}<div class="bt"><div class="bt1"><button class="ap-btn pri" data-a="dl">Baixar corte</button><button class="ap-btn" data-a="open" aria-label="Abrir o editor do corte" title="Abrir o editor do corte">${ic.scissors} Editar</button></div><div class="bt2">${driveBtn(k)}${S.status && S.status.ai ? `<button class="ap-btn ${k.post ? 'has' : ''}" data-a="post" title="Título, descrição e hashtags para publicar">✨ Texto</button>` : ''}<button class="ap-btn" data-a="adj" title="Aumentar, encurtar ou trocar o título deste corte">Ajustar ⌄</button><span class="sp"></span><button class="ap-btn ${k.fav ? 'on' : ''}" data-a="fav" aria-label="Favoritar" title="Favoritar">${ic.heartS}</button><button class="ap-btn" data-a="hid" aria-label="${k.hid ? 'Mostrar' : 'Ocultar'}" title="${k.hid ? 'Mostrar este corte' : 'Ocultar este corte'}">${ic.eye}</button><button class="ap-btn" data-a="share" aria-label="Compartilhar este corte por link" title="Compartilhar por link (sem login)">${ic.link}</button><button class="ap-btn del" data-a="del" aria-label="Excluir este corte" title="Excluir este corte">${ic.trash}</button></div></div></div>`,
           )
