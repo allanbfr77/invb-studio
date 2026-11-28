@@ -107,14 +107,17 @@
       else if (isAct && style.mode === 'highlight') css = `color:${style.hi}`;
       else if (isAct && style.mode === 'reveal' && style.grow) css = `color:${style.hi}`;
       else if (isKw) css = `color:${style.kc}`;
-      let f = (isAct && style.grow ? 1.18 : 1) * (isKw && style.emph ? 1.2 : 1);
+      let f = (isAct && style.grow ? 1.18 : 1) * (isKw && style.emph ? 1.2 : 1) * (isKw && style.kf ? 1.15 : 1);
       // uma palavra por vez: diminui a palavra longa que passaria da borda (a mesma conta da exportação)
       if (style.mode === 'words1' && style._W && style._fs) {
-        const wpx = CSx.textW(style.font, w.t, style.upper) * style._fs * f * 1.12;
+        const wpx = CSx.textW(isKw && style.kf ? style.kf : style.font, w.t, style.upper) * style._fs * f * 1.12;
         if (wpx > style._W * 0.88) f *= (style._W * 0.88) / wpx;
       }
       if (f !== 1) css += (css ? ';' : '') + `font-size:${f}em`;
       // quique: a palavra falada entra pequena, passa do tamanho e assenta (igual à exportação)
+      if (isKw && style.kf)
+        css += (css ? ';' : '') + `font-family:'${style.kf}';text-transform:none;-webkit-text-stroke-width:.04em`;
+      if (isKw && style.ki) css += (css ? ';' : '') + 'font-style:italic';
       const cls = isAct && style.anim === 'bounce' ? ' class="cap-bounce"' : '';
       return css || cls ? `<span${cls} style="${css}">${w.t}</span>` : w.t;
     };

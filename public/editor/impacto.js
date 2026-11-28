@@ -194,6 +194,7 @@
     ui.withImages = true;
     ui.withSound = true;
     ui.withMusic = true;
+    ui.free = false; // liberdade total: o Claude ignora estilos prontos, paletas e o que a equipe já tinha feito
     ui.stage = '';
     if (!Array.isArray(st.fx)) st.fx = [];
     if (!st.look) st.look = 'none';
@@ -542,28 +543,34 @@
             start: st.start,
             end: st.end,
             crop: st.crop,
+            free: !!ui.free,
           },
         });
         // a legenda do corte inteiro, desenhada para este vídeo
         if (r.caption) {
           const c = r.caption;
-          // estilo pronto palavra por palavra, com as cores do conceito e as palavras-chave da fala
-          st.cap = {
-            on: true,
-            style: c.style,
-            size: c.size,
-            pos: c.pos,
-            margin: st.cap.margin ?? null,
-            color: c.color,
-            outline: c.outline,
-            ow: c.ow,
-            box: c.box,
-            hi: c.hi,
-            kw: c.kwWords.length > 0,
-            kc: c.kc,
-            kwWords: c.kwWords,
-            words: null,
-          };
+          // liberdade total: a legenda inteira como a IA desenhou (sobre a "Clássica", mudando tudo)
+          if (c.free) {
+            const { free, pos, kwWords, ...props } = c;
+            st.cap = { on: true, ...props, pos, margin: st.cap.margin ?? null, kwWords, kw: true };
+          } else
+            // estilo pronto palavra por palavra, com as cores do conceito e as palavras-chave da fala
+            st.cap = {
+              on: true,
+              style: c.style,
+              size: c.size,
+              pos: c.pos,
+              margin: st.cap.margin ?? null,
+              color: c.color,
+              outline: c.outline,
+              ow: c.ow,
+              box: c.box,
+              hi: c.hi,
+              kw: c.kwWords.length > 0,
+              kc: c.kc,
+              kwWords: c.kwWords,
+              words: null,
+            };
           st.styleChosen = true;
           shared.wordsDirty = true;
         }
@@ -576,10 +583,11 @@
               outline: r.impact.outline || null, // o fundo do meio do quadro é claro: contorno para ler
             }
           : null;
-        // tira o que a IA tinha posto antes, para não empilhar sugestões
-        for (const g of groupsList()) if (st.overlays.find((o) => o.grp === g.grp && o.ai)) delGroup(g.grp);
-        st.overlays = st.overlays.filter((o) => !(o.hook && o.ai));
-        st.fx = st.fx.filter((f) => !f.ai);
+        // tira o que a IA tinha posto antes, para não empilhar sugestões (na liberdade total, tira também o que a
+        // equipe tinha feito à mão: impacto, gancho, efeitos e cor)
+        for (const g of groupsList()) if (ui.free || st.overlays.find((o) => o.grp === g.grp && o.ai)) delGroup(g.grp);
+        st.overlays = st.overlays.filter((o) => !(o.hook && (o.ai || ui.free)));
+        st.fx = st.fx.filter((f) => !f.ai && !ui.free);
         // enquadramento pelo rosto e a altura das frases de impacto: abaixo do rosto (no peito, acima da legenda) ou,
         // se o rosto estiver embaixo, acima dele
         const face = autoFrame(r.framing) || (r.framing ? { y: r.framing.y, h: r.framing.h } : null);
@@ -703,7 +711,7 @@
       return `<h3>Impacto</h3><p class="dlx-sub" style="margin-top:0">As palavras fortes entram grandes no tempo da fala, com cartelas, efeitos e a cor do vídeo. A prévia mostra; o "Baixar corte" sai igual.</p>
         ${
           ai
-            ? `<div class="imp-all">${yn('withImages', 'Imagens de apoio', ui.withImages, ctx.broll)}${yn('withSound', 'Efeitos sonoros', ui.withSound)}${yn('withMusic', 'Música de fundo', ui.withMusic, ctx.musicSearch)}
+            ? `<div class="imp-all">${yn('withImages', 'Imagens de apoio', ui.withImages, ctx.broll)}${yn('withSound', 'Efeitos sonoros', ui.withSound)}${yn('withMusic', 'Música de fundo', ui.withMusic, ctx.musicSearch)}${yn('free', 'Liberdade total (ignora estilos e pré-ajustes)', ui.free)}
               <button class="ap-btn pri imp-ai" id="imp-ai" ${ui.busy ? 'disabled' : ''}>${ui.busy ? esc(ui.stage || 'O Claude está montando…') : '✨ Direção de arte com o Claude'}</button></div>
               <p class="dlx-sub">O Claude olha o vídeo, cria um conceito e desenha o corte inteiro: a legenda de todas as falas, as frases de impacto com fontes e cores próprias, cartelas, efeitos, cor${ctx.broll ? ', imagens' : ''}, sons${ctx.musicSearch ? ' e música' : ''}. Depois é só ajustar.</p>${ui.note ? `<p class="imp-note">${esc(ui.note)}</p>` : ''}`
             : ''

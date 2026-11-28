@@ -315,7 +315,7 @@
             <label class="dlx-lab" style="margin-top:0">Como a frase entra</label>
             <div class="dlx-chips">${CSx.ANIMS.map((a) => `<button data-anim="${a[0]}" aria-pressed="${S.anim === a[0]}">${a[1]}</button>`).join('')}</div>
             ${['highlight', 'boxhl', 'words1', 'reveal'].includes(S.mode) ? `<div class="dlx-row" style="margin-top:14px"><div><b>Palavra falada cresce</b><small>A palavra do momento fica um pouco maior</small></div>${sw('cx-grow', S.grow)}</div>` : ''}
-            ${S.mode === 'karaoke' ? '' : `<div class="dlx-row"><div><b>Palavras-chave em destaque</b><small>Deus, Jesus, fé, graça, amor, oração… sempre em outra cor</small></div>${sw('cx-kw', S.kw)}</div>${S.kw ? color('kc', 'Cor das palavras-chave', S.kc) : ''}`}
+            ${S.mode === 'karaoke' ? '' : `<div class="dlx-row"><div><b>Palavras-chave em destaque</b><small>Deus, Jesus, fé, graça, amor, oração… sempre em outra cor</small></div>${sw('cx-kw', S.kw)}</div>${S.kw ? color('kc', 'Cor das palavras-chave', S.kc) + `<label class="dlx-lab" for="cx-kf">Fonte das palavras-chave <small>misture duas fontes</small></label><select id="cx-kf" class="dlx-select"><option value="">A mesma do texto</option>${INVBFonts.options(S.kf || '', true)}</select><div class="dlx-row"><div><b>Palavras-chave em itálico</b></div>${sw('cx-ki', !!S.ki)}</div>` : ''}`}
             <h4>Posição</h4>
             <div class="dlx-chips">${[
               ['top', 'Topo'],
@@ -685,6 +685,10 @@
             : { on: st.cap.on, style: st.cap.style, ...keep(), words: null };
           redraw();
         });
+        on('cx-kf', 'change', (e) => {
+          setP('kf', e.target.value);
+          drawDrawer();
+        });
         on('cx-font', 'change', (e) => {
           setP('font', e.target.value);
           drawDrawer();
@@ -760,7 +764,7 @@
           paintCap();
           drawDrawer();
         });
-        for (const k of ['upper', 'italic', 'glow', 'grow', 'kw'])
+        for (const k of ['upper', 'italic', 'glow', 'grow', 'kw', 'ki', 'emph'])
           on('cx-' + k, 'click', () => {
             setP(k, !eff()[k]);
             drawDrawer();

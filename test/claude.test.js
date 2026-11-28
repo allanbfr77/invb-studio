@@ -396,3 +396,55 @@ test('direção de arte: câmera dinâmica por frase, título-gancho, efeitos s�
     assert.ok(!(a < push[1] && b > push[0]), 'não aproxima onde já há push');
   }
 });
+
+test('direção de arte com liberdade total: legenda desenhada do zero, com segunda fonte e cores livres', async () => {
+  const { designEdit } = require('../lib/claude');
+  const words = 'Deus prefere um vaso quebrado e sincero'.split(' ');
+  let schema = null;
+  const r = await designEdit({
+    ask: async (q) => {
+      schema = q.schema;
+      return {
+        scene: 'x',
+        subject_side: 'center',
+        concept: 'editorial',
+        caption: {
+          font: 'Big Shoulders Black',
+          keyword_font: 'Fraunces Black',
+          keyword_italic: true,
+          mode: 'words1',
+          words: 1,
+          upper: true,
+          color: '#ffffff',
+          accent: '#E8C07D',
+          outline: '#000000',
+          outline_width: 4,
+          shadow: 3,
+          box_color: '',
+          box_opacity: 0.8,
+          animation: 'bounce',
+          position: 'bottom',
+          size: 20,
+          keywords: ['vaso', 'quebrado'],
+        },
+        impact: { accent_color: '#E8C07D' },
+        phrases: [],
+        fx: [],
+        hook: { text: '', accent: '', show: 'start' },
+        look: 'none',
+        note: '',
+      };
+    },
+    name: 't',
+    words,
+    times: words.map((_, i) => [i * 0.5, i * 0.5 + 0.4]),
+    format: '9:16',
+    free: true,
+  });
+  assert.ok(schema.properties.caption.properties.keyword_font, 'pede a segunda fonte');
+  assert.equal(r.caption.free, true);
+  assert.equal(r.caption.font, 'Big Shoulders Black');
+  assert.equal(r.caption.kf, 'Fraunces Black');
+  assert.equal(r.caption.kc, '#e8c07d'); // cor livre
+  assert.equal(r.impact.accent, '#e8c07d');
+});

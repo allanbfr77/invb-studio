@@ -2,7 +2,9 @@ Fontes das legendas e dos textos sobre o corte.
 Vão junto com o app para que a prévia no navegador e o vídeo exportado (ffmpeg) usem exatamente a mesma letra,
 em qualquer computador. Todas são livres: OFL 1.1 (Poppins, Montserrat, Anton, Bebas Neue, Archivo Black,
 DM Serif Display, Oswald, League Spartan, Inter, Barlow Condensed, Syne, Playfair Display, Cormorant Garamond,
-Abril Fatface, Great Vibes, Caveat, Kaushan Script, Dancing Script, Righteous, Space Grotesk) e Apache 2.0
+Abril Fatface, Great Vibes, Caveat, Kaushan Script, Dancing Script, Righteous, Space Grotesk, Fraunces, Bodoni Moda,
+Cinzel, Teko, Big Shoulders Display, Unbounded, Bricolage Grotesque, Libre Baskerville, Instrument Serif, Yeseva One,
+Alfa Slab One, Allura, Pinyon Script, Sacramento, Lobster, Marcellus, Prata) e Apache 2.0
 (Permanent Marker). As licenças estão na pasta "licencas".
 As que vieram do Google Fonts são a instância estática de um peso, com o nome de família trocado para o nome
 que aparece no app (ex.: "Oswald Bold"), para o navegador e o ffmpeg acharem a mesma letra.

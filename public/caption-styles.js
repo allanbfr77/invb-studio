@@ -51,6 +51,39 @@
     { name: 'Dancing Script Bold', file: 'DancingScript-Bold.ttf', note: 'cursiva, alegre' },
     { name: 'Righteous', file: 'Righteous-Regular.ttf', note: 'arredondada, retrô' },
     { name: 'Space Grotesk Bold', file: 'SpaceGrotesk-Bold.ttf', note: 'técnica, moderna' },
+    // segunda leva: serifas de revista, condensadas de cartaz e caligrafias, para combinar em pares
+    {
+      name: 'Fraunces Black',
+      file: 'Fraunces-Black.ttf',
+      italic: 'Fraunces-BlackItalic.ttf',
+      note: 'serifa display gorda e suave, ótima em itálico',
+    },
+    { name: 'Bodoni Moda Black', file: 'BodoniModa-Black.ttf', note: 'serifa de moda, alto contraste' },
+    { name: 'Cinzel ExtraBold', file: 'Cinzel-ExtraBold.ttf', note: 'maiúsculas romanas, clássica, bíblica' },
+    { name: 'Teko SemiBold', file: 'Teko-SemiBold.ttf', note: 'condensada técnica, esportiva' },
+    { name: 'Big Shoulders Black', file: 'BigShoulders-Black.ttf', note: 'condensada de cartaz, urbana' },
+    { name: 'Unbounded ExtraBold', file: 'Unbounded-ExtraBold.ttf', note: 'larga e arredondada, jovem' },
+    { name: 'Bricolage ExtraBold', file: 'Bricolage-ExtraBold.ttf', note: 'grotesca com personalidade' },
+    {
+      name: 'Libre Baskerville Bold',
+      file: 'LibreBaskerville-Bold.ttf',
+      italic: 'LibreBaskerville-BoldItalic.ttf',
+      note: 'serifa de livro, versículo',
+    },
+    {
+      name: 'Instrument Serif',
+      file: 'InstrumentSerif-Regular.ttf',
+      italic: 'InstrumentSerif-Italic.ttf',
+      note: 'serifa fina editorial, linda em itálico',
+    },
+    { name: 'Yeseva One', file: 'YesevaOne-Regular.ttf', note: 'serifa display feminina, elegante' },
+    { name: 'Alfa Slab One', file: 'AlfaSlabOne-Regular.ttf', note: 'serifa quadrada pesada, impacto' },
+    { name: 'Allura', file: 'Allura-Regular.ttf', note: 'caligrafia fina' },
+    { name: 'Pinyon Script', file: 'PinyonScript-Regular.ttf', note: 'caligrafia formal, convite' },
+    { name: 'Sacramento', file: 'Sacramento-Regular.ttf', note: 'caligrafia leve, monolinha' },
+    { name: 'Lobster', file: 'Lobster-Regular.ttf', note: 'letreiro retrô em negrito' },
+    { name: 'Marcellus', file: 'Marcellus-Regular.ttf', note: 'romana leve, solene' },
+    { name: 'Prata', file: 'Prata-Regular.ttf', note: 'serifa didone delicada' },
   ];
   const FONTS = FONT_LIST.map((f) => f.name);
   // largura média de uma letra (em fração do tamanho da fonte), para a palavra nunca passar da borda da tela
@@ -68,6 +101,18 @@
     'Inter Black': 0.7,
     'Playfair Display Black': 0.64,
     'Permanent Marker': 0.66,
+    'Big Shoulders Black': 0.46,
+    'Teko SemiBold': 0.44,
+    'Unbounded ExtraBold': 0.9,
+    'Alfa Slab One': 0.78,
+    'Fraunces Black': 0.66,
+    'Bodoni Moda Black': 0.66,
+    'Cinzel ExtraBold': 0.8,
+    'Instrument Serif': 0.46,
+    Allura: 0.48,
+    'Pinyon Script': 0.55,
+    Sacramento: 0.42,
+    Lobster: 0.55,
   };
   /** Largura aproximada de um texto, em múltiplos do tamanho da fonte. */
   const textW = (font, text, upper) => String(text || '').length * (FONT_WF[font] || 0.64) * (upper ? 1.08 : 1);
@@ -153,6 +198,8 @@
     kw: false, // palavras-chave da fé coloridas
     kc: '#f0b93a', // cor das palavras-chave
     emph: false, // palavras-chave também maiores (ênfase, como nos cortes virais)
+    kf: '', // fonte das palavras-chave (mistura de duas fontes: ex. bloco pesado + serifa itálica); vazio = a mesma
+    ki: false, // palavras-chave em itálico
     mode: 'plain',
     chunk: 4, // palavras de cada vez
   };
@@ -301,6 +348,79 @@
         emph: true,
       },
     ],
+    // duas fontes: o texto num bloco pesado e a palavra-chave numa serifa itálica ou caligrafia, maior e colorida
+    [
+      PP,
+      'Editorial',
+      {
+        font: 'Montserrat Black',
+        upper: true,
+        scale: 1.2,
+        mode: 'words1',
+        anim: 'bounce',
+        ow: 4,
+        shadow: 3,
+        kw: true,
+        kc: '#f2ebdd',
+        emph: true,
+        kf: 'Instrument Serif',
+        ki: true,
+      },
+    ],
+    [
+      PP,
+      'Clássico',
+      {
+        font: 'Cinzel ExtraBold',
+        scale: 1.15,
+        mode: 'words1',
+        anim: 'zoom',
+        ow: 0,
+        shadow: 4,
+        kw: true,
+        kc: '#f5c542',
+        emph: true,
+        kf: 'Pinyon Script',
+      },
+    ],
+    [
+      PP,
+      'Acumulando editorial',
+      {
+        font: 'Inter Black',
+        upper: true,
+        scale: 1.05,
+        mode: 'reveal',
+        chunk: 3,
+        anim: 'bounce',
+        ow: 3,
+        shadow: 3,
+        grow: true,
+        hi: '#ffd23f',
+        kw: true,
+        kc: '#ffd23f',
+        kf: 'Fraunces Black',
+        ki: true,
+      },
+    ],
+    [
+      PP,
+      'Cartaz',
+      {
+        font: 'Big Shoulders Black',
+        upper: true,
+        scale: 1.6,
+        mode: 'words1',
+        anim: 'bounce',
+        ow: 5,
+        shadow: 3,
+        kw: true,
+        kc: '#ffd23f',
+        emph: true,
+        kf: 'Fraunces Black',
+        ki: true,
+      },
+    ],
     [
       PP,
       'Escrita à mão',
@@ -434,6 +554,7 @@
     const out = {};
     if (!o || typeof o !== 'object') return out;
     if (typeof o.font === 'string') out.font = cleanFont(o.font);
+    if (typeof o.kf === 'string') out.kf = o.kf ? cleanFont(o.kf) : '';
     for (const [k, a, b] of [
       ['scale', 0.5, 2.5],
       ['ow', 0, 10],
@@ -443,7 +564,8 @@
       const v = num(o[k], a, b);
       if (v !== null) out[k] = k === 'chunk' ? Math.round(v) : v;
     }
-    for (const k of ['upper', 'italic', 'glow', 'grow', 'kw', 'emph']) if (typeof o[k] === 'boolean') out[k] = o[k];
+    for (const k of ['upper', 'italic', 'glow', 'grow', 'kw', 'emph', 'ki'])
+      if (typeof o[k] === 'boolean') out[k] = o[k];
     for (const k of ['color', 'hi', 'outline', 'kc']) if (isHex(o[k])) out[k] = o[k].toLowerCase();
     if (ANIM_IDS.includes(o.anim)) out.anim = o.anim;
     else if (typeof o.pop === 'boolean') out.anim = o.pop ? 'pop' : 'none'; // edições e estilos de antes: "pop" ligado ou não

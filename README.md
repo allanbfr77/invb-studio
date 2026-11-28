@@ -185,6 +185,23 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
     zoom curto, surgir do preto) — de 0 a 3 por corte, com 3 s entre eles; 2 a 4 frases de impacto com 4,5 s de
     respiro e no máximo 1 cartela. Glitch, VHS, mosaico, tremida, flash, rastro e filme antigo ficam só na mão.
   - **Sons comedidos:** whoosh discreto nas frases, batida grave na cartela, subida antes do P&B; 2 s entre sons.
+- **Design v3:**
+  - **Enquadramento automático:** a IA diz onde está o rosto nos quadros; o editor aproxima (Formato → Aproximar,
+    até 60%) e põe o rosto no terço de cima. As frases de impacto vão para fora do rosto (no peito, acima da
+    legenda) e a palavra grande ocupa a largura da tela.
+  - **Cartela** com vinheta e grão de filme, em tons curados (preto, café, vinho, azul noite, verde, creme).
+  - **Cores curadas:** destaque e cartela saem de paletas que funcionam sobre vídeo (amarelo ouro, dourado, vermelho,
+    creme, azul céu...).
+  - **40 fontes** (17 novas: Fraunces, Bodoni Moda, Cinzel, Teko, Big Shoulders, Unbounded, Bricolage, Libre
+    Baskerville, Instrument Serif, Yeseva One, Alfa Slab One, Allura, Pinyon Script, Sacramento, Lobster, Marcellus,
+    Prata), todas OFL, instância estática com o nome de família do app.
+  - **Duas fontes na legenda:** as palavras-chave podem entrar numa segunda fonte (`kf`, e itálico `ki`), em
+    minúsculas e um pouco maiores: estilos Editorial, Clássico, Cartaz e Acumulando editorial; em Personalizar →
+    "Fonte das palavras-chave".
+  - **Liberdade total** (Impacto → Direção de arte): o Claude ignora estilos prontos, paletas e o que a equipe já
+    tinha feito, e desenha a legenda do zero (qualquer fonte, mistura, cores livres).
+  - **Imagens de apoio conferidas:** a busca vai em inglês (antes o Pixabay buscava o texto em inglês como se fosse
+    português) e o Claude **vê** as 4 primeiras opções de cada momento e escolhe a que ilustra a frase, ou nenhuma.
 - **ffmpeg com legenda:** se o ffmpeg encontrado não tem a libass, o Studio procura outro no Mac (Homebrew em
   `/opt/homebrew/bin` ou `/usr/local/bin`) que desenhe legenda e usa esse. Desde jan/2026 o `ffmpeg` do Homebrew vem enxuto, sem libass: o completo é o
   `ffmpeg-full` (o `iniciar.command` instala sozinho quando falta; o Studio acha em `/opt/homebrew/opt/ffmpeg-full`).
