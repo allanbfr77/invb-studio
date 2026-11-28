@@ -102,10 +102,9 @@ test(
     assert.equal(r.body.cloud, true);
     assert.deepEqual([...got.auth], ['Bearer vercel_blob_rw_LojaTeste_segredo123']);
     assert.deepEqual([...got.store], ['LojaTeste']);
-    assert.deepEqual(
-      got.puts.map((p) => p.pn),
-      [`cortes/${tok}.mp4`, `cortes/${tok}.json`],
-    );
+    // o vídeo vai num endereço novo a cada envio (o cache da Vercel não mostra o vídeo antigo)
+    assert.match(got.puts[0].pn, new RegExp(`^cortes/${tok}-[a-z0-9]+\\.mp4$`));
+    assert.equal(got.puts[1].pn, `cortes/${tok}.json`);
     const [vid, meta] = got.puts;
     const out = require('fs')
       .readdirSync(require('path').join(d, 'uploads', 'kkkkkkkkkkkd', 'clips'))
@@ -118,7 +117,8 @@ test(
     assert.equal(vid.access, 'public');
     const info = JSON.parse(meta.bytes.toString());
     assert.deepEqual(Object.keys(info).sort(), ['format', 'seconds', 'title', 'vertical', 'video']); // só isso vai para a internet
-    assert.equal(info.video, `https://lojateste.public.blob.vercel-storage.com/cortes/${tok}.mp4`);
+    assert.equal(info.video, `https://lojateste.public.blob.vercel-storage.com/${got.puts[0].pn}`);
+    const firstVideo = info.video;
     // compartilhar de novo sem mudar nada: mesmo link, nada é reenviado
     const r2 = await s.api(base + '/share', { json: {} });
     assert.equal(r2.body.url, r.body.url);
@@ -129,12 +129,13 @@ test(
     assert.equal(r3.body.url, r.body.url);
     assert.equal(got.puts.length, 4);
     assert.equal(JSON.parse(got.puts[3].bytes.toString()).title, 'Outro título');
-    // parar de compartilhar apaga os dois arquivos na Vercel
+    const secondVideo = JSON.parse(got.puts[3].bytes.toString()).video;
+    // o vídeo anterior saiu da Vercel quando o novo entrou
+    if (secondVideo !== firstVideo) assert.ok(got.deletes.includes(firstVideo));
+    // parar de compartilhar apaga os arquivos atuais na Vercel
     await s.api(base + '/share', { method: 'DELETE' });
-    assert.deepEqual(got.deletes.sort(), [
-      `https://lojateste.public.blob.vercel-storage.com/cortes/${tok}.json`,
-      `https://lojateste.public.blob.vercel-storage.com/cortes/${tok}.mp4`,
-    ]);
+    assert.ok(got.deletes.includes(`https://lojateste.public.blob.vercel-storage.com/cortes/${tok}.json`));
+    assert.ok(got.deletes.includes(secondVideo));
     // a Vercel recusando a chave: erro claro, sem link
     blob.removeAllListeners('request');
     blob.on('request', (req, res) => {

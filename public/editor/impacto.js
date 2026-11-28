@@ -286,7 +286,10 @@
     /* ----- montar palavras de impacto ----- */
     // ws: palavras do corte ({ t, s, e } em segundos desde o início do corte)
     function buildImpact(ws, o = {}) {
-      const P = o.P || PRESETS[o.preset] || PRESETS.vermelho;
+      let P = o.P || PRESETS[o.preset] || PRESETS.vermelho;
+      // na cartela (tela de cor), o texto é a estrela: tudo maior, como num pôster
+      if (o.card && P.big && P.small)
+        P = { ...P, big: { ...P.big, size: P.big.size * 1.35 }, small: { ...P.small, size: P.small.size * 1.3 } };
       // palavras de 1 ou 2 letras vão junto com a seguinte ("eu sei", "de Deus")
       const groups = [];
       for (let i = 0; i < ws.length; i++) {
@@ -349,7 +352,8 @@
       const hs = sty.map((s) => s.size * 1.08 + (s.box ? 0.02 : 0));
       const total = hs.reduce((a, b) => a + b, 0);
       const cy = o.card ? 0.5 : (o.cy ?? (ar < 0.7 ? 0.38 : wide ? 0.46 : 0.42));
-      let y = clamp(cy - total / 2, o.minY ?? (ar < 0.7 ? 0.13 : 0.08), ar < 0.7 ? 0.62 : 0.72);
+      // o bloco inteiro termina acima da legenda (no vertical ela começa por volta de 72% da altura)
+      let y = clamp(cy - total / 2, o.minY ?? (ar < 0.7 ? 0.13 : 0.08), (ar < 0.7 ? 0.69 : 0.76) - total);
       const end = Math.min(D(), groups[groups.length - 1].e + (o.card ? 0.35 : 0.7));
       const grp = rid();
       const overlays = groups.map((g, i) => {
@@ -567,6 +571,7 @@
               color: c.color,
               outline: c.outline,
               ow: c.ow,
+              shadow: c.shadow,
               box: c.box,
               hi: c.hi,
               kw: c.kwWords.length > 0,
@@ -581,8 +586,8 @@
         // tipografia das frases de impacto, criada para o corte (tamanho base: o do estilo "Revista")
         const DP = r.impact
           ? {
-              big: { ...r.impact.big, size: 0.11 },
-              small: { ...r.impact.small, size: 0.05 },
+              big: { ...r.impact.big, size: 0.12 },
+              small: { ...r.impact.small, size: 0.062 },
               accent: r.impact.accent,
               outline: r.impact.outline || null, // o fundo do meio do quadro é claro: contorno para ler
             }

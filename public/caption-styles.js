@@ -568,7 +568,8 @@
   }));
   const DEFAULT_ID = 'Palavra por palavra/Branco forte';
   // os estilos palavra por palavra (a direção de arte da IA escolhe entre eles)
-  const WORD_STYLES = DEF.filter((d) => d[0] === PP).map((d) => `${d[0]}/${d[1]}`);
+  // (a direção de arte usa só os de UMA palavra por vez: é o que a equipe pediu; os "acumulando" ficam para a mão)
+  const WORD_STYLES = DEF.filter((d) => d[0] === PP && d[2].mode === 'words1').map((d) => `${d[0]}/${d[1]}`);
   // Estilos do catálogo antigo que estavam em uso: o padrão de antes era a frase inteira.
   const LEGACY = { 'Clássicos/Clássica': 'Essenciais/Frase inteira' };
   const byName = (n) =>

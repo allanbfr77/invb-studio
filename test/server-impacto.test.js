@@ -410,7 +410,7 @@ test(
 );
 
 test(
-  'Leitura: vídeo de fundo branco com letra branca → contorno escuro e tarja na legenda, contorno no impacto',
+  'Leitura: vídeo de fundo branco com letra branca → contorno escuro e sombra na legenda, contorno no impacto',
   { skip: !HAS_FFMPEG || process.platform === 'win32' },
   async (t) => {
     const http = require('node:http');
@@ -501,7 +501,7 @@ test(
     assert.ok(b.legibility.light.bottom.mean > 0.9, 'mediu o fundo claro');
     assert.equal(b.caption.outline, '#000000');
     assert.ok(b.caption.ow >= 4);
-    assert.ok(b.caption.box && b.caption.box.color === '#000000', 'tarja escura atrás da legenda');
+    assert.ok(!b.caption.box && b.caption.shadow >= 4, 'sem tarja (virava etiqueta preta): contorno e sombra fortes');
     assert.ok(b.impact.outline && b.impact.outline.color === '#000000', 'contorno escuro no impacto');
     assert.ok(b.legibility.fixes.length >= 2);
   },
