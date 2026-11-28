@@ -135,6 +135,17 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   - Precisa da chave grátis do Pexels no `install/equipe.env`: `PEXELS_API_KEY=` (crie em pexels.com/api). A chave
     fica só no servidor. O que é usado é baixado uma vez para `data/broll/` (`lib/pexels.js`); a gaveta é
     `public/editor/apoio.js` e a exportação está em `lib/render.js`.
+- **Gaveta Som** (no editor do corte):
+  - **Efeitos sonoros** gerados no próprio Studio, sem internet nem licença (`lib/audio-lib.js`, guardados em
+    `data/sfx/`): whoosh, batida, boom, pop, subida e clique. ▶ ouve, + põe no ponto do vídeo; tempo e volume ajustáveis.
+  - **⚡ Som automático:** whoosh nas palavras de impacto e nas imagens de apoio, boom nas cartelas, batida no zoom e na
+    tremida, clique no flash e subida antes do P&B.
+  - **Música de fundo:** do **Freesound** (só licenças livres: CC0 ou CC BY, com o crédito pronto para copiar) usando a
+    mesma `FREESOUND_API_KEY` do Editor avançado, ou enviada do computador (MP3, M4A, WAV, OGG). Volume, "abaixar
+    quando ele fala" (a música abaixa sozinha sob a voz) e de que segundo da música começar. Fica em `data/music/`.
+  - **✨ O Claude escolhe a música:** ele lê a fala, diz o clima e já busca as opções.
+  - Na exportação, a voz, os efeitos e a música são misturados com o ffmpeg (`amix` e `sidechaincompress`), sem
+    mudar o volume da voz. A gaveta é `public/editor/som.js`.
 - **Barra da prévia**: Ímã, Raio-X (X), Guias (G: centro, terços e, no 9:16, a área que o Instagram/TikTok cobre) e
   Centralizar. A legenda se arrasta direto no vídeo.
 

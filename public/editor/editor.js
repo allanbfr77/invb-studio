@@ -51,6 +51,7 @@
       true,
       '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/>',
     ],
+    ['som', 'Som', true, '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>'],
     ['camadas', 'Camadas', true, '<path d="M12 4l9 5-9 5-9-5zM3 14l9 5 9-5"/>'],
   ];
   const SAMPLE = ['Você', 'não', 'precisa', 'de', 'mais', 'tempo,'].map((t, i) => ({
@@ -164,6 +165,8 @@
       look: 'none', // cor do vídeo inteiro (gaveta Impacto)
       fx: [], // efeitos num trecho: P&B, zoom, tremida, flash, cartela (gaveta Impacto)
       broll: [], // imagens de apoio do Pexels (gaveta Apoio)
+      sfx: [], // efeitos sonoros (gaveta Som)
+      music: null, // música de fundo (gaveta Som)
       sel: null,
       panel: null,
       tab: 'estilos',
@@ -204,6 +207,8 @@
       'look',
       'fx',
       'broll',
+      'sfx',
+      'music',
       'title',
     ];
     if (clip.editor && typeof clip.editor === 'object') {
@@ -287,6 +292,8 @@
         look: st.look,
         fx: st.fx,
         broll: st.broll,
+        sfx: st.sfx,
+        music: st.music,
         title: st.title,
       });
     const restore = (j) => {
@@ -413,6 +420,7 @@
     if (Parts.arte) Parts.arte(shared);
     if (Parts.impacto) Parts.impacto(shared);
     if (Parts.apoio) Parts.apoio(shared);
+    if (Parts.som) Parts.som(shared);
 
     $$('.dlx-rail button', root).forEach(
       (b) =>
@@ -667,6 +675,10 @@
         bw,
         zoom,
       })),
+      sfx: (e.sfx || []).map(({ type, at, vol }) => ({ type, at, vol })),
+      music: e.music
+        ? { mediaId: e.music.mediaId, vol: e.music.vol, duck: e.music.duck, from: e.music.from || 0 }
+        : null,
     };
   }
   window.ClipEditor = { open, renderOpts };
