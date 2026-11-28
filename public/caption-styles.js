@@ -53,6 +53,24 @@
     { name: 'Space Grotesk Bold', file: 'SpaceGrotesk-Bold.ttf', note: 'técnica, moderna' },
   ];
   const FONTS = FONT_LIST.map((f) => f.name);
+  // largura média de uma letra (em fração do tamanho da fonte), para a palavra nunca passar da borda da tela
+  const FONT_WF = {
+    Anton: 0.5,
+    'Bebas Neue': 0.45,
+    'Oswald Bold': 0.52,
+    'Barlow Condensed ExtraBold': 0.47,
+    'Montserrat Black': 0.78,
+    'Montserrat ExtraBold': 0.74,
+    'Poppins ExtraBold': 0.72,
+    'Archivo Black': 0.8,
+    'Syne ExtraBold': 0.86,
+    'League Spartan Black': 0.7,
+    'Inter Black': 0.7,
+    'Playfair Display Black': 0.64,
+    'Permanent Marker': 0.66,
+  };
+  /** Largura aproximada de um texto, em múltiplos do tamanho da fonte. */
+  const textW = (font, text, upper) => String(text || '').length * (FONT_WF[font] || 0.64) * (upper ? 1.08 : 1);
   const DEFAULT_FONT = 'Poppins ExtraBold';
   // fontes enviadas pela equipe (data/fonts): o servidor e o editor avisam quais existem
   let CUSTOM = [];
@@ -553,6 +571,7 @@
     chunkWords,
     lum,
     contrast,
+    textW,
     withWords,
     FONTS,
     FONT_LIST,

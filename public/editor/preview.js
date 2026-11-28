@@ -238,6 +238,9 @@
         H = stage.clientHeight || 1,
         scale = H / 1080,
         ws = relWords();
+      // para a palavra longa caber na largura (uma palavra por vez): largura da tela e tamanho da letra
+      S._W = stage.clientWidth || 1;
+      S._fs = H * (st.cap.size / 288) * S.scale;
       let html = '',
         capK = '';
       if (S.mode === 'block') {
@@ -509,6 +512,9 @@
               : '',
             o.outline && !o.box
               ? `-webkit-text-stroke:${o.outline.w * 2 * (H / 1080)}px ${o.outline.color};paint-order:stroke fill`
+              : '',
+            o.shadow && !o.box
+              ? `text-shadow:${o.shadow * (H / 1080)}px ${o.shadow * (H / 1080)}px 0 rgba(0,0,0,.45)`
               : '',
           ]
             .filter(Boolean)

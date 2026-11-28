@@ -107,7 +107,12 @@
       else if (isAct && style.mode === 'highlight') css = `color:${style.hi}`;
       else if (isAct && style.mode === 'reveal' && style.grow) css = `color:${style.hi}`;
       else if (isKw) css = `color:${style.kc}`;
-      const f = (isAct && style.grow ? 1.18 : 1) * (isKw && style.emph ? 1.2 : 1);
+      let f = (isAct && style.grow ? 1.18 : 1) * (isKw && style.emph ? 1.2 : 1);
+      // uma palavra por vez: diminui a palavra longa que passaria da borda (a mesma conta da exportação)
+      if (style.mode === 'words1' && style._W && style._fs) {
+        const wpx = CSx.textW(style.font, w.t, style.upper) * style._fs * f * 1.12;
+        if (wpx > style._W * 0.88) f *= (style._W * 0.88) / wpx;
+      }
       if (f !== 1) css += (css ? ';' : '') + `font-size:${f}em`;
       // quique: a palavra falada entra pequena, passa do tamanho e assenta (igual à exportação)
       const cls = isAct && style.anim === 'bounce' ? ' class="cap-bounce"' : '';
@@ -198,6 +203,7 @@
     const SAVED = [
       'format',
       'crop',
+      'zoom',
       'bw',
       'hq',
       'voice',
@@ -681,6 +687,7 @@
     return {
       format: e.format || 'orig',
       crop: e.crop || { x: 0.5, y: 0.5 },
+      zoom: e.zoom || 1,
       bw: !!e.bw,
       hq: !!e.hq,
       removePauses: false,

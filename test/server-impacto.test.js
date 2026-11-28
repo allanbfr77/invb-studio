@@ -124,7 +124,8 @@ test(
     assert.ok(pb < normal * 0.25, `no trecho P&B quase não há cor (${pb} x ${normal})`);
     assert.ok(colorful(file, 1.8) > 40, 'o zoom não tira a cor');
     const card = frame(file, 4.5);
-    assert.ok(card.R > 150 && card.G < 80 && card.B < 80, 'a cartela vermelha cobre o quadro: ' + JSON.stringify(card));
+    // a cartela tem vinheta (cantos escuros) e grão: a média do quadro fica um pouco mais escura que a cor pura
+    assert.ok(card.R > 110 && card.G < 70 && card.B < 70, 'a cartela vermelha cobre o quadro: ' + JSON.stringify(card));
     const fl = frame(file, 3.12),
       after = frame(file, 3.8);
     assert.ok(fl.R + fl.G + fl.B > after.R + after.G + after.B + 60, 'o flash clareia o quadro');
@@ -313,7 +314,7 @@ test(
       concept: 'editorial quente',
       caption: {
         style: 'Palavra por palavra/Revista',
-        accent: '#f0b93a',
+        accent: '#f5c542',
         position: 'bottom',
         size: 18,
         keywords: ['Jovem', 'difícil!'],
@@ -398,7 +399,7 @@ test(
       ['redpop'],
     );
     assert.equal(b.caption.style, 'Palavra por palavra/Revista');
-    assert.equal(b.caption.kc, '#f0b93a');
+    assert.equal(b.caption.kc, '#f5c542');
     assert.deepEqual(b.caption.kwWords, ['jovem', 'difícil']);
     // o vídeo de teste tem faixas claras onde a legenda fica: a regra de leitura pode pôr uma tarja, e diz por quê
     if (b.caption.box) assert.ok(b.legibility.fixes.some((f) => /legenda/.test(f)));

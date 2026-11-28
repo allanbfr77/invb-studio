@@ -78,6 +78,14 @@
           <div class="dlx-spb">${[0, 0.5, 1].map((x, i) => `<button data-crop="${x}" aria-pressed="${Math.abs(cv - x) < 0.005}">${ends[i]}</button>`).join('')}</div>
           <p class="dlx-hint">Ou <b>arraste o vídeo na prévia</b> até o pregador ficar onde quer. Vale para o corte inteiro.</p>`
         : '';
+      // aproximar: o pregador ocupa mais a tela (com zoom, dá para ajustar também a altura)
+      const zm = st.zoom > 1 ? st.zoom : 1,
+        other = axis === 'x' ? 'y' : 'x';
+      const zoomUi = f[2]
+        ? `<label class="dlx-lab" for="dx-zoom">Aproximar <small id="dx-zoomv">${zm > 1 ? Math.round((zm - 1) * 100) + '%' : 'não'}</small></label>
+          <input type="range" id="dx-zoom" class="dlx-sp" min="1" max="1.6" step="0.01" value="${zm}" aria-label="Aproximar">
+          ${zm > 1 ? `<label class="dlx-lab" for="dx-crop2">${other === 'y' ? 'Altura' : 'Lado'} <small>${Math.round(cr[other] * 100)}%</small></label><input type="range" id="dx-crop2" class="dlx-sp" min="0" max="1" step="0.01" value="${cr[other]}" aria-label="Altura do enquadramento">` : ''}`
+        : '';
       L.innerHTML = [
         isAud
           ? ''
@@ -87,7 +95,7 @@
               esc(fmtObj()[1]),
               `<div class="dlx-fmts">${FORMATS.map((f) => `<button class="dlx-fmt" data-f="${f[0]}" aria-pressed="${st.format === f[0]}"><span class="ic"><i style="width:${FORMAT_ICON[f[0]][0]}px;height:${FORMAT_ICON[f[0]][1]}px"></i></span>${f[1]}</button>`).join('')}</div>
           <p class="dlx-sub">${st.format === 'orig' ? 'Sai no tamanho original do vídeo' : 'Recorta o vídeo · ' + outSize()}</p>
-          ${frame}
+          ${frame}${zoomUi}
           <label class="dlx-check" style="margin-top:10px"><input type="checkbox" id="dx-fdef" ${isDef ? 'checked' : ''}> Usar ${esc(fmtObj()[1])} nos cortes novos</label>`,
             ),
         isAud
@@ -199,6 +207,31 @@
           drawLeft();
         }
       };
+      const zEl = $('#dx-zoom', L),
+        c2 = $('#dx-crop2', L);
+      if (zEl) {
+        zEl.oninput = () => {
+          st.zoom = +zEl.value;
+          layoutStage();
+          const o = $('#dx-zoomv', L);
+          if (o) o.textContent = st.zoom > 1 ? Math.round((st.zoom - 1) * 100) + '%' : 'não';
+        };
+        zEl.onchange = () => {
+          commit();
+          drawLeft();
+        };
+      }
+      if (c2) {
+        const ax2 = axis === 'x' ? 'y' : 'x';
+        c2.oninput = () => {
+          st.crop = { ...(st.crop || { x: 0.5, y: 0.5 }), [ax2]: +c2.value };
+          layoutStage();
+        };
+        c2.onchange = () => {
+          commit();
+          drawLeft();
+        };
+      }
       if (crop) {
         crop.oninput = () => setCrop(+crop.value, false);
         crop.onchange = () => setCrop(+crop.value, true);

@@ -305,6 +305,7 @@
 .imp-fx i{position:absolute;inset:0;opacity:0;transition:opacity .08s linear}
 .imp-vig{background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.75) 100%)}
 .imp-card{background:#000}
+.imp-card::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(255,255,255,.06) 0,rgba(0,0,0,0) 45%,rgba(0,0,0,.55) 100%)}
 .imp-flash{background:#fff;transition:none}
 .dlx-stage video{transition:transform .06s linear}
 .dlx-stage video.imp-shake{animation:imp-shake .11s linear infinite}

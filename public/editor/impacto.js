@@ -251,10 +251,13 @@
       const pl = has('pull');
       const plz = pl ? 1.15 - 0.15 * clamp((t - pl.start) / Math.max(0.1, pl.end - pl.start), 0, 1) : 1;
       // câmera perto (punch-in): 115%, um pouco acima do centro, igual à exportação
-      const pc = has('punch') ? 1.15 : 1;
-      v.style.transformOrigin = pc > 1 ? '50% 35%' : '';
+      // aproximar do enquadramento (st.zoom): escala em volta do ponto do recorte, a mesma conta da exportação
+      const pc = has('punch') ? 1.15 : 1,
+        zb = st.zoom > 1 ? st.zoom : 1,
+        cr = st.crop || { x: 0.5, y: 0.5 };
+      v.style.transformOrigin = zb > 1 ? `${cr.x * 100}% ${cr.y * 100}%` : pc > 1 ? '50% 35%' : '';
       const zz = z ? 1.18 : pu ? pz : pl ? plz : 1;
-      v.style.transform = zz * pc !== 1 ? `scale(${(zz * pc).toFixed(4)})` : '';
+      v.style.transform = zz * pc * zb !== 1 ? `scale(${(zz * pc * zb).toFixed(4)})` : '';
       const rv = has('reveal');
       if (rv)
         v.style.filter += ` brightness(${clamp((t - rv.start) / Math.max(0.1, rv.end - rv.start), 0, 1).toFixed(2)})`;
@@ -332,14 +335,17 @@
           : P.small;
         const wFrac = (size) =>
           (g.text.length * size * (FONT_W[s0.font] || 0.62) * (s0.upper ? 1.12 : 1) + (s0.box ? size * 0.5 : 0)) / ar;
-        const size = Math.min(s0.size, s0.size * (maxW / Math.max(0.01, wFrac(s0.size))));
+        // a palavra grande ocupa a largura (como nos cortes profissionais), entre 60% e 170% do tamanho base;
+        // as pequenas só diminuem se não couberem
+        const fit = s0.size * ((maxW * (big.has(i) ? 0.94 : 1)) / Math.max(0.01, wFrac(s0.size)));
+        const size = big.has(i) ? clamp(fit, s0.size * 0.6, s0.size * 1.7) : Math.min(s0.size, fit);
         const w = wFrac(size);
         const x = clamp(side, 0.07 + w / 2, (ar < 1 ? 0.86 : 0.93) - w / 2); // no vertical, a direita fica livre dos botões
         return { ...s0, size: +size.toFixed(4), x: +(w >= 0.78 && !wide ? 0.5 : x).toFixed(3) };
       });
       const hs = sty.map((s) => s.size * 1.08 + (s.box ? 0.02 : 0));
       const total = hs.reduce((a, b) => a + b, 0);
-      const cy = o.card ? 0.5 : ar < 0.7 ? 0.38 : wide ? 0.46 : 0.42;
+      const cy = o.card ? 0.5 : (o.cy ?? (ar < 0.7 ? 0.38 : wide ? 0.46 : 0.42));
       let y = clamp(cy - total / 2, o.minY ?? (ar < 0.7 ? 0.13 : 0.08), ar < 0.7 ? 0.62 : 0.72);
       const end = Math.min(D(), groups[groups.length - 1].e + (o.card ? 0.35 : 0.7));
       const grp = rid();
@@ -348,7 +354,11 @@
         const yy = y + hs[i] / 2;
         y += hs[i];
         let color = s.color;
-        if (o.card && !s.box && !dark(o.cardColor) && /^#f/i.test(color)) color = '#111111'; // texto claro em cartela clara
+        if (o.card) {
+          // cartela escura: palavra grande na cor de destaque, pequenas em branco; cartela clara: texto escuro
+          if (dark(o.cardColor)) color = big.has(i) && P.accent ? P.accent : lumDark(color) ? '#ffffff' : color;
+          else color = big.has(i) && P.accent && lumDark(P.accent) ? P.accent : '#111111';
+        }
         return {
           id: rid(),
           type: 'text',
@@ -367,6 +377,7 @@
           upper: !!s.upper,
           box: s.box ? { ...s.box } : null,
           outline: s.box || o.card ? null : P.outline || { color: lumDark(color) ? '#ffffff' : '#000000', w: 1.5 }, // contorno oposto à cor da letra
+          shadow: s.box ? 0 : o.card ? 3 : 5, // sombra suave: separa a letra do fundo
           anim: o.anim || 'pop',
           grp,
         };
@@ -403,12 +414,13 @@
         lines.push([ws.slice(0, half).join(' '), false]);
         if (ws.length > half) lines.push([ws.slice(half).join(' '), false]);
       }
-      const font = (P && P.big && P.big.font) || 'Montserrat Black',
+      // condensada e pesada, em maiúsculas: o padrão dos ganchos dos cortes (Anton/Bebas)
+      const font = 'Anton',
         accent = (P && P.accent) || '#facc15',
         maxW = ar < 0.7 ? 0.84 : 0.6;
       let y = ar < 0.7 ? 0.1 : 0.07;
       return lines.map(([text, big]) => {
-        const s0 = big ? 0.072 : 0.046,
+        const s0 = big ? 0.085 : 0.05,
           wf = (sz) => (text.length * sz * (FONT_W[font] || 0.62) * 1.12) / ar,
           size = Math.min(s0, s0 * (maxW / Math.max(0.01, wf(s0))));
         const yy = y + (size * 1.08) / 2;
@@ -429,7 +441,8 @@
           italic: false,
           upper: true,
           box: null,
-          outline: { color: '#000000', w: 2.5 },
+          outline: { color: '#000000', w: 2 },
+          shadow: 5,
           anim: 'fade',
           hook: true,
           ai: true,
@@ -481,6 +494,36 @@
       return { ws, sel: ws.slice(Math.min(a, b), Math.max(a, b) + 1) };
     };
 
+    // Enquadramento automático: com o rosto que a IA viu nos quadros, aproxima a câmera (rosto com ~17% da altura no
+    // vertical) e põe o rosto no terço de cima. Devolve onde o rosto fica no quadro final.
+    function autoFrame(fr) {
+      const iw = v.videoWidth,
+        ih = v.videoHeight,
+        ar = aspect();
+      if (!fr || !iw || !ih || st.format === 'orig') return null;
+      const A = iw / ih,
+        bw = A > ar ? ih * ar : iw,
+        bh = A > ar ? ih : iw / ar;
+      const z0 = st.zoom > 1 ? st.zoom : 1,
+        cr = st.crop || { x: 0.5, y: 0.5 };
+      const cw = bw / z0,
+        ch = bh / z0,
+        fx = (iw - cw) * cr.x + fr.x * cw,
+        fy = (ih - ch) * cr.y + fr.y * ch,
+        fh = fr.h * ch;
+      const target = ar < 0.7 ? 0.17 : ar < 1.1 ? 0.22 : 0.3;
+      let z = clamp(bh / (fh / target), 1, ar < 0.7 ? 1.45 : 1.3);
+      if (z < 1.06) z = 1;
+      const cw2 = bw / z,
+        ch2 = bh / z,
+        ty = ar < 0.7 ? 0.34 : 0.4;
+      const cx = iw - cw2 > 1 ? clamp((fx - 0.5 * cw2) / (iw - cw2), 0, 1) : 0.5,
+        cy = ih - ch2 > 1 ? clamp((fy - ty * ch2) / (ih - ch2), 0, 1) : 0.5;
+      st.zoom = +z.toFixed(3);
+      st.crop = { x: +cx.toFixed(3), y: +cy.toFixed(3) };
+      return { y: (fy - (ih - ch2) * cy) / ch2, h: fh / ch2 };
+    }
+
     /* ----- Claude: sugere a edição inteira lendo a fala ----- */
     async function suggest() {
       if (ui.busy) return;
@@ -527,8 +570,8 @@
         // tipografia das frases de impacto, criada para o corte (tamanho base: o do estilo "Revista")
         const DP = r.impact
           ? {
-              big: { ...r.impact.big, size: 0.085 },
-              small: { ...r.impact.small, size: 0.048 },
+              big: { ...r.impact.big, size: 0.11 },
+              small: { ...r.impact.small, size: 0.05 },
               accent: r.impact.accent,
               outline: r.impact.outline || null, // o fundo do meio do quadro é claro: contorno para ler
             }
@@ -537,6 +580,17 @@
         for (const g of groupsList()) if (st.overlays.find((o) => o.grp === g.grp && o.ai)) delGroup(g.grp);
         st.overlays = st.overlays.filter((o) => !(o.hook && o.ai));
         st.fx = st.fx.filter((f) => !f.ai);
+        // enquadramento pelo rosto e a altura das frases de impacto: abaixo do rosto (no peito, acima da legenda) ou,
+        // se o rosto estiver embaixo, acima dele
+        const face = autoFrame(r.framing) || (r.framing ? { y: r.framing.y, h: r.framing.h } : null);
+        let impactY;
+        if (face && aspect() < 1.1) {
+          const headB = face.y + face.h * 0.62,
+            headT = face.y - face.h * 0.62;
+          impactY = headB < 0.62 ? (headB + 0.74) / 2 : Math.max(0.28, headT / 2 + 0.12);
+        }
+        if (shared.drawLeft) shared.drawLeft();
+        if (shared.layoutStage) shared.layoutStage();
         // título-gancho no topo
         const hookAlways = !!(r.hook && r.hook.show === 'always');
         if (r.hook && r.hook.text && !st.overlays.some((o) => o.hook))
@@ -557,6 +611,7 @@
           const n = addImpact(sel, {
             P: DP,
             minY: hookAlways && aspect() < 0.7 ? 0.3 : undefined, // abaixo do título-gancho
+            cy: impactY,
             preset: PRESETS[p.style] ? p.style : ui.preset,
             bigIdx: (p.big || []).map((k) => k - p.from),
             side: r.impact ? r.impact.side : p.side || ui.side,
