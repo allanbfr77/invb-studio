@@ -35,6 +35,15 @@
     Object.assign(shared, { drawDrawer });
 
     /* ----- drawer direito ----- */
+    // como o texto entra na tela (o mesmo na prévia e na exportação)
+    const ANIM_OPTS = [
+      ['none', 'Sem'],
+      ['pop', 'Pop'],
+      ['blur', 'Desfocado'],
+      ['zoom', 'De perto'],
+      ['slide', 'Deslizar'],
+      ['fade', 'Suave'],
+    ];
     const propsEditor = (o) => {
       if (!o) return '';
       const timing = `<div class="dlx-row" style="margin-top:10px"><div><b>Todo o corte</b><small>Desligue para escolher quando aparece</small></div>${sw('pp-all', o.start === null && o.end === null)}</div>${o.start === null && o.end === null ? '' : `<div class="dlx-two"><label>Início (s)<input type="number" id="pp-s" min="0" step="0.1" value="${(o.start ?? 0).toFixed(1)}"></label><label>Fim (s)<input type="number" id="pp-e" min="0" step="0.1" value="${(o.end ?? D()).toFixed(1)}"></label></div>`}`;
@@ -46,6 +55,7 @@
         <div class="dlx-two"><label>Cor<input type="color" id="pp-color" value="${o.color}"></label><label>Contorno<input type="color" id="pp-oc" value="${o.outline ? o.outline.color : '#000000'}"></label></div>
         <div class="dlx-chips" style="margin-top:8px"><button id="pp-ital" aria-pressed="${o.italic}">Itálico</button><button id="pp-up" aria-pressed="${o.upper}">MAIÚSCULAS</button><button id="pp-box" aria-pressed="${!!o.box}">Tarja</button></div>
         ${o.box ? `<div class="dlx-two"><label>Cor da tarja<input type="color" id="pp-bc" value="${o.box.color}"></label><label>Transparência<input type="range" id="pp-ba" min="0" max="90" value="${Math.round(o.box.alpha * 100)}"></label></div>` : ''}
+        <label style="margin-top:8px">Entrada</label><div class="dlx-chips">${ANIM_OPTS.map(([k, l]) => `<button data-anim="${k}" aria-pressed="${(o.anim || 'none') === k}">${l}</button>`).join('')}</div>
         ${timing}<button class="ap-btn" id="pp-del" style="margin-top:10px">Excluir do quadro</button></div>`;
     };
     function bindProps(D2) {
@@ -65,6 +75,15 @@
         live();
       });
       on('pp-text', 'change', commit);
+      $$('[data-anim]', D2).forEach((b) =>
+        b.addEventListener('click', () => {
+          o.anim = b.dataset.anim;
+          done();
+          renderOverlays();
+          const el = shared.ovsEl.querySelector(`[data-id="${o.id}"]`);
+          if (el && o.anim !== 'none') shared.playAnim(el, o.anim); // mostra a entrada na hora
+        }),
+      );
       on('pp-font', 'change', (e) => {
         o.font = e.target.value;
         commit();
@@ -357,7 +376,8 @@
         return;
       }
       dr.hidden = false;
-      dr.innerHTML = `<div class="dlx-dr">${panelsHTML[st.panel]()}</div>`;
+      const extra = shared.panels && shared.panels[st.panel];
+      dr.innerHTML = `<div class="dlx-dr">${extra ? extra.html() : panelsHTML[st.panel]()}</div>`;
       dr.scrollTop = keep;
       bindDrawer(dr);
       if (st.panel === 'midia' && st.lib === null) loadLib();
@@ -934,6 +954,7 @@
         });
       }
       if (st.panel === 'arte') shared.arteBind(dr);
+      if (shared.panels && shared.panels[st.panel]) shared.panels[st.panel].bind(dr);
       if (st.panel === 'camadas') {
         if (st.lib === null) loadLib();
         onAll('[data-sel]', 'click', (b) => {

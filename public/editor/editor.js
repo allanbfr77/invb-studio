@@ -44,6 +44,7 @@
       '<path d="M12 3a9 9 0 100 18c1.7 0 2-1.2 1.4-2.2-.6-1-.1-2.3 1.2-2.3H17a4 4 0 004-4c0-5-4-9.5-9-9.5z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/>',
     ],
     ['ganchos', 'Ganchos', true, '<path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/>'],
+    ['impacto', 'Impacto', true, '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'],
     ['camadas', 'Camadas', true, '<path d="M12 4l9 5-9 5-9-5zM3 14l9 5 9-5"/>'],
   ];
   const SAMPLE = ['Você', 'não', 'precisa', 'de', 'mais', 'tempo,'].map((t, i) => ({
@@ -154,6 +155,8 @@
       edits: {},
       lang: null,
       overlays: [],
+      look: 'none', // cor do vídeo inteiro (gaveta Impacto)
+      fx: [], // efeitos num trecho: P&B, zoom, tremida, flash, cartela (gaveta Impacto)
       sel: null,
       panel: null,
       tab: 'estilos',
@@ -191,6 +194,8 @@
       'edits',
       'lang',
       'overlays',
+      'look',
+      'fx',
       'title',
     ];
     if (clip.editor && typeof clip.editor === 'object') {
@@ -271,6 +276,8 @@
         edits: st.edits,
         lang: st.lang,
         overlays: st.overlays,
+        look: st.look,
+        fx: st.fx,
         title: st.title,
       });
     const restore = (j) => {
@@ -395,6 +402,7 @@
     Parts.left(shared);
     Parts.drawers(shared);
     if (Parts.arte) Parts.arte(shared);
+    if (Parts.impacto) Parts.impacto(shared);
 
     $$('.dlx-rail button', root).forEach(
       (b) =>
@@ -638,7 +646,9 @@
       removed: e.removed || [],
       edits: e.edits || {},
       captions: { ...(e.cap || { on: false }) },
-      overlays: (e.overlays || []).filter((o) => !o.hidden).map(({ tpl, hidden, ...o }) => o),
+      overlays: (e.overlays || []).filter((o) => !o.hidden).map(({ tpl, hidden, grp, ...o }) => o),
+      look: e.look || 'none',
+      fx: (e.fx || []).map(({ type, start, end, color }) => ({ type, start, end, color })),
     };
   }
   window.ClipEditor = { open, renderOpts };

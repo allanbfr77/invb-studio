@@ -213,7 +213,8 @@
         W = Math.min(H * r, window.innerWidth - 283 - 83 - drawerW - 60);
       stage.style.width = Math.max(160, W) + 'px';
       stage.style.height = Math.max(100, W / r) + 'px';
-      v.style.filter = st.bw ? 'grayscale(1)' : '';
+      if (shared.applyFx) shared.applyFx();
+      else v.style.filter = st.bw ? 'grayscale(1)' : '';
       // enquadramento: a mesma conta da exportação ((sobra) × posição)
       const cr = st.crop || { x: 0.5, y: 0.5 };
       v.style.objectPosition = `${cr.x * 100}% ${cr.y * 100}%`;
@@ -222,6 +223,8 @@
       renderOverlays();
     };
     const relT = () => Math.max(0, (v.currentTime || 0) - st.start);
+    shared.relT = relT;
+    shared.relWords = () => relWords();
     function paintCap() {
       if (isAud || !st.cap.on) {
         capEl.style.display = 'none';
@@ -477,8 +480,11 @@
 
     /* ----- overlays (texto/imagem) sobre o quadro ----- */
     const ovById = (id) => st.overlays.find((o) => o.id === id);
+    // Parado, aparece o que está no quadro naquele momento e o texto selecionado (para arrastar mesmo fora do tempo dele).
+    // Antes aparecia tudo do corte ao mesmo tempo, o que embolava com as palavras de impacto.
     const visibleAt = (o, t) =>
-      !o.hidden && (v.paused || ((o.start === null || t >= o.start) && (o.end === null || t <= o.end)));
+      !o.hidden &&
+      ((v.paused && st.sel === o.id) || ((o.start === null || t >= o.start - 0.001) && (o.end === null || t <= o.end)));
     function renderOverlays() {
       const H = stage.clientHeight || 1,
         W = stage.clientWidth || 1;
@@ -606,7 +612,12 @@
       const t = relT();
       $$('.dlx-ov', ovsEl).forEach((e) => {
         const o = ovById(e.dataset.id);
-        if (o) e.style.display = visibleAt(o, t) ? '' : 'none';
+        if (!o) return;
+        const show = visibleAt(o, t),
+          was = e.style.display !== 'none';
+        e.style.display = show ? '' : 'none';
+        // entrada animada (gaveta Impacto / Texto): roda de novo cada vez que o texto aparece tocando
+        if (show && !was && !v.paused && o.anim && o.anim !== 'none') shared.playAnim(e, o.anim);
       });
     }
     // arrastar / redimensionar

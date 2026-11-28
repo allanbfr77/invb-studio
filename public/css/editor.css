@@ -297,3 +297,40 @@
 @keyframes capFade{from{opacity:0}to{opacity:1}}
 @keyframes capSlide{from{transform:translateY(.7em);opacity:0}to{transform:none;opacity:1}}
 @keyframes capZoom{from{transform:scale(.55)}to{transform:none}}
+
+/* ----- Impacto: prévia dos efeitos (a exportação faz o mesmo com o ffmpeg) ----- */
+.imp-fx{position:absolute;inset:0;pointer-events:none}
+.imp-fx i{position:absolute;inset:0;opacity:0;transition:opacity .08s linear}
+.imp-vig{background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.75) 100%)}
+.imp-card{background:#000}
+.imp-flash{background:#fff;transition:none}
+.dlx-stage video{transition:transform .06s linear}
+.dlx-stage video.imp-shake{animation:imp-shake .11s linear infinite}
+@keyframes imp-shake{0%{translate:0 0}25%{translate:1.2% -.8%}50%{translate:-1% 1%}75%{translate:.8% .9%}100%{translate:0 0}}
+/* entrada dos textos */
+.dlx-ovt span.an-pop{animation:an-pop .21s ease-out both}
+.dlx-ovt span.an-blur{animation:an-blur .26s ease-out both}
+.dlx-ovt span.an-zoom{animation:an-zoom .22s ease-out both}
+.dlx-ovt span.an-slide{animation:an-slide .23s ease-out both}
+.dlx-ovt span.an-fade{animation:an-fade .22s linear both}
+@keyframes an-pop{0%{transform:scale(.35)}62%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes an-blur{0%{filter:blur(10px);opacity:0}100%{filter:blur(0);opacity:1}}
+@keyframes an-zoom{0%{transform:scale(1.7);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes an-slide{0%{transform:translateX(-35%);opacity:0}100%{transform:none;opacity:1}}
+@keyframes an-fade{0%{opacity:0}100%{opacity:1}}
+/* a gaveta */
+.imp-ai{width:100%;justify-content:center;margin-bottom:4px}
+.imp-note{font-size:12.5px;line-height:1.45;color:var(--muted);background:var(--soft);border-radius:8px;padding:8px 10px}
+.imp-ws{display:flex;flex-wrap:wrap;gap:4px;max-height:190px;overflow:auto;padding:8px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px}
+.imp-ws button{font-size:13px;padding:3px 6px;border-radius:6px;color:var(--fg)}
+.imp-ws button:hover{background:var(--soft)}
+.imp-ws button.on{background:var(--primary);color:#111}
+.imp-sel{font-size:12.5px;color:var(--muted);margin:2px 0 8px}
+.imp-colors{display:flex;gap:8px;margin-top:8px}
+.imp-colors button{width:28px;height:28px;border-radius:50%;border:2px solid var(--border)}
+.imp-colors button[aria-pressed=true]{outline:2px solid var(--primary);outline-offset:2px}
+.imp-fxl{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.imp-fxr{display:grid;grid-template-columns:1fr 64px 14px 64px 28px;gap:6px;align-items:center;font-size:13px}
+.imp-fxr .nm{text-align:left;font-weight:600}
+.imp-fxr input{width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--fg)}
+.imp-fxr button[data-rmf]{color:var(--muted)}

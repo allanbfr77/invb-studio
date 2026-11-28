@@ -113,6 +113,18 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   - **Sem a chave**, o link é `/v/<código>` no próprio Studio (página `public/assistir.html`) e só abre enquanto este
     computador está ligado com o Studio aberto: só nele (padrão), no mesmo Wi-Fi (`HOST=0.0.0.0` no
     `install/pessoal.env`) ou de qualquer lugar com um túnel (`PUBLIC_URL=` no `install/pessoal.env`).
+- **Gaveta Impacto** (⚡ no editor do corte), para cortes no estilo "Reels de pregação":
+  - **Palavras de impacto:** marque a primeira e a última palavra de uma frase; cada parte entra grande, no tempo em
+    que é falada, com a palavra mais forte em destaque. Estilos (vermelho forte, serifa, amarelo, branco alto, tarja),
+    lado e entrada (pop, desfocado, de perto, deslizar, suave). O tamanho se ajusta para caber no quadro.
+  - **Cartela:** a mesma frase em tela cheia numa cor (preto, branco, vermelho, dourado), sem o pregador.
+  - **Efeitos no trecho:** P&B com cantos escuros, zoom, tremida e flash, só no pedaço marcado.
+  - **Cor do vídeo:** quente, filme (com grão), frio, P&B dramático ou vivo.
+  - **✨ Sugerir com o Claude** (com a IA ligada): ele lê a fala e monta frases, cartelas, efeitos e cor; o que você
+    fez à mão fica. Ctrl+Z desfaz.
+  - A prévia imita os efeitos; a exportação faz o mesmo com o ffmpeg (`lib/render.js`: `LOOKS`, `fxChain`,
+    `animTag`). O código da gaveta fica em `public/editor/impacto.js`. Cada palavra também aparece em Texto e
+    Camadas para ajustes finos, e todo texto ganhou a opção **Entrada** (animação).
 - **Barra da prévia**: Ímã, Raio-X (X), Guias (G: centro, terços e, no 9:16, a área que o Instagram/TikTok cobre) e
   Centralizar. A legenda se arrasta direto no vídeo.
 

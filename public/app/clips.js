@@ -418,6 +418,7 @@
                   dl,
                   drive: driveOn ? { token: driveToken, send: sendDrive } : null,
                   voiceAI: !!(S.status && S.status.voiceAI),
+                  ai: !!(S.status && S.status.ai), // o Claude sugere a edição de impacto
                   autosync: !!(S.status && S.status.autosync),
                   onDone: (list) => {
                     shared.clips = list;
