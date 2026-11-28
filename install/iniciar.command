@@ -49,6 +49,17 @@ else
   fi
 fi
 
+# Legenda no vídeo exportado precisa do ffmpeg com a libass. Desde jan/2026 o "ffmpeg" do Homebrew vem enxuto, sem
+# ela; a versão completa é o "ffmpeg-full" (instalado à parte; o Studio encontra sozinho).
+if command -v ffmpeg >/dev/null 2>&1 && ! ffmpeg -hide_banner -filters 2>/dev/null | grep -q " subtitles "; then
+  ff=""
+  for c in /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg /usr/local/opt/ffmpeg-full/bin/ffmpeg; do [ -x "$c" ] && ff="$c"; done
+  if [ -z "$ff" ] && command -v brew >/dev/null 2>&1; then
+    echo "Instalando o ffmpeg completo (com legenda), só na primeira vez; pode levar alguns minutos..."
+    brew install ffmpeg-full || echo "Não consegui instalar o ffmpeg-full agora. A legenda não sai no vídeo até instalar."
+  fi
+fi
+
 versao=$(node -p "process.versions.node.split('.')[0]" 2>/dev/null)
 [ "${versao:-0}" -ge 20 ] || parar "O Node instalado é antigo (versão ${versao:-desconhecida}). É preciso a versão 20 ou mais nova.
 No Terminal, rode: brew upgrade node"

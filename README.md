@@ -176,7 +176,8 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   fala ganham cor e ficam maiores, e no 9:16 a legenda fica a 22% da borda de baixo (fora da área que o Instagram cobre).
   A direção de arte do Claude escolhe um desses estilos pelo conceito e **varia entre os cortes** da mesma pregação.
 - **ffmpeg com legenda:** se o ffmpeg encontrado não tem a libass, o Studio procura outro no Mac (Homebrew em
-  `/opt/homebrew/bin` ou `/usr/local/bin`) que desenhe legenda e usa esse.
+  `/opt/homebrew/bin` ou `/usr/local/bin`) que desenhe legenda e usa esse. Desde jan/2026 o `ffmpeg` do Homebrew vem enxuto, sem libass: o completo é o
+  `ffmpeg-full` (o `iniciar.command` instala sozinho quando falta; o Studio acha em `/opt/homebrew/opt/ffmpeg-full`).
 - **Transcrição mais precisa:**
   - Na Groq, o modelo padrão passou a ser o **whisper-large-v3** (completo), que erra menos que o turbo em nomes e
     palavras da Bíblia (`GROQ_WHISPER_MODEL` troca).
