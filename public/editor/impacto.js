@@ -334,8 +334,10 @@
             ? { ...P.big, color: P.accent }
             : P.big
           : P.small;
+        // largura medida com as letras reais da fonte (a mesma conta da exportação)
         const wFrac = (size) =>
-          (g.text.length * size * (FONT_W[s0.font] || 0.62) * (s0.upper ? 1.12 : 1) + (s0.box ? size * 0.5 : 0)) / ar;
+          (window.CaptionStyles.textW(s0.font, g.text, !!s0.upper, !!s0.italic) * size + (s0.box ? size * 0.5 : 0)) /
+          ar;
         // a palavra grande ocupa a largura (como nos cortes profissionais), entre 60% e 170% do tamanho base;
         // as pequenas só diminuem se não couberem
         const fit = s0.size * ((maxW * (big.has(i) ? 0.94 : 1)) / Math.max(0.01, wFrac(s0.size)));
@@ -512,12 +514,13 @@
         fx = (iw - cw) * cr.x + fr.x * cw,
         fy = (ih - ch) * cr.y + fr.y * ch,
         fh = fr.h * ch;
-      const target = ar < 0.7 ? 0.17 : ar < 1.1 ? 0.22 : 0.3;
-      let z = clamp(bh / (fh / target), 1, ar < 0.7 ? 1.45 : 1.3);
-      if (z < 1.06) z = 1;
+      // aproximação leve: rosto com ~12% da altura no vertical (antes 17%, ficava perto demais), no máximo 25%
+      const target = ar < 0.7 ? 0.12 : ar < 1.1 ? 0.16 : 0.24;
+      let z = clamp(bh / (fh / target), 1, ar < 0.7 ? 1.25 : 1.2);
+      if (z < 1.08) z = 1;
       const cw2 = bw / z,
         ch2 = bh / z,
-        ty = ar < 0.7 ? 0.34 : 0.4;
+        ty = ar < 0.7 ? 0.36 : 0.4;
       const cx = iw - cw2 > 1 ? clamp((fx - 0.5 * cw2) / (iw - cw2), 0, 1) : 0.5,
         cy = ih - ch2 > 1 ? clamp((fy - ty * ch2) / (ih - ch2), 0, 1) : 0.5;
       st.zoom = +z.toFixed(3);
@@ -568,6 +571,7 @@
               hi: c.hi,
               kw: c.kwWords.length > 0,
               kc: c.kc,
+              kc2: c.kc2 || '',
               kwWords: c.kwWords,
               words: null,
             };

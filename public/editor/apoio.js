@@ -291,6 +291,8 @@
           if (added) {
             added.ai = true;
             added.bw = mono;
+            // foto em tela cheia entra com aproximação lenta (parada fica com cara de slide)
+            if (/^.f/.test(added.mediaId || '') && added.mode !== 'card') added.zoom = true;
           }
           n++;
         }

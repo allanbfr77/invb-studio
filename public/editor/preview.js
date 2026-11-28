@@ -495,12 +495,22 @@
         W = stage.clientWidth || 1;
       ovsEl.innerHTML = st.overlays
         .map((o) => {
-          const sel = st.sel === o.id,
-            pos = `left:${o.x * 100}%;top:${o.y * 100}%`;
+          const sel = st.sel === o.id;
+          // texto: a mesma garantia da exportação (até 92% da largura, sem sair pela borda)
+          let fsz = o.size * H,
+            ox = o.x;
+          if (o.type === 'text' && window.CaptionStyles) {
+            const tw = (sz) =>
+              window.CaptionStyles.textW(o.font, o.text, o.upper, o.italic) * sz + (o.box ? sz * 0.9 : 0);
+            if (tw(fsz) > W * 0.92) fsz = (fsz * W * 0.92) / tw(fsz);
+            const half = tw(fsz) / 2 / W;
+            ox = Math.min(0.96 - half, Math.max(0.04 + half, o.x));
+          }
+          const pos = `left:${ox * 100}%;top:${o.y * 100}%`;
           if (o.type === 'image')
             return `<div class="dlx-ov ${sel ? 'sel' : ''}" data-id="${o.id}" style="${pos};width:${o.w * 100}%;opacity:${st.tools.xray ? 0.35 : o.op};${o.hidden ? 'display:none' : ''}"><img src="/api/library/${o.imgId}/file" alt="" draggable="false"><i class="dlx-h" data-h="1"></i></div>`;
           const sty = [
-            `font-size:${o.size * H}px`,
+            `font-size:${fsz}px`,
             `color:${o.color}`,
             `font-family:'${o.font}',Arial,sans-serif`,
             'font-weight:normal', // o peso vem da fonte

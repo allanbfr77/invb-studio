@@ -106,7 +106,7 @@
         css = `background:${style.hi};border-radius:.2em;padding:0 .18em;-webkit-text-stroke:0`;
       else if (isAct && style.mode === 'highlight') css = `color:${style.hi}`;
       else if (isAct && style.mode === 'reveal' && style.grow) css = `color:${style.hi}`;
-      else if (isKw) css = `color:${style.kc}`;
+      else if (isKw) css = `color:${CSx.kwColor(style, w.t)}`;
       let f = (isAct && style.grow ? 1.18 : 1) * (isKw && style.emph ? 1.2 : 1) * (isKw && style.kf ? 1.15 : 1);
       // uma palavra por vez: diminui a palavra longa que passaria da borda (a mesma conta da exportação)
       if (style.mode === 'words1' && style._W && style._fs) {

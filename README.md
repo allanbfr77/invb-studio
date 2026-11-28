@@ -185,6 +185,18 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
     zoom curto, surgir do preto) — de 0 a 3 por corte, com 3 s entre eles; 2 a 4 frases de impacto com 4,5 s de
     respiro e no máximo 1 cartela. Glitch, VHS, mosaico, tremida, flash, rastro e filme antigo ficam só na mão.
   - **Sons comedidos:** whoosh discreto nas frases, batida grave na cartela, subida antes do P&B; 2 s entre sons.
+- **Design v4 (pedidos da equipe):**
+  - **Sem título fixo no topo e sem os mini zooms automáticos** (a câmera dinâmica saiu da IA; "Câmera perto" ainda
+    existe à mão no Impacto).
+  - **Enquadramento mais aberto:** rosto com ~12% da altura no vertical, aproximação de no máximo 25%.
+  - **Nenhum texto passa da tela:** `public/fonts/metrics.json` tem a largura real de cada letra de cada fonte (tirada
+    dos arquivos com fontTools). As frases de impacto são medidas com isso; e, na exportação e na prévia, um texto que
+    passaria de 92% da largura diminui e é puxado para dentro da borda — em qualquer formato.
+  - **Cores:** a IA pode usar uma segunda cor de destaque (`kc2`), alternando nas palavras-chave, e cores diferentes
+    na palavra grande e nas pequenas do impacto — quando valorizar; num corte sóbrio, uma cor só.
+  - **Imagens de apoio:** cartão com cantos arredondados, um pouco acima do meio (não cobre a legenda), com o vídeo
+    de trás desfocado e escurecido; foto em tela cheia com aproximação lenta. A IA põe de 1 a 3 imagens, na palavra
+    concreta, nunca nos 2 primeiros nem nos 2 últimos segundos.
 - **Design v3:**
   - **Enquadramento automático:** a IA diz onde está o rosto nos quadros; o editor aproxima (Formato → Aproximar,
     até 60%) e põe o rosto no terço de cima. As frases de impacto vão para fora do rosto (no peito, acima da

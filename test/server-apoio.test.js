@@ -165,7 +165,12 @@ test(
       Math.max(card.R, card.G, card.B) - Math.min(card.R, card.G, card.B) < 25,
       'cartão em P&B: ' + JSON.stringify(card),
     );
-    assert.ok(dim.R + dim.G + dim.B < 200, 'fundo escurecido atrás do cartão: ' + JSON.stringify(dim));
+    // atrás do cartão, o vídeo fica desfocado e escurecido (antes era uma tarja preta)
+    const raw = px(out, 0.5, 20, 20);
+    assert.ok(
+      dim.R + dim.G + dim.B < (raw.R + raw.G + raw.B) * 0.85,
+      'fundo escurecido atrás do cartão: ' + JSON.stringify(dim),
+    );
     assert.notDeepEqual(before, full);
     assert.ok(!(after.G > 150 && after.R < 60), 'depois do tempo, volta o vídeo: ' + JSON.stringify(after));
   },

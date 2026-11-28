@@ -114,8 +114,39 @@
     Sacramento: 0.42,
     Lobster: 0.55,
   };
-  /** Largura aproximada de um texto, em múltiplos do tamanho da fonte. */
-  const textW = (font, text, upper) => String(text || '').length * (FONT_WF[font] || 0.64) * (upper ? 1.08 : 1);
+  // Larguras reais de cada letra, tiradas dos arquivos das fontes (public/fonts/metrics.json, gerado com fontTools):
+  // a prévia e a exportação medem igual, e nenhum texto passa da borda da tela. Sem o arquivo, uma estimativa.
+  let METRICS = null;
+  const setMetrics = (m) => {
+    METRICS = m && typeof m === 'object' ? m : null;
+  };
+  if (typeof module !== 'undefined' && module.exports)
+    try {
+      setMetrics(require('./fonts/metrics.json'));
+    } catch {
+      /* sem o arquivo: estimativa */
+    }
+  else if (typeof fetch !== 'undefined')
+    fetch('/fonts/metrics.json')
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setMetrics)
+      .catch(() => {});
+  /** Cor de uma palavra-chave: com duas cores, cada palavra fica sempre com a mesma (escolhida pela própria palavra). */
+  const kwColor = (style, t) => {
+    if (!style.kc2) return style.kc;
+    let h = 0;
+    for (const ch of normWord(t)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return h % 2 ? style.kc2 : style.kc;
+  };
+  /** Largura de um texto, em múltiplos do tamanho da fonte (com as medidas reais quando há). */
+  const textW = (font, text, upper, italic) => {
+    const s = upper ? String(text || '').toUpperCase() : String(text || '');
+    const m = METRICS && ((italic && METRICS[font + '|i']) || METRICS[font]);
+    if (!m) return s.length * (FONT_WF[font] || 0.64) * (upper ? 1.08 : 1);
+    let w = 0;
+    for (const ch of s) w += m[ch] ?? m.o ?? 0.6;
+    return w;
+  };
   const DEFAULT_FONT = 'Poppins ExtraBold';
   // fontes enviadas pela equipe (data/fonts): o servidor e o editor avisam quais existem
   let CUSTOM = [];
@@ -197,6 +228,7 @@
     grow: false, // a palavra falada fica maior
     kw: false, // palavras-chave da fé coloridas
     kc: '#f0b93a', // cor das palavras-chave
+    kc2: '', // segunda cor das palavras-chave (alternam entre as duas); vazio = só uma
     emph: false, // palavras-chave também maiores (ênfase, como nos cortes virais)
     kf: '', // fonte das palavras-chave (mistura de duas fontes: ex. bloco pesado + serifa itálica); vazio = a mesma
     ki: false, // palavras-chave em itálico
@@ -567,6 +599,7 @@
     for (const k of ['upper', 'italic', 'glow', 'grow', 'kw', 'emph', 'ki'])
       if (typeof o[k] === 'boolean') out[k] = o[k];
     for (const k of ['color', 'hi', 'outline', 'kc']) if (isHex(o[k])) out[k] = o[k].toLowerCase();
+    if (o.kc2 === '' || isHex(o.kc2)) out.kc2 = String(o.kc2).toLowerCase();
     if (ANIM_IDS.includes(o.anim)) out.anim = o.anim;
     else if (typeof o.pop === 'boolean') out.anim = o.pop ? 'pop' : 'none'; // edições e estilos de antes: "pop" ligado ou não
     if (o.box === false) out.box = false;
@@ -694,6 +727,8 @@
     lum,
     contrast,
     textW,
+    kwColor,
+    setMetrics,
     withWords,
     FONTS,
     FONT_LIST,

@@ -353,7 +353,7 @@ test('mais curto: resposta que não encurta de verdade vira erro e o corte fica 
   );
 });
 
-test('direção de arte: câmera dinâmica por frase, título-gancho, efeitos sóbrios e poucos', async () => {
+test('direção de arte: sem gancho no topo nem zoom automático, efeitos sóbrios e poucos, segunda cor opcional', async () => {
   const { designEdit } = require('../lib/claude');
   const words = [];
   const times = [];
@@ -366,7 +366,14 @@ test('direção de arte: câmera dinâmica por frase, título-gancho, efeitos s�
       scene: 'x',
       subject_side: 'center',
       concept: 'cinema',
-      caption: { style: 'Palavra por palavra/Dourado', accent: '#f0b93a', position: 'bottom', size: 16, keywords: [] },
+      caption: {
+        style: 'Palavra por palavra/Dourado',
+        accent: '#ffd23f',
+        accent2: '#f2ebdd',
+        position: 'bottom',
+        size: 16,
+        keywords: [],
+      },
       impact: {},
       phrases: [],
       fx: [
@@ -388,13 +395,11 @@ test('direção de arte: câmera dinâmica por frase, título-gancho, efeitos s�
     r.fx.map((f) => f.type),
     ['push', 'bw'],
   ); // glitch não é da IA; dim colado no bw (menos de 3 s) sai
-  assert.deepEqual(r.hook, { text: 'Deus não terminou com você', accent: 'terminou', show: 'always' });
-  assert.ok(r.punch.length >= 1, 'há cortes de câmera');
-  const push = [times[20][0], times[25][1]];
-  for (const [a, b] of r.punch) {
-    assert.ok(b - a >= 1.2 && a > 0);
-    assert.ok(!(a < push[1] && b > push[0]), 'não aproxima onde já há push');
-  }
+  assert.equal(r.hook, undefined); // a equipe não quer título fixo no topo
+  assert.equal(r.punch, undefined); // nem os mini zooms automáticos
+  assert.equal(r.caption.kc, '#ffd23f');
+  assert.equal(r.caption.kc2, '#f2ebdd');
+  assert.equal(r.caption.size, 16); // 16 é o mínimo (legenda pequena some no celular)
 });
 
 test('direção de arte com liberdade total: legenda desenhada do zero, com segunda fonte e cores livres', async () => {
