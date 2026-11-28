@@ -390,10 +390,7 @@ test(
     assert.notEqual(b.impact.small.font, b.impact.big.font); // fontes iguais não passam
     assert.deepEqual(
       b.phrases.map((p) => [p.from, p.to, p.card]),
-      [
-        [0, 3, false],
-        [8, 9, true],
-      ],
+      [[0, 3, false]], // a de 8 começa 2,5 s depois da anterior: menos que o respiro de 4,5 s, sai
     );
     assert.deepEqual(b.phrases[0].big, [1]); // palavra fora da frase sai
     assert.deepEqual(

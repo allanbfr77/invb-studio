@@ -130,10 +130,11 @@
     oldfilm: { label: 'Filme antigo', dur: 2.0, tip: 'Sépia, chuvisco e luz piscando (história)' },
     vhs: { label: 'VHS', dur: 1.5, tip: 'Fita antiga, cores vazando e linhas' },
     pixel: { label: 'Mosaico', dur: 0.4, tip: 'Quadradinhos numa virada rápida' },
+    punch: { label: 'Câmera perto', dur: 3.0, tip: 'Corte seco para mais perto, como uma segunda câmera (punch-in)' },
   };
   // grupos para a gaveta, como num programa de edição
   const FX_GROUPS = [
-    ['Câmera', ['zoom', 'push', 'pull', 'pulse', 'shake', 'handheld']],
+    ['Câmera', ['punch', 'zoom', 'push', 'pull', 'pulse', 'shake', 'handheld']],
     ['Cor e luz', ['bw', 'redpop', 'dim', 'glow', 'warm', 'flash', 'reveal']],
     ['Estilo', ['oldfilm', 'vhs', 'glitch', 'blur', 'echo', 'pixel']],
   ];
@@ -249,7 +250,11 @@
       const pz = pu ? 1 + 0.15 * clamp((t - pu.start) / Math.max(0.1, pu.end - pu.start), 0, 1) : 1;
       const pl = has('pull');
       const plz = pl ? 1.15 - 0.15 * clamp((t - pl.start) / Math.max(0.1, pl.end - pl.start), 0, 1) : 1;
-      v.style.transform = z ? 'scale(1.18)' : pu ? `scale(${pz.toFixed(4)})` : pl ? `scale(${plz.toFixed(4)})` : '';
+      // câmera perto (punch-in): 115%, um pouco acima do centro, igual à exportação
+      const pc = has('punch') ? 1.15 : 1;
+      v.style.transformOrigin = pc > 1 ? '50% 35%' : '';
+      const zz = z ? 1.18 : pu ? pz : pl ? plz : 1;
+      v.style.transform = zz * pc !== 1 ? `scale(${(zz * pc).toFixed(4)})` : '';
       const rv = has('reveal');
       if (rv)
         v.style.filter += ` brightness(${clamp((t - rv.start) / Math.max(0.1, rv.end - rv.start), 0, 1).toFixed(2)})`;
@@ -335,7 +340,7 @@
       const hs = sty.map((s) => s.size * 1.08 + (s.box ? 0.02 : 0));
       const total = hs.reduce((a, b) => a + b, 0);
       const cy = o.card ? 0.5 : ar < 0.7 ? 0.38 : wide ? 0.46 : 0.42;
-      let y = clamp(cy - total / 2, ar < 0.7 ? 0.13 : 0.08, ar < 0.7 ? 0.62 : 0.72);
+      let y = clamp(cy - total / 2, o.minY ?? (ar < 0.7 ? 0.13 : 0.08), ar < 0.7 ? 0.62 : 0.72);
       const end = Math.min(D(), groups[groups.length - 1].e + (o.card ? 0.35 : 0.7));
       const grp = rid();
       const overlays = groups.map((g, i) => {
@@ -381,6 +386,56 @@
       return { overlays, fx, grp };
     }
     shared.buildImpact = buildImpact;
+    // Título-gancho no topo (o "hook" dos cortes virais): até 3 linhas, a palavra de destaque sozinha no meio, maior e
+    // na cor do conceito ("DEUS NÃO" / "TERMINOU" / "COM VOCÊ"). Fica fora da área de cima que o Instagram cobre.
+    function buildHook(h, P, end) {
+      const ar = aspect();
+      const ws = h.text.split(/\s+/).filter(Boolean);
+      const norm = (x) => clean(x).toLowerCase();
+      let ai = ws.findIndex((w) => norm(w) === norm(h.accent || ''));
+      const lines = [];
+      if (ai >= 0) {
+        if (ai > 0) lines.push([ws.slice(0, ai).join(' '), false]);
+        lines.push([ws[ai], true]);
+        if (ai < ws.length - 1) lines.push([ws.slice(ai + 1).join(' '), false]);
+      } else {
+        const half = Math.ceil(ws.length / 2);
+        lines.push([ws.slice(0, half).join(' '), false]);
+        if (ws.length > half) lines.push([ws.slice(half).join(' '), false]);
+      }
+      const font = (P && P.big && P.big.font) || 'Montserrat Black',
+        accent = (P && P.accent) || '#facc15',
+        maxW = ar < 0.7 ? 0.84 : 0.6;
+      let y = ar < 0.7 ? 0.1 : 0.07;
+      return lines.map(([text, big]) => {
+        const s0 = big ? 0.072 : 0.046,
+          wf = (sz) => (text.length * sz * (FONT_W[font] || 0.62) * 1.12) / ar,
+          size = Math.min(s0, s0 * (maxW / Math.max(0.01, wf(s0))));
+        const yy = y + (size * 1.08) / 2;
+        y += size * 1.08;
+        return {
+          id: rid(),
+          type: 'text',
+          text,
+          x: 0.5,
+          y: +yy.toFixed(3),
+          start: 0,
+          end: +end.toFixed(2),
+          hidden: false,
+          size: +size.toFixed(4),
+          color: big ? accent : '#ffffff',
+          font,
+          bold: false,
+          italic: false,
+          upper: true,
+          box: null,
+          outline: { color: '#000000', w: 2.5 },
+          anim: 'fade',
+          hook: true,
+          ai: true,
+        };
+      });
+    }
     const addImpact = (ws, o) => {
       const r = buildImpact(ws, o);
       if (!r.overlays.length) return 0;
@@ -480,7 +535,17 @@
           : null;
         // tira o que a IA tinha posto antes, para não empilhar sugestões
         for (const g of groupsList()) if (st.overlays.find((o) => o.grp === g.grp && o.ai)) delGroup(g.grp);
+        st.overlays = st.overlays.filter((o) => !(o.hook && o.ai));
         st.fx = st.fx.filter((f) => !f.ai);
+        // título-gancho no topo
+        const hookAlways = !!(r.hook && r.hook.show === 'always');
+        if (r.hook && r.hook.text && !st.overlays.some((o) => o.hook))
+          st.overlays.push(...buildHook(r.hook, DP, hookAlways ? D() : Math.min(D(), 4)));
+        // câmera dinâmica: corta para mais perto e volta a cada frase (como duas câmeras)
+        for (const [a, b] of r.punch || []) {
+          if (b > D() + 0.05) continue;
+          st.fx.push({ id: rid(), type: 'punch', start: a, end: Math.min(b, D()), ai: true, cam: true });
+        }
         let nP = 0,
           nC = 0;
         // o que a pessoa fez à mão fica: sugestão que cairia em cima disso é pulada
@@ -491,6 +556,7 @@
           if (!sel.length || busyAt(sel[0].s, sel[sel.length - 1].e + 0.7)) continue;
           const n = addImpact(sel, {
             P: DP,
+            minY: hookAlways && aspect() < 0.7 ? 0.3 : undefined, // abaixo do título-gancho
             preset: PRESETS[p.style] ? p.style : ui.preset,
             bigIdx: (p.big || []).map((k) => k - p.from),
             side: r.impact ? r.impact.side : p.side || ui.side,
@@ -571,7 +637,8 @@
       const a = ui.from === null ? -1 : Math.min(ui.from, ui.to ?? ui.from),
         b = ui.from === null ? -1 : Math.max(ui.from, ui.to ?? ui.from);
       const gs = groupsList();
-      const fxs = st.fx.filter((f) => !f.grp);
+      const fxs = st.fx.filter((f) => !f.grp && !f.cam);
+      const cams = st.fx.filter((f) => f.cam);
       const ctx = shared.ctx || {},
         ai = ctx.ai;
       const yn = (key, label, on, can = true) =>
@@ -638,12 +705,17 @@
                 .join('')}</div>`
             : ''
         }
+        ${cams.length ? `<div class="imp-fxr"><span class="nm">🎥 Câmera dinâmica: ${cams.length} corte${cams.length === 1 ? '' : 's'} para perto</span><button data-rmcam="1" aria-label="Tirar a câmera dinâmica">✕</button></div>` : ''}
         <h4>Cor do vídeo</h4>${chips(LOOKS, st.look || 'none', 'look')}`;
     }
     function bind(dr) {
       const on = (sel, fn) => $$(sel, dr).forEach((b) => b.addEventListener('click', () => fn(b)));
       const ai = $('#imp-ai', dr);
       if (ai) ai.onclick = suggest;
+      on('[data-rmcam]', () => {
+        st.fx = st.fx.filter((f) => !f.cam);
+        refresh();
+      });
       on('[data-opt]', (b) => {
         const [k, val] = b.dataset.opt.split(':');
         ui[k] = val === '1';

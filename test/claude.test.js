@@ -352,3 +352,47 @@ test('mais curto: resposta que não encurta de verdade vira erro e o corte fica 
     (e) => e.status === 409,
   );
 });
+
+test('direção de arte: câmera dinâmica por frase, título-gancho, efeitos sóbrios e poucos', async () => {
+  const { designEdit } = require('../lib/claude');
+  const words = [];
+  const times = [];
+  for (let i = 0; i < 40; i++) {
+    words.push(i % 8 === 7 ? 'fim.' : 'palavra');
+    times.push([i * 0.5, i * 0.5 + 0.4]);
+  }
+  const r = await designEdit({
+    ask: async () => ({
+      scene: 'x',
+      subject_side: 'center',
+      concept: 'cinema',
+      caption: { style: 'Palavra por palavra/Dourado', accent: '#f0b93a', position: 'bottom', size: 16, keywords: [] },
+      impact: {},
+      phrases: [],
+      fx: [
+        { type: 'glitch', from: 1, to: 2 },
+        { type: 'push', from: 20, to: 25 },
+        { type: 'bw', from: 34, to: 35 },
+        { type: 'dim', from: 36, to: 37 },
+      ],
+      hook: { text: 'Deus não terminou com você.', accent: 'terminou', show: 'always' },
+      look: 'cinema',
+      note: '',
+    }),
+    name: 'teste',
+    words,
+    times,
+    format: '9:16',
+  });
+  assert.deepEqual(
+    r.fx.map((f) => f.type),
+    ['push', 'bw'],
+  ); // glitch não é da IA; dim colado no bw (menos de 3 s) sai
+  assert.deepEqual(r.hook, { text: 'Deus não terminou com você', accent: 'terminou', show: 'always' });
+  assert.ok(r.punch.length >= 1, 'há cortes de câmera');
+  const push = [times[20][0], times[25][1]];
+  for (const [a, b] of r.punch) {
+    assert.ok(b - a >= 1.2 && a > 0);
+    assert.ok(!(a < push[1] && b > push[0]), 'não aproxima onde já há push');
+  }
+});

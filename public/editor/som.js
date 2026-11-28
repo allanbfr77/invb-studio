@@ -111,33 +111,29 @@
     // efeitos onde a edição já tem algo acontecendo
     function auto(silent) {
       st.sfx = st.sfx.filter((s) => !s.auto);
-      const seen = new Set();
+      // Comedido, como nos cortes de pregação de alto nível: whoosh discreto nas frases de impacto, uma batida grave na
+      // cartela, subida antes do preto e branco. Nada de trovão, sino ou coral a cada efeito; no mínimo 2 s entre sons.
+      const times = [];
       const put = (type, at, vol) => {
-        const k = Math.round(at * 10);
-        if (seen.has(k) || at < 0) return;
-        seen.add(k);
+        if (at < 0 || times.some((t) => Math.abs(t - at) < 2)) return;
+        times.push(at);
         addSfx(type, at, vol, true);
       };
       const groups = new Map();
       for (const o of st.overlays)
         if (o.grp && !o.hidden) groups.set(o.grp, Math.min(groups.get(o.grp) ?? 1e9, o.start ?? 0));
       const cards = new Set((st.fx || []).filter((f) => f.type === 'card' && f.grp).map((f) => f.grp));
-      for (const [g, at] of groups)
-        put(cards.has(g) ? 'boom' : 'whoosh', Math.max(0, at - (cards.has(g) ? 0 : 0.12)), cards.has(g) ? 0.9 : 0.55);
+      // o mais forte primeiro (cartela), depois o resto
+      for (const [g, at] of groups) if (cards.has(g)) put('boom', at, 0.75);
       for (const f of st.fx || []) {
-        if (f.grp) continue;
-        if (f.type === 'card') put('boom', f.start, 0.9);
-        if (f.type === 'zoom' || f.type === 'shake') put('batida', f.start, 0.8);
-        if (f.type === 'flash') put('clique', f.start, 0.8);
-        if (f.type === 'bw') put('subida', Math.max(0, f.start - 1.5), 0.5);
-        if (f.type === 'reveal') put('reverso', Math.max(0, f.start - 0.8), 0.6);
-        if (f.type === 'glow') put('coral', f.start, 0.45);
-        if (f.type === 'pulse') put('coracao', f.start, 0.7);
-        if (f.type === 'dim') put('trovao', f.start, 0.45);
-        if (f.type === 'warm') put('sino', f.start, 0.5);
-        if (f.type === 'pull' || f.type === 'push') put('vento', f.start, 0.4);
+        if (f.grp || f.cam) continue;
+        if (f.type === 'card') put('boom', f.start, 0.75);
+        if (f.type === 'bw') put('subida', Math.max(0, f.start - 1.5), 0.4);
+        if (f.type === 'reveal') put('reverso', Math.max(0, f.start - 0.8), 0.45);
+        if (f.type === 'zoom' || f.type === 'shake') put('batida', f.start, 0.55);
+        if (f.type === 'flash') put('clique', f.start, 0.6);
       }
-      for (const b of st.broll || []) put('whoosh', Math.max(0, b.start - 0.15), 0.55);
+      for (const [g, at] of groups) if (!cards.has(g)) put('whoosh', Math.max(0, at - 0.12), 0.35);
       st.sfx.sort((a, b) => a.at - b.at);
       const n = st.sfx.filter((s) => s.auto).length;
       refresh();

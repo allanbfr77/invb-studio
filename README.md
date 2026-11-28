@@ -175,6 +175,16 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   no tempo em que é dita com um **quique** (entra pequena, passa do tamanho e assenta em ~0,18 s), as palavras-chave da
   fala ganham cor e ficam maiores, e no 9:16 a legenda fica a 22% da borda de baixo (fora da área que o Instagram cobre).
   A direção de arte do Claude escolhe um desses estilos pelo conceito e **varia entre os cortes** da mesma pregação.
+- **Direção de arte no padrão dos cortes virais de pregação:**
+  - **Câmera dinâmica (punch-in):** a cada frase (pontuação ou pausa, planos de 2,2 a 6 s) o vídeo corta seco para
+    115% (um pouco acima do centro, no rosto) e volta, como se fossem duas câmeras. Tipo de efeito `punch`, num ramo só
+    do ffmpeg; na gaveta Impacto aparece como "Câmera dinâmica" (✕ tira tudo) e dá para pôr à mão ("Câmera perto").
+  - **Título-gancho no topo:** a IA escreve a promessa do corte (3 a 7 palavras) e a palavra de destaque fica sozinha
+    no meio, maior e na cor do conceito; fica o corte todo ou só os 4 primeiros segundos.
+  - **Menos e melhor:** a IA só usa efeitos sóbrios (push, P&B, escurecer, luz quente, brilho, só vermelho, pull,
+    zoom curto, surgir do preto) — de 0 a 3 por corte, com 3 s entre eles; 2 a 4 frases de impacto com 4,5 s de
+    respiro e no máximo 1 cartela. Glitch, VHS, mosaico, tremida, flash, rastro e filme antigo ficam só na mão.
+  - **Sons comedidos:** whoosh discreto nas frases, batida grave na cartela, subida antes do P&B; 2 s entre sons.
 - **ffmpeg com legenda:** se o ffmpeg encontrado não tem a libass, o Studio procura outro no Mac (Homebrew em
   `/opt/homebrew/bin` ou `/usr/local/bin`) que desenhe legenda e usa esse. Desde jan/2026 o `ffmpeg` do Homebrew vem enxuto, sem libass: o completo é o
   `ffmpeg-full` (o `iniciar.command` instala sozinho quando falta; o Studio acha em `/opt/homebrew/opt/ffmpeg-full`).
