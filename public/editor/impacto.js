@@ -257,7 +257,7 @@
         zb = st.zoom > 1 ? st.zoom : 1,
         cr = st.crop || { x: 0.5, y: 0.5 };
       v.style.transformOrigin = zb > 1 ? `${cr.x * 100}% ${cr.y * 100}%` : pc > 1 ? '50% 35%' : '';
-      const zz = z ? 1.18 : pu ? pz : pl ? plz : 1;
+      const zz = z ? 1.08 : pu ? pz : pl ? plz : 1;
       v.style.transform = zz * pc * zb !== 1 ? `scale(${(zz * pc * zb).toFixed(4)})` : '';
       const rv = has('reveal');
       if (rv)
@@ -352,8 +352,8 @@
       const hs = sty.map((s) => s.size * 1.08 + (s.box ? 0.02 : 0));
       const total = hs.reduce((a, b) => a + b, 0);
       const cy = o.card ? 0.5 : (o.cy ?? (ar < 0.7 ? 0.38 : wide ? 0.46 : 0.42));
-      // o bloco inteiro termina acima da legenda (no vertical ela começa por volta de 72% da altura)
-      let y = clamp(cy - total / 2, o.minY ?? (ar < 0.7 ? 0.13 : 0.08), (ar < 0.7 ? 0.69 : 0.76) - total);
+      // o bloco inteiro termina acima da legenda (no vertical ela fica por volta de 66–72% da altura)
+      let y = clamp(cy - total / 2, o.minY ?? (ar < 0.7 ? 0.13 : 0.08), (ar < 0.7 ? 0.63 : 0.76) - total);
       const end = Math.min(D(), groups[groups.length - 1].e + (o.card ? 0.35 : 0.7));
       const grp = rid();
       const overlays = groups.map((g, i) => {
@@ -604,7 +604,7 @@
         if (face && aspect() < 1.1) {
           const headB = face.y + face.h * 0.62,
             headT = face.y - face.h * 0.62;
-          impactY = headB < 0.62 ? (headB + 0.74) / 2 : Math.max(0.28, headT / 2 + 0.12);
+          impactY = headB < 0.56 ? (headB + 0.64) / 2 : Math.max(0.28, headT / 2 + 0.12);
         }
         if (shared.drawLeft) shared.drawLeft();
         if (shared.layoutStage) shared.layoutStage();

@@ -185,6 +185,12 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
     zoom curto, surgir do preto) — de 0 a 3 por corte, com 3 s entre eles; 2 a 4 frases de impacto com 4,5 s de
     respiro e no máximo 1 cartela. Glitch, VHS, mosaico, tremida, flash, rastro e filme antigo ficam só na mão.
   - **Sons comedidos:** whoosh discreto nas frases, batida grave na cartela, subida antes do P&B; 2 s entre sons.
+- **Estudo de design (docs/estudo/):** guia mestre + 6 relatórios (ofício do editor, tipografia, cores, marketing,
+  mercado de cortes BR, animação e som) com as fontes. O que entrou no Studio a partir dele: escolha de trechos com as
+  regras dos editores (uma ideia, começa na frase mais forte, termina na recompensa, 30–60 s, teste dos 60 s, sem
+  "corte gotcha"); texto do post com palavra-chave, pergunta/"envie para alguém" e 2–5 hashtags específicas; quique da
+  legenda sutil (88%→106%→100%); zoom de ênfase 8%; palavras-chave em ~1 a cada 10; legenda no 9:16 a 28% da borda
+  (fora da interface); imagens de apoio de 1–3 s a partir dos 3 s; música padrão a ~−18 dB; até 3 efeitos sonoros.
 - **Design v4 (pedidos da equipe):**
   - **Sem título fixo no topo e sem os mini zooms automáticos** (a câmera dinâmica saiu da IA; "Câmera perto" ainda
     existe à mão no Impacto).

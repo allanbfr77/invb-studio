@@ -110,7 +110,7 @@
       let f = (isAct && style.grow ? 1.18 : 1) * (isKw && style.emph ? 1.2 : 1) * (isKw && style.kf ? 1.15 : 1);
       // uma palavra por vez: diminui a palavra longa que passaria da borda (a mesma conta da exportação)
       if (style.mode === 'words1' && style._W && style._fs) {
-        const wpx = CSx.textW(isKw && style.kf ? style.kf : style.font, w.t, style.upper) * style._fs * f * 1.12;
+        const wpx = CSx.textW(isKw && style.kf ? style.kf : style.font, w.t, style.upper) * style._fs * f * 1.06;
         if (wpx > style._W * 0.88) f *= (style._W * 0.88) / wpx;
       }
       if (f !== 1) css += (css ? ';' : '') + `font-size:${f}em`;

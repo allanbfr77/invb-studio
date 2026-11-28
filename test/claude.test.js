@@ -169,13 +169,17 @@ test('describeCut devolve título, descrição e hashtags normalizadas', async (
   });
 });
 
-test('describeCut limita a 12 hashtags e corta título longo', async () => {
+test('describeCut limita a 5 hashtags (limite do Instagram), tira as genéricas e corta título longo', async () => {
   const c = fake(
-    post({ title: 'x'.repeat(300), description: 'd', hashtags: Array.from({ length: 30 }, (_, i) => '#tag' + i) }),
+    post({
+      title: 'x'.repeat(300),
+      description: 'd',
+      hashtags: ['#reels', '#fyp', ...Array.from({ length: 30 }, (_, i) => '#tag' + i)],
+    }),
   );
   const r = await describeCut({ client: c, name: 'x', text: 'texto', seconds: 30 });
   assert.equal(r.title.length, 120);
-  assert.equal(r.hashtags.length, 12);
+  assert.deepEqual(r.hashtags, ['#tag0', '#tag1', '#tag2', '#tag3', '#tag4']);
 });
 
 test('describeCut sem texto do corte nem chama a API', async () => {

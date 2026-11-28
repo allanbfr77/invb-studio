@@ -115,7 +115,8 @@
       // cartela, subida antes do preto e branco. Nada de trovão, sino ou coral a cada efeito; no mínimo 2 s entre sons.
       const times = [];
       const put = (type, at, vol) => {
-        if (at < 0 || times.some((t) => Math.abs(t - at) < 2)) return;
+        // no máximo 3 por corte (o estudo: 1–3 efeitos num corte de 30–60 s; "a maioria dos cortes é silenciosa")
+        if (at < 0 || times.length >= 3 || times.some((t) => Math.abs(t - at) < 2)) return;
         times.push(at);
         addSfx(type, at, vol, true);
       };
@@ -176,7 +177,7 @@
     const setMusic = (it) => {
       st.music = {
         mediaId: it.id,
-        vol: st.music ? st.music.vol : 0.2,
+        vol: st.music ? st.music.vol : 0.12, // ~−18 dB: o estudo pede a música 18–24 dB abaixo da voz
         duck: st.music ? st.music.duck : true,
         from: 0,
         name: it.name,
