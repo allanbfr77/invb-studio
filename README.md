@@ -118,10 +118,16 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
     que é falada, com a palavra mais forte em destaque. Estilos (vermelho forte, serifa, amarelo, branco alto, tarja),
     lado e entrada (pop, desfocado, de perto, deslizar, suave). O tamanho se ajusta para caber no quadro.
   - **Cartela:** a mesma frase em tela cheia numa cor (preto, branco, vermelho, dourado), sem o pregador.
-  - **Efeitos no trecho:** P&B com cantos escuros, zoom, tremida e flash, só no pedaço marcado.
+  - **Efeitos no trecho:** P&B com cantos escuros, zoom, zoom lento, tremida, flash, desfoque, glitch, escurecer e
+    rastro, só no pedaço marcado.
+  - **Esconder a legenda no impacto** (ligado por padrão): enquanto a frase de impacto ou a cartela está na tela, a
+    legenda normal some, para não repetir a frase.
+  - A disposição das palavras se ajusta ao formato: no horizontal ficam num terço da tela (o pregador livre), no
+    vertical acima da área da legenda e longe dos botões da direita, no quadrado mais ao centro.
   - **Cor do vídeo:** quente, filme (com grão), frio, P&B dramático ou vivo.
-  - **✨ Sugerir com o Claude** (com a IA ligada): ele lê a fala e monta frases, cartelas, efeitos e cor; o que você
-    fez à mão fica. Ctrl+Z desfaz.
+  - **✨ Sugerir tudo com o Claude** (com a IA ligada): ele lê a fala e monta a edição inteira — frases, cartelas,
+    efeitos e cor e, conforme as opções **Com/Sem**, imagens de apoio, efeitos sonoros e música. O que você fez à mão
+    fica. Ctrl+Z desfaz.
   - A prévia imita os efeitos; a exportação faz o mesmo com o ffmpeg (`lib/render.js`: `LOOKS`, `fxChain`,
     `animTag`). O código da gaveta fica em `public/editor/impacto.js`. Cada palavra também aparece em Texto e
     Camadas para ajustes finos, e todo texto ganhou a opção **Entrada** (animação).

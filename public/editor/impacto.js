@@ -75,6 +75,11 @@
     shake: { label: 'Tremida', dur: 0.6, tip: 'A imagem treme, para um grito ou batida' },
     flash: { label: 'Flash', dur: 0.3, tip: 'Um clarão branco que some' },
     card: { label: 'Cartela', dur: 1.2, tip: 'Tela cheia numa cor só' },
+    push: { label: 'Zoom lento', dur: 2.5, tip: 'Aproxima devagar, numa frase que vai crescendo' },
+    blur: { label: 'Desfoque', dur: 1.0, tip: 'A imagem fica borrada (confusão, algo que some)' },
+    glitch: { label: 'Glitch', dur: 0.5, tip: 'Cores separadas e chuvisco (erro, engano, mentira)' },
+    dim: { label: 'Escurecer', dur: 1.5, tip: 'A imagem escurece (trevas, peso, pecado)' },
+    echo: { label: 'Rastro', dur: 1.0, tip: 'O movimento deixa rastro (passado, memória)' },
   };
   const CARD_COLORS = ['#000000', '#ffffff', '#c0262d', '#f0b93a'];
   const dark = (hex) => {
@@ -111,6 +116,11 @@
       cardColor: '#000000',
     };
     ui.busy = false;
+    // o que o "Sugerir tudo" monta além do impacto
+    ui.withImages = true;
+    ui.withSound = true;
+    ui.withMusic = true;
+    ui.stage = '';
     if (!Array.isArray(st.fx)) st.fx = [];
     if (!st.look) st.look = 'none';
 
@@ -137,14 +147,25 @@
       const on = (st.fx || []).filter((f) => t >= f.start && t <= f.end);
       const has = (k) => on.find((f) => f.type === k);
       const [lookCss, lookVig] = LOOK_CSS[st.look] || LOOK_CSS.none;
-      const filt = [st.bw ? 'grayscale(1)' : '', lookCss, has('bw') ? 'grayscale(1) contrast(1.25)' : '']
+      const filt = [
+        st.bw ? 'grayscale(1)' : '',
+        lookCss,
+        has('bw') ? 'grayscale(1) contrast(1.25)' : '',
+        has('blur') ? 'blur(6px)' : '',
+        has('dim') ? 'brightness(.68) saturate(.8)' : '',
+        has('echo') ? 'contrast(1.08)' : '',
+      ]
         .filter(Boolean)
         .join(' ');
       v.style.filter = filt;
       vig.style.opacity = has('bw') || lookVig ? (has('bw') ? 1 : 0.6) : 0;
-      const z = has('zoom');
+      const z = has('zoom'),
+        pu = has('push');
       v.classList.toggle('imp-shake', !!has('shake'));
-      v.style.transform = z ? 'scale(1.18)' : '';
+      v.classList.toggle('imp-glitch', !!has('glitch'));
+      v.classList.toggle('imp-echo', !!has('echo'));
+      const pz = pu ? 1 + 0.15 * clamp((t - pu.start) / Math.max(0.1, pu.end - pu.start), 0, 1) : 1;
+      v.style.transform = z ? 'scale(1.18)' : pu ? `scale(${pz.toFixed(4)})` : '';
       const c = has('card');
       card.style.opacity = c ? 1 : 0;
       if (c) card.style.background = c.color || '#000';
@@ -189,20 +210,26 @@
       const big = new Set([byLen[0][1]]);
       if (byLen[1] && byLen[1][0] >= 6 && groups.length >= 3) big.add(byLen[1][1]);
       // cada parte cabe no quadro: diminui a letra se a palavra for larga demais e afasta da borda
+      // disposição pelo formato: no horizontal, o texto fica num terço (o pregador livre); no vertical, acima da
+      // área da legenda e longe dos botões da direita; no quadrado, mais ao centro
       const ar = aspect(),
-        side = o.card ? 0.5 : (SIDES.find((s) => s[0] === o.side) || SIDES[0])[2];
+        wide = ar > 1.2,
+        sideK = o.card ? 'centro' : o.side || 'esq',
+        side = sideK === 'centro' ? 0.5 : sideK === 'dir' ? (wide ? 0.74 : 0.68) : wide ? 0.26 : 0.32,
+        maxW = sideK !== 'centro' && wide ? 0.42 : ar < 0.7 ? 0.8 : 0.84;
       const sty = groups.map((g, i) => {
         const s0 = big.has(i) ? P.big : P.small;
         const wFrac = (size) =>
           (g.text.length * size * (FONT_W[s0.font] || 0.62) * (s0.upper ? 1.12 : 1) + (s0.box ? size * 0.5 : 0)) / ar;
-        const size = Math.min(s0.size, s0.size * (0.84 / Math.max(0.01, wFrac(s0.size))));
+        const size = Math.min(s0.size, s0.size * (maxW / Math.max(0.01, wFrac(s0.size))));
         const w = wFrac(size);
         const x = clamp(side, 0.07 + w / 2, (ar < 1 ? 0.86 : 0.93) - w / 2); // no vertical, a direita fica livre dos botões
-        return { ...s0, size: +size.toFixed(4), x: +(w >= 0.78 ? 0.5 : x).toFixed(3) };
+        return { ...s0, size: +size.toFixed(4), x: +(w >= 0.78 && !wide ? 0.5 : x).toFixed(3) };
       });
       const hs = sty.map((s) => s.size * 1.08 + (s.box ? 0.02 : 0));
       const total = hs.reduce((a, b) => a + b, 0);
-      let y = clamp((o.card ? 0.5 : 0.4) - total / 2, 0.13, 0.7);
+      const cy = o.card ? 0.5 : ar < 0.7 ? 0.38 : wide ? 0.46 : 0.42;
+      let y = clamp(cy - total / 2, ar < 0.7 ? 0.13 : 0.08, ar < 0.7 ? 0.62 : 0.72);
       const end = Math.min(D(), groups[groups.length - 1].e + (o.card ? 0.35 : 0.7));
       const grp = rid();
       const overlays = groups.map((g, i) => {
@@ -345,10 +372,33 @@
         if (r.look && LOOK_CSS[r.look]) st.look = r.look;
         st.fx.sort((a, b) => a.start - b.start);
         refresh();
-        toast(
-          `O Claude montou ${nP} frase${nP === 1 ? '' : 's'} de impacto, ${nC} cartela${nC === 1 ? '' : 's'} e ${nF} efeito${nF === 1 ? '' : 's'}. Dê o play para ver; Ctrl+Z desfaz.`,
-        );
         if (r.note) ui.note = r.note;
+        // o resto da edição, conforme as opções: imagens de apoio, efeitos sonoros e música
+        const done = [
+          `${nP} frase${nP === 1 ? '' : 's'} de impacto`,
+          `${nC} cartela${nC === 1 ? '' : 's'}`,
+          `${nF} efeito${nF === 1 ? '' : 's'}`,
+        ];
+        const ctx = shared.ctx || {};
+        if (ui.withImages && ctx.broll && shared.apoioAuto) {
+          ui.stage = 'Escolhendo as imagens de apoio…';
+          drawDrawer();
+          const n = await shared.apoioAuto().catch((e) => (toast(e.message), 0));
+          done.push(`${n} imagem${n === 1 ? '' : 'ns'} de apoio`);
+        }
+        if (ui.withSound && shared.somAuto) {
+          const n = shared.somAuto(true);
+          done.push(`${n} som${n === 1 ? '' : 's'}`);
+        }
+        if (ui.withMusic && ctx.musicSearch && shared.somMusicAuto) {
+          ui.stage = 'Escolhendo a música…';
+          drawDrawer();
+          const m = await shared.somMusicAuto().catch((e) => (toast(e.message), null));
+          if (m) done.push(`música “${m}”`);
+        }
+        ui.stage = '';
+        shared.applyFx();
+        toast(`O Claude montou: ${done.join(', ')}. Dê o play para ver; Ctrl+Z desfaz.`);
       } catch (e) {
         toast(e.message);
       }
@@ -365,13 +415,21 @@
         b = ui.from === null ? -1 : Math.max(ui.from, ui.to ?? ui.from);
       const gs = groupsList();
       const fxs = st.fx.filter((f) => !f.grp);
-      const ai = shared.ctx && shared.ctx.ai;
-      return `<h3>Impacto</h3><p class="dlx-sub" style="margin-top:0">As palavras fortes entram grandes no tempo da fala, com cartelas, P&amp;B, zoom e a cor do vídeo. A prévia mostra; o "Baixar corte" sai igual.</p>
+      const ctx = shared.ctx || {},
+        ai = ctx.ai;
+      const yn = (key, label, on, can = true) =>
+        can
+          ? `<div class="imp-opt"><span>${label}</span><div class="dlx-chips"><button data-opt="${key}:1" aria-pressed="${on}">Com</button><button data-opt="${key}:0" aria-pressed="${!on}">Sem</button></div></div>`
+          : '';
+      return `<h3>Impacto</h3><p class="dlx-sub" style="margin-top:0">As palavras fortes entram grandes no tempo da fala, com cartelas, efeitos e a cor do vídeo. A prévia mostra; o "Baixar corte" sai igual.</p>
         ${
           ai
-            ? `<button class="ap-btn pri imp-ai" id="imp-ai" ${ui.busy ? 'disabled' : ''}>${ui.busy ? 'O Claude está montando…' : '✨ Sugerir com o Claude'}</button><p class="dlx-sub">O Claude lê a fala e escolhe as frases de impacto, onde pôr cartela, P&amp;B, zoom e a cor. Depois é só ajustar.</p>${ui.note ? `<p class="imp-note">${esc(ui.note)}</p>` : ''}`
+            ? `<div class="imp-all">${yn('withImages', 'Imagens de apoio', ui.withImages, ctx.broll)}${yn('withSound', 'Efeitos sonoros', ui.withSound)}${yn('withMusic', 'Música de fundo', ui.withMusic, ctx.musicSearch)}
+              <button class="ap-btn pri imp-ai" id="imp-ai" ${ui.busy ? 'disabled' : ''}>${ui.busy ? esc(ui.stage || 'O Claude está montando…') : '✨ Sugerir tudo com o Claude'}</button></div>
+              <p class="dlx-sub">O Claude lê a fala e monta a edição inteira: frases de impacto, cartelas, efeitos, cor${ctx.broll ? ', imagens' : ''}, sons${ctx.musicSearch ? ' e música' : ''}. Depois é só ajustar.</p>${ui.note ? `<p class="imp-note">${esc(ui.note)}</p>` : ''}`
             : ''
         }
+        <div class="dlx-row" style="margin-top:6px"><div><b>Esconder a legenda no impacto</b><small>Enquanto a frase de impacto ou a cartela está na tela, a legenda some (não repete a frase)</small></div>${shared.sw('imp-caphide', st.capHideImp !== false)}</div>
         <h4>Palavras de impacto</h4>
         <p class="dlx-sub" style="margin-top:0">Toque na primeira e na última palavra da frase.</p>
         <div class="imp-ws" id="imp-ws">${ws.length ? ws.map((w, i) => `<button data-w="${i}" class="${i >= a && i <= b ? 'on' : ''}" title="${tm(w.s)}">${esc(w.t)}</button>`).join('') : '<p class="dlx-sub">Carregando as palavras…</p>'}</div>
@@ -429,6 +487,19 @@
       const on = (sel, fn) => $$(sel, dr).forEach((b) => b.addEventListener('click', () => fn(b)));
       const ai = $('#imp-ai', dr);
       if (ai) ai.onclick = suggest;
+      on('[data-opt]', (b) => {
+        const [k, val] = b.dataset.opt.split(':');
+        ui[k] = val === '1';
+        drawDrawer();
+      });
+      const ch = $('#imp-caphide', dr);
+      if (ch)
+        ch.addEventListener('click', () => {
+          st.capHideImp = st.capHideImp === false;
+          commit();
+          shared.paintCap();
+          drawDrawer();
+        });
       on('[data-w]', (b) => {
         const i = +b.dataset.w;
         if (ui.from === null || ui.to !== null) {

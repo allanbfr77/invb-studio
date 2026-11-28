@@ -204,3 +204,58 @@ test('Impacto com o Claude: devolve frases, efeitos e cor já conferidos', async
     400,
   );
 });
+
+test(
+  'Impacto: efeitos novos (zoom lento, desfoque, glitch, escurecer, rastro) saem no arquivo',
+  { skip: !HAS_FFMPEG || process.platform === 'win32' },
+  async (t) => {
+    const d = tmp(t);
+    seedTone(d, 'kkkkkkkkkkkl');
+    const s = await boot(t, d);
+    const base = '/uploads/kkkkkkkkkkkl/clips/' + (await s.api('/uploads/kkkkkkkkkkkl/clips')).body[0].id;
+    await s.api(base + '/render', {
+      json: {
+        captions: false,
+        format: '9:16',
+        fx: [
+          { type: 'push', start: 0.2, end: 1.2 },
+          { type: 'blur', start: 1.4, end: 2.2 },
+          { type: 'glitch', start: 2.4, end: 2.9 },
+          { type: 'dim', start: 3.2, end: 4.2 },
+          { type: 'echo', start: 4.4, end: 5.4 },
+        ],
+      },
+    });
+    const done = await waitRender(s, 'kkkkkkkkkkkl');
+    const file = path.join(d, 'uploads', 'kkkkkkkkkkkl', 'clips', done.file);
+    const lum = (t2) => {
+      const f = frame(file, t2);
+      return f.R + f.G + f.B;
+    };
+    assert.ok(lum(3.7) < lum(5.8) - 40, `escurecer deixa o quadro mais escuro (${lum(3.7)} x ${lum(5.8)})`);
+  },
+);
+
+test('legenda some onde há palavras de impacto (capHide)', () => {
+  const { buildAss, cleanOpts } = require('../lib/render');
+  const tr = {
+    segments: [
+      {
+        id: 0,
+        start: 0,
+        end: 4,
+        text: 'eu também sou jovem e sei',
+        words: ['eu', 'também', 'sou', 'jovem', 'e', 'sei'].map((w, i) => ({ w, s: i * 0.6, e: i * 0.6 + 0.5 })),
+      },
+    ],
+  };
+  const c = { start: 0, end: 4 };
+  const rel = (x) => x;
+  const ass = (opt) => buildAss(tr, c, cleanOpts(opt), 1080, 1920, rel, false).split('[Events]')[1].toLowerCase();
+  const all = ass({ captions: { on: true } }),
+    hidden = ass({ captions: { on: true }, capHide: [[0.5, 2.0]] });
+  assert.match(all, /também/);
+  assert.match(all, /jovem/);
+  assert.doesNotMatch(hidden, /também|sou/); // as palavras ditas durante o impacto saem da legenda
+  assert.match(hidden, /jovem/); // as outras continuam
+});

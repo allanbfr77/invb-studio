@@ -386,3 +386,12 @@
 .som-it small{color:var(--muted)}
 .som-it button[data-listen],.som-it button[data-hearu]{width:30px;height:30px;border-radius:50%;border:1px solid var(--border)}
 .som-up{width:100%;justify-content:center;margin-top:10px;cursor:pointer}
+
+/* Impacto: "Sugerir tudo" e efeitos novos na prévia */
+.imp-all{border:1px solid var(--border);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;margin-bottom:4px}
+.imp-opt{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}
+.imp-opt .dlx-chips button{padding:3px 10px}
+.dlx-stage video.imp-glitch{animation:imp-glitch .18s steps(2) infinite}
+@keyframes imp-glitch{0%{translate:0 0;filter:hue-rotate(0)}50%{translate:-1.2% .4%;filter:hue-rotate(40deg) saturate(1.6)}100%{translate:1% -.3%;filter:hue-rotate(-30deg)}}
+.dlx-stage video.imp-echo{animation:imp-echo .25s linear infinite}
+@keyframes imp-echo{0%{opacity:1}50%{opacity:.82}100%{opacity:1}}

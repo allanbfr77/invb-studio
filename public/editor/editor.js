@@ -163,6 +163,7 @@
       lang: null,
       overlays: [],
       look: 'none', // cor do vídeo inteiro (gaveta Impacto)
+      capHideImp: true, // a legenda some enquanto aparecem as palavras de impacto e as cartelas
       fx: [], // efeitos num trecho: P&B, zoom, tremida, flash, cartela (gaveta Impacto)
       broll: [], // imagens de apoio do Pexels (gaveta Apoio)
       sfx: [], // efeitos sonoros (gaveta Som)
@@ -205,6 +206,7 @@
       'lang',
       'overlays',
       'look',
+      'capHideImp',
       'fx',
       'broll',
       'sfx',
@@ -290,6 +292,7 @@
         lang: st.lang,
         overlays: st.overlays,
         look: st.look,
+        capHideImp: st.capHideImp,
         fx: st.fx,
         broll: st.broll,
         sfx: st.sfx,
@@ -647,6 +650,19 @@
     layoutStage();
     tickUI();
   }
+  // Onde a legenda some: o tempo de cada grupo de palavras de impacto e de cada cartela (a frase já está na tela).
+  function capHideRanges(e) {
+    const out = [],
+      grp = new Map();
+    for (const o of e.overlays || [])
+      if (o.grp && !o.hidden) {
+        const g = grp.get(o.grp) || [1e9, 0];
+        grp.set(o.grp, [Math.min(g[0], o.start ?? 0), Math.max(g[1], o.end ?? 0)]);
+      }
+    for (const [a, b] of grp.values()) out.push([Math.max(0, a - 0.05), b]);
+    for (const f of e.fx || []) if (f.type === 'card') out.push([f.start, f.end]);
+    return out;
+  }
   // Opções de exportação a partir de uma edição (a do editor aberto ou a que ficou salva no corte).
   function renderOpts(e, audio) {
     return {
@@ -666,6 +682,7 @@
       captions: { ...(e.cap || { on: false }) },
       overlays: (e.overlays || []).filter((o) => !o.hidden).map(({ tpl, hidden, grp, ...o }) => o),
       look: e.look || 'none',
+      capHide: e.capHideImp === false ? [] : capHideRanges(e),
       fx: (e.fx || []).map(({ type, start, end, color }) => ({ type, start, end, color })),
       broll: (e.broll || []).map(({ mediaId, start, end, mode, bw, zoom }) => ({
         mediaId,
@@ -681,5 +698,5 @@
         : null,
     };
   }
-  window.ClipEditor = { open, renderOpts };
+  window.ClipEditor = { open, renderOpts, capHideRanges };
 })();

@@ -226,7 +226,9 @@
     shared.relT = relT;
     shared.relWords = () => relWords();
     function paintCap() {
-      if (isAud || !st.cap.on) {
+      const hideNow =
+        st.capHideImp !== false && window.ClipEditor.capHideRanges(st).some(([a, b]) => relT() >= a && relT() <= b);
+      if (isAud || !st.cap.on || hideNow) {
         capEl.style.display = 'none';
         return;
       }

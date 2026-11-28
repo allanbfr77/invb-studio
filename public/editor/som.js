@@ -80,7 +80,7 @@
     const addSfx = (type, at, vol = 0.8, auto = false) =>
       st.sfx.push({ id: rid(), type, at: +clamp(at, 0, D()).toFixed(2), vol, auto });
     // efeitos onde a edição já tem algo acontecendo
-    function auto() {
+    function auto(silent) {
       st.sfx = st.sfx.filter((s) => !s.auto);
       const seen = new Set();
       const put = (type, at, vol) => {
@@ -106,6 +106,7 @@
       st.sfx.sort((a, b) => a.at - b.at);
       const n = st.sfx.filter((s) => s.auto).length;
       refresh();
+      if (silent) return n;
       toast(
         n
           ? `${n} efeito${n === 1 ? '' : 's'} sonoro${n === 1 ? '' : 's'} nos momentos do Impacto e do Apoio. Dê o play para ouvir.`
@@ -360,6 +361,21 @@
         }
       });
     }
+    // usados pelo "Sugerir tudo" da gaveta Impacto
+    shared.somAuto = (silent) => auto(silent);
+    shared.somMusicAuto = async () => {
+      const ws = shared.relWords ? shared.relWords() : [];
+      if (ws.length < 4) return null;
+      const r = await api(`/uploads/${upload.id}/clips/${clip.id}/ai/music`, { json: { words: ws.map((w) => w.t) } });
+      ui.ai = r;
+      ui.q = r.query;
+      ui.items = r.items;
+      const first = (r.items || [])[0];
+      if (!first) return null;
+      const it = await api('/music/freesound', { json: { id: first.freesoundId } });
+      setMusic(it);
+      return it.name;
+    };
     shared.panels = { ...(shared.panels || {}), som: { html, bind } };
   };
 })();

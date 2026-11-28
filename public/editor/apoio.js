@@ -260,6 +260,35 @@
       setT('data-bs', 'start');
       setT('data-be', 'end');
     }
+    // usado pelo "Sugerir tudo" da gaveta Impacto: põe a 1ª opção de cada momento sugerido pelo Claude
+    shared.apoioAuto = async () => {
+      const ws = shared.relWords ? shared.relWords() : [];
+      if (ws.length < 4) return 0;
+      const r = await api(`/uploads/${upload.id}/clips/${clip.id}/ai/broll`, {
+        json: {
+          words: ws.map((w) => w.t),
+          times: ws.map((w) => [+w.s.toFixed(2), +w.e.toFixed(2)]),
+          format: st.format,
+        },
+      });
+      st.broll = st.broll.filter((o) => !o.ai); // troca as sugestões anteriores
+      let n = 0;
+      for (const m of r.moments || []) {
+        const it = (m.items || [])[0];
+        if (!it || !ws[m.from] || !ws[m.to]) continue;
+        const start = ws[m.from].s,
+          end = Math.max(ws[m.to].e + 0.2, start + 1.5);
+        const before = st.broll.length;
+        await place(it, start, end, m.mode, m.label);
+        if (st.broll.length > before) {
+          const added = st.broll.find((o) => o.label === m.label && !o.ai && Math.abs(o.start - start) < 0.02);
+          if (added) added.ai = true;
+          n++;
+        }
+      }
+      ui.ai = null;
+      return n;
+    };
     shared.panels = { ...(shared.panels || {}), apoio: { html, bind } };
     shared.applyFx();
   };
