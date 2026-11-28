@@ -170,6 +170,16 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   - **✨ O Claude escolhe a música:** ele lê a fala, diz o clima e já busca as opções.
   - Na exportação, a voz, os efeitos e a música são misturados com o ffmpeg (`amix` e `sidechaincompress`), sem
     mudar o volume da voz. A gaveta é `public/editor/som.js`.
+- **Transcrição mais precisa:**
+  - Na Groq, o modelo padrão passou a ser o **whisper-large-v3** (completo), que erra menos que o turbo em nomes e
+    palavras da Bíblia (`GROQ_WHISPER_MODEL` troca).
+  - **Vocabulário da igreja** (Transcrição → Vocabulário, em `data/vocabulario.txt`): nomes de pastores, ministérios
+    e termos da casa vão como dica para o Whisper, junto com os livros da Bíblia e termos comuns.
+  - **Áudio tratado** antes de enviar: corta o grave do ar-condicionado e o chiado e iguala o volume (64 kbps).
+  - **Revisão pelo Claude** ao final da transcrição (e no botão **✨ Revisar com IA**): corrige palavras trocadas,
+    nomes, livros e versículos, pontuação e maiúsculas, sem reescrever o pregador e **sem mexer nos tempos**; o
+    texto original fica guardado em cada trecho. Uma trava descarta "correções" que mudam demais a linha.
+    `TRANSCRIPT_REVIEW=0` desliga a revisão automática.
 - **Aba Gastos** (menu lateral): quanto o Studio gastou no mês com cada API — Claude (tokens × preço oficial), OpenAI,
   Groq (minutos de áudio da transcrição e tradução) — e o uso dos serviços grátis (Pixabay, Pexels, Freesound, Vercel
   Blob). Por serviço, por recurso do Studio (direção de arte, cortes, transcrição…), por dia, as últimas chamadas,

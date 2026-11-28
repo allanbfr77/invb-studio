@@ -16,7 +16,7 @@
     freesound: ['Freesound', 'Sons e músicas (grátis)', 'https://freesound.org/home/app_permissions/'],
   };
   const FREE = new Set(['pixabay', 'pexels', 'freesound', 'vercel-blob']);
-  const usd = (v) => 'US$ ' + (v < 0.01 && v > 0 ? v.toFixed(4) : v.toFixed(2)).replace('.', ',');
+  const usd = (v) => 'US$ ' + (v > 0 && v < 0.01 ? v.toFixed(4) : (v || 0).toFixed(2)).replace('.', ',');
   const brl = (v, d) => 'R$ ' + (v * d).toFixed(2).replace('.', ',');
   const mb = (b) => (b / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB';
   const tok = (n) =>

@@ -21,6 +21,7 @@
     srtT,
     seek,
     paintPlayer,
+    go,
   } = INVB;
 
   /* ---------- Telas ---------- */
@@ -28,12 +29,53 @@
     c,
   ) => `<h1>Transcrição</h1><p class="sub2">Clique em uma palavra para levar o vídeo ao segundo exato dela. Para criar um corte, use Selecionar e marque as linhas.</p><div style="height:16px"></div>
       <div class="tr2"><div><div class="tr-head"><div class="ap-tools"><label class="ap-search" style="max-width:none">${ic.search}<input id="tq" placeholder="Buscar na transcrição..."></label></div>
-      <div class="ap-tools"><span class="ap-sp"></span><button class="ap-btn pri" id="tclaude">Copiar para o Claude</button><button class="ap-btn" id="tcut" hidden>Criar corte da seleção</button><button class="ap-btn" id="tsel">Selecionar</button><button class="ap-btn" id="tdl">${ic.dl} Baixar ⌄</button><button class="ap-btn" id="tfil">Filtros</button></div></div>
+      <div class="ap-tools"><span class="ap-sp"></span>${S.status && S.status.ai ? `<button class="ap-btn" id="trev" title="Corrige nomes, livros da Bíblia, versículos e palavras trocadas, sem mexer nos tempos">✨ Revisar com IA${c.transcript && c.transcript.reviewedAt ? ' de novo' : ''}</button>` : ''}<button class="ap-btn" id="tvoc" title="Nomes e termos que a transcrição deve escrever certo">Vocabulário</button><button class="ap-btn pri" id="tclaude">Copiar para o Claude</button><button class="ap-btn" id="tcut" hidden>Criar corte da seleção</button><button class="ap-btn" id="tsel">Selecionar</button><button class="ap-btn" id="tdl">${ic.dl} Baixar ⌄</button><button class="ap-btn" id="tfil">Filtros</button></div></div>
       <div class="segs" id="segs"></div><div class="stat3"><h4>Resumo Estatístico</h4><div class="g"><div><b>${(c.clips || []).length}</b><small>Momentos-chave</small></div><div><b>${tm(c.duration)}</b><small>Duração total</small></div><div><b>${c.words || 0}</b><small>Palavras</small></div></div></div></div>
       <div class="rpanel">${c.kind === 'vid' ? '<div class="vid vid-slot"></div>' : ''}<div class="dlp"><b style="color:var(--fg)">Baixar</b><button class="ap-btn" data-d="orig">Baixar arquivo original</button><div class="g2">${['TXT', 'SRT', 'VTT'].map((f) => `<button class="ap-btn" data-d="${f}">${f}</button>`).join('')}</div></div></div></div>`;
 
   function bindTranscription() {
     const c = S.cur;
+    // revisão da transcrição pelo Claude (corrige o que o reconhecimento de voz errou; os tempos ficam)
+    const rev = $('#trev');
+    if (rev)
+      rev.onclick = guard(async () => {
+        rev.disabled = true;
+        rev.textContent = 'Revisando… (alguns minutos numa pregação longa)';
+        try {
+          const r = await api(`/uploads/${c.id}/transcript/review`, { json: {} });
+          toast(
+            r.changed
+              ? `${r.changed} trecho${r.changed === 1 ? '' : 's'} corrigido${r.changed === 1 ? '' : 's'}.`
+              : 'Nada a corrigir.',
+          );
+          go(location.pathname);
+        } finally {
+          rev.disabled = false;
+          rev.textContent = '✨ Revisar com IA';
+        }
+      });
+    // vocabulário da igreja: vai como dica para a transcrição e para a revisão
+    const voc = $('#tvoc');
+    if (voc)
+      voc.onclick = guard(async () => {
+        const v = await api('/vocabulary');
+        modal(
+          'Vocabulário da igreja',
+          `<textarea id="voc-t" rows="7" style="width:100%" placeholder="ex.: Pr. Fulano de Tal, Ministério Ágape, Rede Kairós, Botafogo">${esc(v.team || '')}</textarea>
+          <details style="margin-top:8px"><summary class="sub2">Já incluído sempre (livros da Bíblia e termos comuns)</summary><p class="sub2">${esc(v.base)}</p></details>`,
+          async (m) => {
+            try {
+              await api('/vocabulary', { method: 'PUT', json: { team: $('#voc-t', m).value } });
+              toast('Vocabulário salvo.');
+            } catch (e) {
+              toast(e.message);
+              return false;
+            }
+          },
+          'Salvar',
+          'Nomes e termos que a transcrição deve escrever certo: pastores, ministérios, lugares, expressões da igreja. Separe por vírgula ou um por linha. Vale para as próximas transcrições e para a revisão com IA.',
+        );
+      });
     let q = '',
       sel = false,
       spk = '',

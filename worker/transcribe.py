@@ -29,6 +29,7 @@ def main():
     ap.add_argument("--model", default="small")
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--language", default="auto")
+    ap.add_argument("--prompt", default="")  # vocabulário da igreja (dica para o Whisper)
     a = ap.parse_args()
 
     from faster_whisper import WhisperModel
@@ -47,6 +48,7 @@ def main():
     segments, info = model.transcribe(
         load_audio(a.audio), language=lang, word_timestamps=True, vad_filter=True,
         beam_size=5, condition_on_previous_text=False,
+        initial_prompt=(a.prompt or None),
     )
     dur = float(info.duration or 0) or 1.0
     out = []
