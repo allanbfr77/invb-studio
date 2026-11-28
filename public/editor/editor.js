@@ -45,6 +45,12 @@
     ],
     ['ganchos', 'Ganchos', true, '<path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/>'],
     ['impacto', 'Impacto', true, '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'],
+    [
+      'apoio',
+      'Apoio',
+      true,
+      '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/>',
+    ],
     ['camadas', 'Camadas', true, '<path d="M12 4l9 5-9 5-9-5zM3 14l9 5 9-5"/>'],
   ];
   const SAMPLE = ['Você', 'não', 'precisa', 'de', 'mais', 'tempo,'].map((t, i) => ({
@@ -157,6 +163,7 @@
       overlays: [],
       look: 'none', // cor do vídeo inteiro (gaveta Impacto)
       fx: [], // efeitos num trecho: P&B, zoom, tremida, flash, cartela (gaveta Impacto)
+      broll: [], // imagens de apoio do Pexels (gaveta Apoio)
       sel: null,
       panel: null,
       tab: 'estilos',
@@ -196,6 +203,7 @@
       'overlays',
       'look',
       'fx',
+      'broll',
       'title',
     ];
     if (clip.editor && typeof clip.editor === 'object') {
@@ -278,6 +286,7 @@
         overlays: st.overlays,
         look: st.look,
         fx: st.fx,
+        broll: st.broll,
         title: st.title,
       });
     const restore = (j) => {
@@ -403,6 +412,7 @@
     Parts.drawers(shared);
     if (Parts.arte) Parts.arte(shared);
     if (Parts.impacto) Parts.impacto(shared);
+    if (Parts.apoio) Parts.apoio(shared);
 
     $$('.dlx-rail button', root).forEach(
       (b) =>
@@ -649,6 +659,14 @@
       overlays: (e.overlays || []).filter((o) => !o.hidden).map(({ tpl, hidden, grp, ...o }) => o),
       look: e.look || 'none',
       fx: (e.fx || []).map(({ type, start, end, color }) => ({ type, start, end, color })),
+      broll: (e.broll || []).map(({ mediaId, start, end, mode, bw, zoom }) => ({
+        mediaId,
+        start,
+        end,
+        mode,
+        bw,
+        zoom,
+      })),
     };
   }
   window.ClipEditor = { open, renderOpts };

@@ -334,3 +334,32 @@
 .imp-fxr .nm{text-align:left;font-weight:600}
 .imp-fxr input{width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--fg)}
 .imp-fxr button[data-rmf]{color:var(--muted)}
+
+/* ----- Apoio: imagens do Pexels na prévia e na gaveta ----- */
+.apo-layer{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.apo-layer.card{background:rgba(0,0,0,.6)}
+.apo-layer .full{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.apo-layer .card{position:absolute;left:50%;top:50%;translate:-50% -50%;max-width:80%;max-height:62%;border:solid #fff;border-width:max(2px,1.2cqw);box-sizing:content-box}
+.dlx-stage{container-type:size}
+.apo-off{font-size:13px;line-height:1.5;padding:12px;border:1px dashed var(--border-strong,var(--border));border-radius:10px}
+.apo-off code{font-size:12px}
+.apo-q{display:flex;gap:6px;margin-bottom:8px}
+.apo-q input{flex:1;min-width:0;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--fg)}
+.apo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
+.apo-th{position:relative;aspect-ratio:3/4;border-radius:8px;overflow:hidden;background:var(--soft);padding:0}
+.apo-th img{width:100%;height:100%;object-fit:cover;display:block}
+.apo-th i{position:absolute;left:4px;bottom:4px;font-style:normal;font-size:11px;background:rgba(0,0,0,.65);color:#fff;border-radius:4px;padding:1px 4px}
+.apo-th:hover{outline:2px solid var(--primary)}
+.apo-th.busy{opacity:.45}
+.apo-mo{border:1px solid var(--border);border-radius:10px;padding:8px;margin:8px 0}
+.apo-mt{text-align:left;font-size:12.5px;line-height:1.4;color:var(--fg)}
+.apo-mt span{color:var(--muted)}
+.apo-list{display:flex;flex-direction:column;gap:8px}
+.apo-row{display:grid;grid-template-columns:54px 1fr;gap:8px;align-items:start}
+.apo-mini{width:54px;height:72px;border-radius:6px;overflow:hidden;padding:0;background:var(--soft)}
+.apo-mini img,.apo-mini video{width:100%;height:100%;object-fit:cover;display:block}
+.apo-t{display:grid;grid-template-columns:1fr 14px 1fr 28px;gap:6px;align-items:center;margin-bottom:6px}
+.apo-t input{width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--fg)}
+.apo-t button{color:var(--muted)}
+.apo-cred{font-size:11.5px;color:var(--muted);margin-top:14px}
+.apo-cred a{color:inherit}

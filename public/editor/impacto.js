@@ -156,14 +156,14 @@
     shared.applyFx = applyFx;
     let raf = 0;
     const loop = () => {
-      applyFx();
+      shared.applyFx(); // a gaveta Apoio acrescenta as imagens a esta mesma atualização
       raf = v.paused ? 0 : requestAnimationFrame(loop);
     };
     v.addEventListener('play', () => {
       if (!raf) raf = requestAnimationFrame(loop);
     });
-    v.addEventListener('seeked', applyFx);
-    v.addEventListener('timeupdate', () => v.paused && applyFx());
+    v.addEventListener('seeked', () => shared.applyFx());
+    v.addEventListener('timeupdate', () => v.paused && shared.applyFx());
 
     /* ----- montar palavras de impacto ----- */
     // ws: palavras do corte ({ t, s, e } em segundos desde o início do corte)
@@ -281,7 +281,7 @@
     const refresh = () => {
       commit();
       renderOverlays();
-      applyFx();
+      shared.applyFx();
       drawDrawer();
     };
     const range = () => {
@@ -466,7 +466,7 @@
       });
       on('[data-go]', (b) => {
         v.currentTime = st.start + Math.max(0, +b.dataset.go - 0.3);
-        applyFx();
+        shared.applyFx();
       });
       on('[data-fx]', (b) => {
         const k = b.dataset.fx,

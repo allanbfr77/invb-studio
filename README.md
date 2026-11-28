@@ -125,6 +125,16 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   - A prévia imita os efeitos; a exportação faz o mesmo com o ffmpeg (`lib/render.js`: `LOOKS`, `fxChain`,
     `animTag`). O código da gaveta fica em `public/editor/impacto.js`. Cada palavra também aparece em Texto e
     Camadas para ajustes finos, e todo texto ganhou a opção **Entrada** (animação).
+- **Gaveta Apoio** (imagens de apoio / B-roll, no editor do corte): fotos e vídeos grátis do **Pexels** que ilustram a
+  frase, em **tela cheia** ou num **cartão** com borda branca (o vídeo de trás escurece), em **P&B** por padrão e,
+  na foto em tela cheia, com **zoom lento**.
+  - **✨ Sugerir imagens com o Claude:** ele escolhe de 2 a 5 momentos com imagem concreta (mãos, queda, tempestade),
+    já busca no Pexels e mostra as opções de cada um; um toque escolhe.
+  - **Buscar** à mão (fotos ou vídeos); um toque põe no ponto onde o vídeo está. Início, fim, tela cheia/cartão, P&B
+    e zoom se ajustam na lista "No corte".
+  - Precisa da chave grátis do Pexels no `install/equipe.env`: `PEXELS_API_KEY=` (crie em pexels.com/api). A chave
+    fica só no servidor. O que é usado é baixado uma vez para `data/broll/` (`lib/pexels.js`); a gaveta é
+    `public/editor/apoio.js` e a exportação está em `lib/render.js`.
 - **Barra da prévia**: Ímã, Raio-X (X), Guias (G: centro, terços e, no 9:16, a área que o Instagram/TikTok cobre) e
   Centralizar. A legenda se arrasta direto no vídeo.
 
