@@ -170,3 +170,125 @@ test(
     assert.ok(!(after.G > 150 && after.R < 60), 'depois do tempo, volta o vídeo: ' + JSON.stringify(after));
   },
 );
+
+// Sem a chave do Pexels (que pausou as chaves novas), o Apoio usa o Pixabay, com a chave na própria URL.
+test(
+  'Apoio pelo Pixabay: busca, baixa e sai no arquivo',
+  { skip: !HAS_FFMPEG || process.platform === 'win32' },
+  async (t) => {
+    const d = tmp(t);
+    const media = path.join(d, 'pixabay');
+    fs.mkdirSync(media, { recursive: true });
+    spawnSync('ffmpeg', [
+      '-v',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=0xc00000:s=640x960',
+      '-frames:v',
+      '1',
+      path.join(media, 'foto.jpg'),
+    ]);
+    spawnSync('ffmpeg', [
+      '-v',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=0x2040ff:s=720x1280:d=2',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      path.join(media, 'video.mp4'),
+    ]);
+    const seen = [];
+    const srv = http.createServer((req, res) => {
+      const u = new URL(req.url, 'http://x');
+      const base = `http://127.0.0.1:${srv.address().port}`;
+      if (u.pathname.startsWith('/arq/'))
+        return fs.createReadStream(path.join(media, path.basename(u.pathname))).pipe(res);
+      seen.push(
+        u.pathname +
+          ' key=' +
+          u.searchParams.get('key') +
+          ' q=' +
+          (u.searchParams.get('q') || '') +
+          ' id=' +
+          (u.searchParams.get('id') || '') +
+          ' o=' +
+          (u.searchParams.get('orientation') || ''),
+      );
+      const photo = {
+        id: 77,
+        pageURL: 'https://pixabay.com/p/77',
+        tags: 'mãos, luz',
+        webformatURL: base + '/arq/foto.jpg',
+        largeImageURL: base + '/arq/foto.jpg',
+        imageWidth: 640,
+        imageHeight: 960,
+        user: 'ana',
+      };
+      const video = {
+        id: 88,
+        pageURL: 'https://pixabay.com/v/88',
+        tags: 'queda',
+        duration: 2,
+        user: 'beto',
+        videos: {
+          large: { url: base + '/arq/grande.mp4', width: 2160, height: 3840, thumbnail: base + '/arq/foto.jpg' },
+          medium: { url: base + '/arq/video.mp4', width: 720, height: 1280, thumbnail: base + '/arq/foto.jpg' },
+        },
+      };
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ total: 1, hits: [u.pathname === '/api/videos/' ? video : photo] }));
+    });
+    await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
+    t.after(() => srv.close());
+    seedTone(d, 'kkkkkkkkkkkj');
+    const s = await boot(t, d, {
+      env: {
+        PEXELS_API_KEY: '',
+        PIXABAY_API_KEY: 'chave-pixabay',
+        PIXABAY_API_URL: `http://127.0.0.1:${srv.address().port}`,
+      },
+    });
+    const st = (await s.api('/status')).body;
+    assert.equal(st.broll, true);
+    assert.equal(st.brollSource, 'Pixabay');
+    const fotos = (await s.api('/broll/search?q=' + encodeURIComponent('mãos') + '&kind=photo&orientation=portrait'))
+      .body.items;
+    assert.equal(fotos[0].pexelsId, '77');
+    assert.equal(fotos[0].by, 'ana');
+    const vids = (await s.api('/broll/search?q=queda&kind=video')).body.items;
+    assert.equal(vids[0].dur, 2);
+    const f = (await s.api('/broll', { json: { kind: 'photo', pexelsId: '77' } })).body;
+    const v = (await s.api('/broll', { json: { kind: 'video', pexelsId: '88' } })).body;
+    assert.equal(f.id, 'xf77');
+    assert.equal(v.id, 'xv88');
+    assert.equal(v.source, 'Pixabay');
+    assert.equal(v.w, 720); // o vídeo leve, não o 4K
+    assert.match(seen[0], /^\/api\/ key=chave-pixabay q=mãos id= o=vertical$/);
+    assert.ok(seen.some((x) => /^\/api\/videos\/ .* id=88/.test(x)));
+    const cid = (await s.api('/uploads/kkkkkkkkkkkj/clips')).body[0].id;
+    await s.api(`/uploads/kkkkkkkkkkkj/clips/${cid}/render`, {
+      json: {
+        captions: false,
+        format: '9:16',
+        broll: [
+          { mediaId: 'xf77', start: 1, end: 2.5, mode: 'full' },
+          { mediaId: 'xv88', start: 3.5, end: 5, mode: 'full' },
+        ],
+      },
+    });
+    const r = await waitRender(s, 'kkkkkkkkkkkj');
+    const out = path.join(d, 'uploads', 'kkkkkkkkkkkj', 'clips', r.file);
+    const red = px(out, 1.8, 536, 956),
+      blue = px(out, 4.2, 536, 956);
+    assert.ok(red.R > 150 && red.G < 60, 'foto do Pixabay na tela: ' + JSON.stringify(red));
+    assert.ok(blue.B > 150 && blue.R < 90, 'vídeo do Pixabay na tela: ' + JSON.stringify(blue));
+  },
+);

@@ -1,4 +1,4 @@
-/* INVB Studio — editor do corte: a gaveta Apoio. Imagens de apoio (B-roll): fotos e vídeos grátis do Pexels que
+/* INVB Studio — editor do corte: a gaveta Apoio. Imagens de apoio (B-roll): fotos e vídeos grátis do Pixabay (ou do Pexels) que
    ilustram a frase, em tela cheia ou num cartão, com P&B e aproximação lenta. O Claude sugere os momentos e o que buscar.
    A busca e o download passam pelo servidor (lib/pexels.js), que guarda a chave; a exportação está em lib/render.js.
    Parte de public/editor/editor.js; recebe o objeto "shared" com o estado e as funções das outras partes. */
@@ -30,7 +30,7 @@
       layer.classList.toggle('card', !!(on && on.mode === 'card'));
       if (!on) return;
       let el = els.get(on.id);
-      const isVid = /^pv/.test(on.mediaId);
+      const isVid = /^.v/.test(on.mediaId);
       if (!el) {
         el = document.createElement(isVid ? 'video' : 'img');
         el.src = fileUrl(on.mediaId);
@@ -145,8 +145,9 @@
     function html() {
       if (!shared.ctx || !shared.ctx.broll)
         return `<h3>Apoio</h3><p class="dlx-sub" style="margin-top:0">Fotos e vídeos que ilustram a frase, como num Reels: a mão estendida, a armadilha, a tempestade.</p>
-          <div class="apo-off"><b>Falta a chave do Pexels</b> (grátis). Crie em <b>pexels.com/api</b>, ponha no <code>install/equipe.env</code> como <code>PEXELS_API_KEY=sua-chave</code> e reabra o Studio.</div>`;
-      const ai = shared.ctx.ai;
+          <div class="apo-off"><b>Falta a chave do Pixabay</b> (grátis). Crie a conta em <b>pixabay.com</b>, copie a chave em <b>pixabay.com/api/docs</b>, ponha no <code>install/equipe.env</code> como <code>PIXABAY_API_KEY=sua-chave</code> e reabra o Studio.</div>`;
+      const ai = shared.ctx.ai,
+        src = shared.ctx.brollSource || 'Pixabay';
       return `<h3>Apoio</h3><p class="dlx-sub" style="margin-top:0">Fotos e vídeos que ilustram a frase. Entram em tela cheia ou num cartão, em P&amp;B por padrão.</p>
         ${ai ? `<button class="ap-btn pri imp-ai" id="apo-ai" ${ui.aiBusy ? 'disabled' : ''}>${ui.aiBusy ? 'O Claude está escolhendo…' : '✨ Sugerir imagens com o Claude'}</button>` : ''}
         ${
@@ -178,14 +179,14 @@
             ? `<h4>No corte (${st.broll.length})</h4><div class="apo-list">${st.broll
                 .map(
                   (o) =>
-                    `<div class="apo-row"><button class="apo-mini" data-go="${o.start}">${/^pv/.test(o.mediaId) ? `<video src="${fileUrl(o.mediaId)}#t=0.5" muted preload="metadata"></video>` : `<img src="${fileUrl(o.mediaId)}" alt="">`}</button>
+                    `<div class="apo-row"><button class="apo-mini" data-go="${o.start}">${/^.v/.test(o.mediaId) ? `<video src="${fileUrl(o.mediaId)}#t=0.5" muted preload="metadata"></video>` : `<img src="${fileUrl(o.mediaId)}" alt="">`}</button>
                     <div class="apo-ctl"><div class="apo-t"><input type="number" step="0.1" min="0" data-bs="${o.id}" value="${o.start.toFixed(1)}" aria-label="Início (s)"><span>→</span><input type="number" step="0.1" min="0" data-be="${o.id}" value="${o.end.toFixed(1)}" aria-label="Fim (s)"><button data-rmb="${o.id}" aria-label="Excluir">✕</button></div>
-                    <div class="dlx-chips"><button data-mode="${o.id}:full" aria-pressed="${o.mode !== 'card'}">Tela cheia</button><button data-mode="${o.id}:card" aria-pressed="${o.mode === 'card'}">Cartão</button><button data-bw="${o.id}" aria-pressed="${!!o.bw}">P&amp;B</button>${/^pf/.test(o.mediaId) ? `<button data-zm="${o.id}" aria-pressed="${!!o.zoom}">Zoom lento</button>` : ''}</div></div></div>`,
+                    <div class="dlx-chips"><button data-mode="${o.id}:full" aria-pressed="${o.mode !== 'card'}">Tela cheia</button><button data-mode="${o.id}:card" aria-pressed="${o.mode === 'card'}">Cartão</button><button data-bw="${o.id}" aria-pressed="${!!o.bw}">P&amp;B</button>${/^.f/.test(o.mediaId) ? `<button data-zm="${o.id}" aria-pressed="${!!o.zoom}">Zoom lento</button>` : ''}</div></div></div>`,
                 )
                 .join('')}</div>`
             : ''
         }
-        <p class="apo-cred">Fotos e vídeos do <a href="https://www.pexels.com" target="_blank" rel="noopener">Pexels</a>, grátis para usar.</p>`;
+        <p class="apo-cred">Fotos e vídeos do <a href="https://${src === 'Pexels' ? 'www.pexels.com' : 'pixabay.com'}" target="_blank" rel="noopener">${src}</a>, grátis para usar.</p>`;
     }
     function bind(dr) {
       const on = (sel, fn) => $$(sel, dr).forEach((b) => b.addEventListener('click', () => fn(b)));

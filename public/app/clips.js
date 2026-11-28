@@ -419,7 +419,8 @@
                   drive: driveOn ? { token: driveToken, send: sendDrive } : null,
                   voiceAI: !!(S.status && S.status.voiceAI),
                   ai: !!(S.status && S.status.ai), // o Claude sugere a edição de impacto
-                  broll: !!(S.status && S.status.broll), // imagens de apoio do Pexels
+                  broll: !!(S.status && S.status.broll), // imagens de apoio (Pixabay ou Pexels)
+                  brollSource: (S.status && S.status.brollSource) || 'Pixabay',
                   musicSearch: !!(S.status && S.status.musicSearch), // músicas do Freesound
                   autosync: !!(S.status && S.status.autosync),
                   onDone: (list) => {

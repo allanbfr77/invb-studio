@@ -132,8 +132,9 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
     já busca no Pexels e mostra as opções de cada um; um toque escolhe.
   - **Buscar** à mão (fotos ou vídeos); um toque põe no ponto onde o vídeo está. Início, fim, tela cheia/cartão, P&B
     e zoom se ajustam na lista "No corte".
-  - Precisa da chave grátis do Pexels no `install/equipe.env`: `PEXELS_API_KEY=` (crie em pexels.com/api). A chave
-    fica só no servidor. O que é usado é baixado uma vez para `data/broll/` (`lib/pexels.js`); a gaveta é
+  - Precisa de uma chave grátis no `install/equipe.env`: **Pixabay** (`PIXABAY_API_KEY=`; crie a conta em pixabay.com
+    e copie a chave em pixabay.com/api/docs) ou **Pexels** (`PEXELS_API_KEY=`; o Pexels pausou as chaves novas em
+    nov/2026). Com as duas, vale o Pexels. A chave fica só no servidor. O que é usado é baixado uma vez para `data/broll/` (`lib/pexels.js`); a gaveta é
     `public/editor/apoio.js` e a exportação está em `lib/render.js`.
 - **Gaveta Som** (no editor do corte):
   - **Efeitos sonoros** gerados no próprio Studio, sem internet nem licença (`lib/audio-lib.js`, guardados em
