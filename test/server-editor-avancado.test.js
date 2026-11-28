@@ -77,7 +77,11 @@ test('não sai da pasta do editor', async (t) => {
   const encoded = await rawGet(s, '/editor-avancado/..%2F..%2Fserver.js');
   assert.ok([403, 404].includes(encoded.status), `respondeu ${encoded.status}`);
   // "../" e "%2e%2e" o servidor já resolve antes (viram /server.js, fora do editor): o importante é não vazar arquivo.
-  for (const p of ['/editor-avancado/..%2F..%2Fserver.js', '/editor-avancado/%2e%2e/%2e%2e/server.js', '/editor-avancado/../../server.js']) {
+  for (const p of [
+    '/editor-avancado/..%2F..%2Fserver.js',
+    '/editor-avancado/%2e%2e/%2e%2e/server.js',
+    '/editor-avancado/../../server.js',
+  ]) {
     const r = await rawGet(s, p);
     assert.doesNotMatch(r.text, /createServer/, `${p} vazou o server.js`);
   }
@@ -93,7 +97,10 @@ test('wasm vai com application/wasm', async (t) => {
 test('avif e mjs vão com o tipo certo', async (t) => {
   const s = await bootEditor(t, fakeEditor(t));
   assert.equal((await get(s, '/editor-avancado/fonts/font-chunk-0.avif')).headers.get('content-type'), 'image/avif');
-  assert.match((await get(s, '/editor-avancado/_next/static/media/ort.bundle.min.mjs')).headers.get('content-type'), /^text\/javascript/);
+  assert.match(
+    (await get(s, '/editor-avancado/_next/static/media/ort.bundle.min.mjs')).headers.get('content-type'),
+    /^text\/javascript/,
+  );
 });
 
 test('arquivos de _next/static têm cache longo', async (t) => {

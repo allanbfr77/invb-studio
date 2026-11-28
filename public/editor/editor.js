@@ -100,13 +100,18 @@
         return `<span style="background:linear-gradient(90deg,${style.hi} ${progress}%,${style.color} ${progress}%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:0">${w.t}</span>`;
       if (style.mode === 'reveal' && i > active) return `<span style="visibility:hidden">${w.t}</span>`;
       const isAct = i === active && !['block', 'plain'].includes(style.mode);
+      const isKw = kw && CSx.isKeyword(w.t, style.kwWords);
       let css = '';
       if (isAct && style.mode === 'boxhl')
         css = `background:${style.hi};border-radius:.2em;padding:0 .18em;-webkit-text-stroke:0`;
       else if (isAct && style.mode === 'highlight') css = `color:${style.hi}`;
-      else if (kw && CSx.isKeyword(w.t, style.kwWords)) css = `color:${style.kc}`;
-      if (isAct && style.grow) css += (css ? ';' : '') + 'font-size:1.18em';
-      return css ? `<span style="${css}">${w.t}</span>` : w.t;
+      else if (isAct && style.mode === 'reveal' && style.grow) css = `color:${style.hi}`;
+      else if (isKw) css = `color:${style.kc}`;
+      const f = (isAct && style.grow ? 1.18 : 1) * (isKw && style.emph ? 1.2 : 1);
+      if (f !== 1) css += (css ? ';' : '') + `font-size:${f}em`;
+      // quique: a palavra falada entra pequena, passa do tamanho e assenta (igual à exportação)
+      const cls = isAct && style.anim === 'bounce' ? ' class="cap-bounce"' : '';
+      return css || cls ? `<span${cls} style="${css}">${w.t}</span>` : w.t;
     };
     return `<span style="${capCss(style, eff, scale)};display:inline-block;max-width:100%">${ws.map(span).join(' ')}</span>`;
   }

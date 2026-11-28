@@ -312,17 +312,8 @@ test(
       subject_side: 'left',
       concept: 'editorial quente',
       caption: {
-        font: 'Inter Black',
-        color: '#ffffff',
-        highlight: '#f0b93a',
-        outline: '#000000',
-        outline_width: 4,
-        box_color: '',
-        box_opacity: 0.8,
-        mode: 'highlight',
-        words: 3,
-        upper: true,
-        animation: 'pop',
+        style: 'Palavra por palavra/Revista',
+        accent: '#f0b93a',
         position: 'bottom',
         size: 18,
         keywords: ['Jovem', 'difícil!'],
@@ -409,7 +400,8 @@ test(
       b.fx.map((f) => f.type),
       ['redpop'],
     );
-    assert.equal(b.caption.font, 'Inter Black');
+    assert.equal(b.caption.style, 'Palavra por palavra/Revista');
+    assert.equal(b.caption.kc, '#f0b93a');
     assert.deepEqual(b.caption.kwWords, ['jovem', 'difícil']);
     // o vídeo de teste tem faixas claras onde a legenda fica: a regra de leitura pode pôr uma tarja, e diz por quê
     if (b.caption.box) assert.ok(b.legibility.fixes.some((f) => /legenda/.test(f)));
@@ -430,17 +422,8 @@ test(
       subject_side: 'center',
       concept: 'minimalista',
       caption: {
-        font: 'Inter Black',
-        color: '#ffffff',
-        highlight: '#fff6d5',
-        outline: '#ffffff',
-        outline_width: 0,
-        box_color: '',
-        box_opacity: 0.8,
-        mode: 'highlight',
-        words: 3,
-        upper: false,
-        animation: 'none',
+        style: 'Palavra por palavra/Neon',
+        accent: '#fff6d5',
         position: 'bottom',
         size: 16,
         keywords: [],

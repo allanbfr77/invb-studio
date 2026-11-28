@@ -290,7 +290,7 @@
       }
       const fs = H * (st.cap.size / 288) * S.scale,
         mv =
-          (st.cap.margin === null || st.cap.margin === undefined ? (st.format === '9:16' ? 14 : 8) : st.cap.margin) +
+          (st.cap.margin === null || st.cap.margin === undefined ? (st.format === '9:16' ? 22 : 8) : st.cap.margin) +
           '%';
       capEl.style.cssText = `display:block;font-size:${fs}px;${st.tools.xray ? 'opacity:.35;' : ''}${st.cap.pos === 'top' ? 'top:' + mv + ';bottom:auto' : st.cap.pos === 'middle' ? 'top:50%;transform:translateY(-50%);bottom:auto' : 'bottom:' + mv}`;
       // a frase fica num bloco que não é recriado, para a animação de entrada não recomeçar a cada quadro

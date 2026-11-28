@@ -170,6 +170,13 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   - **✨ O Claude escolhe a música:** ele lê a fala, diz o clima e já busca as opções.
   - Na exportação, a voz, os efeitos e a música são misturados com o ffmpeg (`amix` e `sidechaincompress`), sem
     mudar o volume da voz. A gaveta é `public/editor/som.js`.
+- **Legenda palavra por palavra (padrão):** estilos prontos na categoria *Palavra por palavra* (Branco forte, Amarelo
+  viral, Acumulando, Etiqueta, Dourado, Revista, Limpo acumulando, Neon, Escrita à mão, Condensada). Cada palavra entra
+  no tempo em que é dita com um **quique** (entra pequena, passa do tamanho e assenta em ~0,18 s), as palavras-chave da
+  fala ganham cor e ficam maiores, e no 9:16 a legenda fica a 22% da borda de baixo (fora da área que o Instagram cobre).
+  A direção de arte do Claude escolhe um desses estilos pelo conceito e **varia entre os cortes** da mesma pregação.
+- **ffmpeg com legenda:** se o ffmpeg encontrado não tem a libass, o Studio procura outro no Mac (Homebrew em
+  `/opt/homebrew/bin` ou `/usr/local/bin`) que desenhe legenda e usa esse.
 - **Transcrição mais precisa:**
   - Na Groq, o modelo padrão passou a ser o **whisper-large-v3** (completo), que erra menos que o turbo em nomes e
     palavras da Bíblia (`GROQ_WHISPER_MODEL` troca).

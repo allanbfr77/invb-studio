@@ -83,7 +83,15 @@ test('busca de efeitos manda os filtros e transforma o resultado', async (t) => 
   assert.equal(s.rating, 4.5);
   assert.equal(s.ratingCount, 10);
   assert.deepEqual(
-    { type: r.body.type, page: r.body.page, pageSize: r.body.pageSize, sort: r.body.sort, minRating: r.body.minRating, query: r.body.query, count: r.body.count },
+    {
+      type: r.body.type,
+      page: r.body.page,
+      pageSize: r.body.pageSize,
+      sort: r.body.sort,
+      minRating: r.body.minRating,
+      query: r.body.query,
+      count: r.body.count,
+    },
     { type: 'effects', page: 2, pageSize: 20, sort: 'downloads', minRating: 3, query: 'bell', count: 1 },
   );
 });

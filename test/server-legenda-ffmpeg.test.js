@@ -17,7 +17,7 @@ test(
       '#!/bin/bash\nfor a in "$@"; do if [ "$a" = "-filters" ]; then ffmpeg "$@" | grep -v " subtitles "; exit 0; fi; case "$a" in *subtitles=*) echo "No such filter: \'subtitles\'" >&2; exit 1;; esac; done\nexec ffmpeg "$@"\n',
       { mode: 0o755 },
     );
-    const s = await boot(t, d, { env: { FFMPEG_PATH: fake } });
+    const s = await boot(t, d, { env: { FFMPEG_PATH: fake, FFMPEG_STRICT: '1' } });
     assert.equal((await s.api('/status')).body.libass, false);
     const base = '/uploads/kkkkkkkkkkkt/clips/' + (await s.api('/uploads/kkkkkkkkkkkt/clips')).body[0].id;
     await s.api(base + '/render', { json: { captions: { on: true } } });

@@ -8,7 +8,8 @@
      highlight  grupo de palavras, a falada em outra cor
      boxhl      grupo de palavras, a falada com uma marca atrás
      karaoke    grupo de palavras, preenchendo de cor enquanto é falada
-     words1     uma palavra por vez */
+     words1     uma palavra por vez
+     reveal     palavra por palavra, acumulando na frase */
 (function (root) {
   /* ----- fontes: os arquivos ficam em public/fonts e vão junto para o ffmpeg, então a prévia e o vídeo usam a mesma ----- */
   const FONT_LIST = [
@@ -71,12 +72,13 @@
     ['boxhl', 'Palavra falada com marca'],
     ['karaoke', 'Karaokê'],
     ['words1', 'Uma palavra por vez'],
-    ['reveal', 'Surgindo palavra por palavra'],
+    ['reveal', 'Palavra por palavra, acumulando'],
   ];
   const MODE_IDS = MODES.map((m) => m[0]);
   // Como a frase entra na tela. "pop" dá um pulinho a cada palavra; os outros valem só quando a frase aparece.
   const ANIMS = [
     ['none', 'Sem animação'],
+    ['bounce', 'Quique a cada palavra'],
     ['pop', 'Pulo a cada palavra'],
     ['fade', 'Aparece suave'],
     ['slide', 'Sobe'],
@@ -132,6 +134,7 @@
     grow: false, // a palavra falada fica maior
     kw: false, // palavras-chave da fé coloridas
     kc: '#f0b93a', // cor das palavras-chave
+    emph: false, // palavras-chave também maiores (ênfase, como nos cortes virais)
     mode: 'plain',
     chunk: 4, // palavras de cada vez
   };
@@ -139,7 +142,177 @@
   const KEYS = Object.keys(BASE);
 
   /* ----- estilos prontos ----- */
+  // "Palavra por palavra": o padrão. Cada palavra entra no tempo exato em que é dita, com um quique curto
+  // (cresce além do tamanho e assenta, ~0,18 s), e as palavras-chave da fala ganham cor e ficam maiores.
+  // É o que as ferramentas de corte viral fazem (Submagic, Captions, OpusClip); cada estilo tem uma identidade.
+  const PP = 'Palavra por palavra';
   const DEF = [
+    [
+      PP,
+      'Branco forte',
+      {
+        font: 'Montserrat Black',
+        upper: true,
+        scale: 1.25,
+        mode: 'words1',
+        anim: 'bounce',
+        ow: 5,
+        shadow: 3,
+        kw: true,
+        kc: '#facc15',
+        emph: true,
+      },
+    ],
+    [
+      PP,
+      'Amarelo viral',
+      {
+        font: 'Anton',
+        upper: true,
+        scale: 1.45,
+        mode: 'words1',
+        anim: 'bounce',
+        color: '#fde047',
+        ow: 6,
+        shadow: 2,
+        kw: true,
+        kc: '#ffffff',
+        emph: true,
+      },
+    ],
+    [
+      PP,
+      'Acumulando',
+      {
+        font: 'Montserrat Black',
+        upper: true,
+        scale: 1.15,
+        mode: 'reveal',
+        chunk: 3,
+        anim: 'bounce',
+        ow: 5,
+        shadow: 3,
+        grow: true,
+        hi: '#facc15',
+        kw: true,
+        kc: '#facc15',
+      },
+    ],
+    [
+      PP,
+      'Etiqueta',
+      {
+        font: 'League Spartan Black',
+        upper: true,
+        scale: 1.2,
+        mode: 'words1',
+        anim: 'bounce',
+        color: '#111111',
+        box: { color: '#ffffff', alpha: 0 },
+        ow: 0,
+        kw: true,
+        kc: '#e11d48',
+        emph: true,
+      },
+    ],
+    [
+      PP,
+      'Dourado',
+      {
+        font: 'Montserrat ExtraBold',
+        upper: true,
+        scale: 1.25,
+        mode: 'words1',
+        anim: 'bounce',
+        ow: 3,
+        shadow: 4,
+        glow: true,
+        hi: '#f0b93a',
+        kw: true,
+        kc: '#f6d27a',
+        emph: true,
+      },
+    ],
+    [
+      PP,
+      'Revista',
+      {
+        font: 'Playfair Display Black',
+        scale: 1.4,
+        mode: 'words1',
+        anim: 'zoom',
+        ow: 0,
+        shadow: 4,
+        kw: true,
+        kc: '#f6d27a',
+        emph: true,
+      },
+    ],
+    [
+      PP,
+      'Limpo acumulando',
+      {
+        font: 'Inter Black',
+        scale: 1.1,
+        mode: 'reveal',
+        chunk: 4,
+        anim: 'bounce',
+        ow: 2,
+        shadow: 3,
+        grow: true,
+        hi: '#38bdf8',
+        kw: true,
+        kc: '#38bdf8',
+      },
+    ],
+    [
+      PP,
+      'Neon',
+      {
+        font: 'Syne ExtraBold',
+        upper: true,
+        scale: 1,
+        mode: 'words1',
+        anim: 'bounce',
+        ow: 3,
+        shadow: 3,
+        glow: true,
+        hi: '#a855f7',
+        kw: true,
+        kc: '#e9d5ff',
+        emph: true,
+      },
+    ],
+    [
+      PP,
+      'Escrita à mão',
+      {
+        font: 'Permanent Marker',
+        scale: 1.35,
+        mode: 'words1',
+        anim: 'bounce',
+        ow: 4,
+        shadow: 2,
+        kw: true,
+        kc: '#38bdf8',
+        emph: true,
+      },
+    ],
+    [
+      PP,
+      'Condensada',
+      {
+        font: 'Bebas Neue',
+        scale: 1.7,
+        mode: 'words1',
+        anim: 'bounce',
+        ow: 4,
+        shadow: 3,
+        kw: true,
+        kc: '#ff8a1f',
+        emph: true,
+      },
+    ],
     ['Essenciais', 'Clássica', {}],
     ['Essenciais', 'Frase inteira', { font: 'Poppins SemiBold', mode: 'block', ow: 2, shadow: 2 }],
     ['Essenciais', 'Limpa', { font: 'Poppins SemiBold', ow: 0, shadow: 3, chunk: 5 }],
@@ -223,7 +396,9 @@
     id,
     count: DEF.filter((d) => d[0] === id).length,
   }));
-  const DEFAULT_ID = 'Essenciais/Clássica';
+  const DEFAULT_ID = 'Palavra por palavra/Branco forte';
+  // os estilos palavra por palavra (a direção de arte da IA escolhe entre eles)
+  const WORD_STYLES = DEF.filter((d) => d[0] === PP).map((d) => `${d[0]}/${d[1]}`);
   // Estilos do catálogo antigo que estavam em uso: o padrão de antes era a frase inteira.
   const LEGACY = { 'Clássicos/Clássica': 'Essenciais/Frase inteira' };
   const byName = (n) =>
@@ -250,7 +425,7 @@
       const v = num(o[k], a, b);
       if (v !== null) out[k] = k === 'chunk' ? Math.round(v) : v;
     }
-    for (const k of ['upper', 'italic', 'glow', 'grow', 'kw']) if (typeof o[k] === 'boolean') out[k] = o[k];
+    for (const k of ['upper', 'italic', 'glow', 'grow', 'kw', 'emph']) if (typeof o[k] === 'boolean') out[k] = o[k];
     for (const k of ['color', 'hi', 'outline', 'kc']) if (isHex(o[k])) out[k] = o[k].toLowerCase();
     if (ANIM_IDS.includes(o.anim)) out.anim = o.anim;
     else if (typeof o.pop === 'boolean') out.anim = o.pop ? 'pop' : 'none'; // edições e estilos de antes: "pop" ligado ou não
@@ -369,6 +544,7 @@
     STYLES,
     CATEGORIES,
     DEFAULT_ID,
+    WORD_STYLES,
     byName,
     resolve,
     diff,

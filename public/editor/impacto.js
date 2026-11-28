@@ -449,33 +449,24 @@
         // a legenda do corte inteiro, desenhada para este vídeo
         if (r.caption) {
           const c = r.caption;
+          // estilo pronto palavra por palavra, com as cores do conceito e as palavras-chave da fala
           st.cap = {
             on: true,
-            style: st.cap.style || 'Essenciais/Clássica',
+            style: c.style,
             size: c.size,
             pos: c.pos,
             margin: st.cap.margin ?? null,
-            font: c.font,
             color: c.color,
-            hi: c.hi,
             outline: c.outline,
             ow: c.ow,
             box: c.box,
-            mode:
-              c.words === 0
-                ? 'block'
-                : c.words === 1
-                  ? 'words1'
-                  : c.mode === 'words1' || c.mode === 'block'
-                    ? 'highlight'
-                    : c.mode,
-            words: c.words || null,
-            upper: c.upper,
-            anim: c.anim,
+            hi: c.hi,
             kw: c.kwWords.length > 0,
-            kc: r.impact ? r.impact.accent : c.hi,
+            kc: c.kc,
             kwWords: c.kwWords,
+            words: null,
           };
+          st.styleChosen = true;
           shared.wordsDirty = true;
         }
         // tipografia das frases de impacto, criada para o corte (tamanho base: o do estilo "Revista")

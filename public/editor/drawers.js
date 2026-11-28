@@ -324,7 +324,7 @@
             ]
               .map((p) => `<button data-pos="${p[0]}" aria-pressed="${st.cap.pos === p[0]}">${p[1]}</button>`)
               .join('')}</div>
-            ${st.cap.pos === 'middle' ? '' : `${range('cx-mg', 'Distância da borda', st.cap.margin === null || st.cap.margin === undefined ? (st.format === '9:16' ? 14 : 8) : st.cap.margin, 0, 40, st.cap.margin === null || st.cap.margin === undefined ? 'automática' : st.cap.margin + '%')}${st.cap.margin === null || st.cap.margin === undefined ? '' : '<button class="dlx-link" id="cx-mg-auto">Voltar à automática</button>'}`}
+            ${st.cap.pos === 'middle' ? '' : `${range('cx-mg', 'Distância da borda', st.cap.margin === null || st.cap.margin === undefined ? (st.format === '9:16' ? 22 : 8) : st.cap.margin, 0, 40, st.cap.margin === null || st.cap.margin === undefined ? 'automática' : st.cap.margin + '%')}${st.cap.margin === null || st.cap.margin === undefined ? '' : '<button class="dlx-link" id="cx-mg-auto">Voltar à automática</button>'}`}
             </div>
             <div class="dlx-save">
               <button class="ap-btn pri" id="cx-save">Salvar como meu estilo</button>

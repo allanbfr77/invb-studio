@@ -11,7 +11,7 @@ const words = 'Deus prefere um vaso quebrado e sincero a um fingido'
 const sizes = (style) => CS.chunkWords(words, style).map((c) => c.length);
 
 test('o catálogo é curto, com nomes únicos, e todas as fontes existem em public/fonts', () => {
-  assert.ok(CS.STYLES.length >= 10 && CS.STYLES.length <= 30, 'catálogo enxuto');
+  assert.ok(CS.STYLES.length >= 10 && CS.STYLES.length <= 40, 'catálogo enxuto');
   assert.equal(new Set(CS.STYLES.map((s) => s.id)).size, CS.STYLES.length);
   for (const s of CS.STYLES) assert.ok(CS.FONTS.includes(s.font), s.id + ': fonte ' + s.font);
   for (const f of CS.FONT_LIST) {
@@ -60,8 +60,8 @@ test('edições antigas continuam abrindo: o padrão de antes era a frase inteir
 });
 
 test('palavras de cada vez: o número escolhido vale, e pausas longas ou troca de fala ainda quebram', () => {
-  assert.deepEqual(sizes(CS.resolve({ words: 3 })), [3, 3, 3, 1]);
-  assert.deepEqual(sizes(CS.resolve({ chunk: 5 })), [5, 5]);
+  assert.deepEqual(sizes(CS.resolve({ style: 'Essenciais/Clássica', words: 3 })), [3, 3, 3, 1]);
+  assert.deepEqual(sizes(CS.resolve({ style: 'Essenciais/Clássica', chunk: 5 })), [5, 5]);
   // "uma por vez" com outro número: passa a mostrar o grupo, com a palavra falada destacada (a equipe pediu)
   assert.deepEqual(sizes(CS.resolve({ mode: 'words1', words: 4 })), [4, 4, 2]);
   assert.equal(CS.resolve({ mode: 'words1', words: 4 }).mode, 'highlight');
@@ -69,7 +69,7 @@ test('palavras de cada vez: o número escolhido vale, e pausas longas ou troca d
   assert.equal(CS.resolve({ style: 'Essenciais/Frase inteira', words: 4 }).mode, 'plain'); // frase inteira com número vira grupo
   const w = words.map((x, i) => (i >= 4 ? { ...x, s: x.s + 2, e: x.e + 2 } : x));
   assert.deepEqual(
-    CS.chunkWords(w, CS.resolve({ words: 6 })).map((c) => c.length),
+    CS.chunkWords(w, CS.resolve({ style: 'Essenciais/Clássica', words: 6 })).map((c) => c.length),
     [4, 6],
   );
 });
@@ -94,7 +94,7 @@ test('estilo salvo: guarda só o que mudou e volta igual', () => {
 test('efeitos novos: entrada, palavra que cresce, palavras-chave e surgindo', () => {
   assert.equal(CS.resolve({ pop: true }).anim, 'pop'); // edições antigas com "pop" ligado
   assert.equal(CS.resolve({ pop: false, style: 'Impacto/Uma palavra' }).anim, 'none');
-  assert.equal(CS.resolve({ anim: 'dança' }).anim, 'none'); // valor desconhecido fica de fora
+  assert.equal(CS.resolve({ style: 'Essenciais/Clássica', anim: 'dança' }).anim, 'none'); // valor desconhecido fica de fora
   assert.equal(CS.resolve({ anim: 'slide' }).anim, 'slide');
   assert.ok(CS.isKeyword('Deus,') && CS.isKeyword('FÉ!') && CS.isKeyword('graça'));
   assert.ok(!CS.isKeyword('casa'));
@@ -103,4 +103,17 @@ test('efeitos novos: entrada, palavra que cresce, palavras-chave e surgindo', ()
   assert.equal(s.kw, true);
   assert.equal(CS.cleanProps({ kc: '#ABCDEF', grow: 'sim' }).kc, '#abcdef');
   assert.equal(CS.cleanProps({ grow: 'sim' }).grow, undefined); // só true/false
+});
+
+test('padrão palavra por palavra: estilos prontos com quique, palavra-chave maior e cor', () => {
+  const d = CS.resolve({});
+  assert.equal(d.id, 'Palavra por palavra/Branco forte');
+  assert.equal(d.mode, 'words1');
+  assert.equal(d.anim, 'bounce');
+  assert.ok(d.kw && d.emph);
+  assert.ok(CS.WORD_STYLES.length >= 8);
+  for (const id of CS.WORD_STYLES) assert.ok(['words1', 'reveal'].includes(CS.resolve({ style: id }).mode), id);
+  // fontes diferentes: não é "um modelo só"
+  assert.ok(new Set(CS.WORD_STYLES.map((id) => CS.resolve({ style: id }).font)).size >= 7);
+  assert.equal(CS.cleanProps({ emph: true }).emph, true);
 });
