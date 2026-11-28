@@ -261,7 +261,8 @@
       setT('data-be', 'end');
     }
     // usado pelo "Sugerir tudo" da gaveta Impacto: põe a 1ª opção de cada momento sugerido pelo Claude
-    shared.apoioAuto = async () => {
+    // design: { concept, look, avoid } da direção de arte, para as imagens casarem com o resto do corte
+    shared.apoioAuto = async (design) => {
       const ws = shared.relWords ? shared.relWords() : [];
       if (ws.length < 4) return 0;
       const r = await api(`/uploads/${upload.id}/clips/${clip.id}/ai/broll`, {
@@ -269,8 +270,13 @@
           words: ws.map((w) => w.t),
           times: ws.map((w) => [+w.s.toFixed(2), +w.e.toFixed(2)]),
           format: st.format,
+          concept: design && design.concept,
+          look: st.look,
+          avoid: design && design.avoid, // trechos que já têm frase de impacto ou cartela
         },
       });
+      // P&B só quando o conceito pede (look P&B, noite, retrô); num corte de cor quente, as imagens ficam na cor dele
+      const mono = ['drama', 'noite', 'retro'].includes(st.look);
       st.broll = st.broll.filter((o) => !o.ai); // troca as sugestões anteriores
       let n = 0;
       for (const m of r.moments || []) {
@@ -282,7 +288,10 @@
         await place(it, start, end, m.mode, m.label);
         if (st.broll.length > before) {
           const added = st.broll.find((o) => o.label === m.label && !o.ai && Math.abs(o.start - start) < 0.02);
-          if (added) added.ai = true;
+          if (added) {
+            added.ai = true;
+            added.bw = mono;
+          }
           n++;
         }
       }

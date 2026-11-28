@@ -422,6 +422,7 @@
                   broll: !!(S.status && S.status.broll), // imagens de apoio (Pixabay ou Pexels)
                   brollSource: (S.status && S.status.brollSource) || 'Pixabay',
                   musicSearch: !!(S.status && S.status.musicSearch), // músicas do Freesound
+                  libass: !(S.status && S.status.libass === false), // o ffmpeg desenha legenda?
                   autosync: !!(S.status && S.status.autosync),
                   onDone: (list) => {
                     shared.clips = list;

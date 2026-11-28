@@ -408,3 +408,5 @@
 .som-fx div.on{border-color:var(--primary)}
 .som-opts{border:1px solid var(--primary);border-radius:10px;padding:10px;margin-top:8px;display:flex;flex-direction:column;gap:6px;font-size:13px}
 .som-it button[data-ohear],.som-it button[data-shear]{width:30px;height:30px;border-radius:50%;border:1px solid var(--border)}
+.dlx-warn{margin:8px 20px 0;padding:10px 14px;border-radius:10px;background:#fef3f2;border:1px solid #fecdca;color:#912018;font-size:13px;line-height:1.45}
+.dlx-warn code{background:#fff;padding:1px 5px;border-radius:4px}

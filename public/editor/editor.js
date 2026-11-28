@@ -424,6 +424,14 @@
     if (Parts.impacto) Parts.impacto(shared);
     if (Parts.apoio) Parts.apoio(shared);
     if (Parts.som) Parts.som(shared);
+    // ffmpeg sem libass: a legenda e os textos não saem no arquivo. Avisa no topo do editor, com o conserto.
+    if (ctx.libass === false)
+      root
+        .querySelector('.dlx-top')
+        .insertAdjacentHTML(
+          'afterend',
+          '<div class="dlx-warn" role="alert"><b>A legenda não vai sair no vídeo exportado.</b> O ffmpeg deste computador não tem a parte que desenha legenda (libass). No Mac, abra o Terminal, rode <code>brew reinstall ffmpeg</code> e abra o Studio de novo. Enquanto isso, ao exportar com legenda o Studio para e avisa, em vez de sair sem ela.</div>',
+        );
 
     $$('.dlx-rail button', root).forEach(
       (b) =>

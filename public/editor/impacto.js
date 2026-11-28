@@ -543,7 +543,12 @@
         if (ui.withImages && ctx.broll && shared.apoioAuto) {
           ui.stage = 'Escolhendo as imagens de apoio…';
           drawDrawer();
-          const n = await shared.apoioAuto().catch((e) => (toast(e.message), 0));
+          // as imagens seguem o conceito e não caem em cima das frases de impacto nem das cartelas
+          const avoid = groupsList().map((g) => {
+            const os = st.overlays.filter((o) => o.grp === g.grp);
+            return [Math.min(...os.map((o) => o.start ?? 0)), Math.max(...os.map((o) => o.end ?? 0))];
+          });
+          const n = await shared.apoioAuto({ concept: r.concept, avoid }).catch((e) => (toast(e.message), 0));
           done.push(`${n} imagem${n === 1 ? '' : 'ns'} de apoio`);
         }
         if (ui.withSound && shared.somAuto) {

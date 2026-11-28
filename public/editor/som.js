@@ -46,10 +46,21 @@
 
     /* ----- prévia: os efeitos no instante deles e a música por baixo ----- */
     const cache = {};
+    // efeitos tocando agora: param todos quando o vídeo pausa, volta ou termina (antes continuavam soando)
+    const playing = new Set();
     const playSfx = (k, vol) => {
       const a = new Audio(sfxUrl(k));
       a.volume = clamp(vol ?? 0.8, 0, 1);
-      a.play().catch(() => {});
+      playing.add(a);
+      a.onended = () => playing.delete(a);
+      a.play().catch(() => playing.delete(a));
+    };
+    const stopSfx = () => {
+      for (const a of playing) {
+        a.pause();
+        a.src = '';
+      }
+      playing.clear();
     };
     const music = new Audio();
     music.loop = true;
@@ -83,7 +94,12 @@
       prev();
       tick();
     };
-    v.addEventListener('pause', () => music.pause());
+    v.addEventListener('pause', () => {
+      music.pause();
+      stopSfx();
+    });
+    v.addEventListener('seeking', stopSfx);
+    v.addEventListener('ended', stopSfx);
 
     /* ----- ações ----- */
     const refresh = () => {
