@@ -350,7 +350,8 @@
           text: g.text,
           x: s.x,
           y: +yy.toFixed(3),
-          start: +Math.max(0, g.s).toFixed(2),
+          // entra um pouco antes da palavra (0,12 s): a animação termina no instante em que ela é dita
+          start: +Math.max(0, g.s - 0.12).toFixed(2),
           end: +end.toFixed(2),
           hidden: false,
           size: s.size,

@@ -430,7 +430,7 @@
         .querySelector('.dlx-top')
         .insertAdjacentHTML(
           'afterend',
-          '<div class="dlx-warn" role="alert"><b>A legenda não vai sair no vídeo exportado.</b> O ffmpeg deste computador não tem a parte que desenha legenda (libass). No Mac, abra o Terminal, rode <code>brew reinstall ffmpeg</code> e abra o Studio de novo. Enquanto isso, ao exportar com legenda o Studio para e avisa, em vez de sair sem ela.</div>',
+          `<div class="dlx-warn" role="alert"><b>A legenda não vai sair no vídeo exportado.</b> O ffmpeg que o Studio está usando não tem a parte que desenha legenda (libass)${ctx.ffmpegInfo ? ` — em uso: <code>${esc(ctx.ffmpegInfo)}</code>` : ''}. No Mac, no Terminal: <code>brew install ffmpeg</code> (se já tiver, <code>brew reinstall ffmpeg</code>) e abra o Studio de novo. Enquanto isso, exportar com legenda para e avisa, em vez de sair sem ela.</div>`,
         );
 
     $$('.dlx-rail button', root).forEach(

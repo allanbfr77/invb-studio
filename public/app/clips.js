@@ -423,6 +423,7 @@
                   brollSource: (S.status && S.status.brollSource) || 'Pixabay',
                   musicSearch: !!(S.status && S.status.musicSearch), // músicas do Freesound
                   libass: !(S.status && S.status.libass === false), // o ffmpeg desenha legenda?
+                  ffmpegInfo: S.status ? [S.status.ffmpegPath, S.status.ffmpegVersion].filter(Boolean).join(' · ') : '',
                   autosync: !!(S.status && S.status.autosync),
                   onDone: (list) => {
                     shared.clips = list;

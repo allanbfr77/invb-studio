@@ -258,6 +258,28 @@ test('legenda some onde há palavras de impacto (capHide)', () => {
   assert.match(all, /jovem/);
   assert.doesNotMatch(hidden, /também|sou/); // as palavras ditas durante o impacto saem da legenda
   assert.match(hidden, /jovem/); // as outras continuam
+  // nenhuma legenda invade o trecho do impacto (antes a palavra anterior ficava na tela por baixo da frase grande)
+  const evs = buildAss(
+    tr,
+    c,
+    cleanOpts({ captions: { on: true, style: 'Essenciais/Clássica', words: 4 }, capHide: [[0.5, 2.0]] }),
+    1080,
+    1920,
+    rel,
+    false,
+  )
+    .split('\n')
+    .filter((l) => /^Dialogue: 1,/.test(l))
+    .map((l) =>
+      l
+        .split(',')
+        .slice(1, 3)
+        .map((x) => {
+          const [h, m, sec] = x.split(':');
+          return +h * 3600 + +m * 60 + +sec;
+        }),
+    );
+  for (const [a, b] of evs) assert.ok(b <= 0.5 + 0.01 || a >= 2.0 - 0.01, `legenda de ${a} a ${b} cruza o impacto`);
 });
 
 test(
