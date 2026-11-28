@@ -395,3 +395,16 @@
 @keyframes imp-glitch{0%{translate:0 0;filter:hue-rotate(0)}50%{translate:-1.2% .4%;filter:hue-rotate(40deg) saturate(1.6)}100%{translate:1% -.3%;filter:hue-rotate(-30deg)}}
 .dlx-stage video.imp-echo{animation:imp-echo .25s linear infinite}
 @keyframes imp-echo{0%{opacity:1}50%{opacity:.82}100%{opacity:1}}
+
+.cap-nw{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-weight:600}
+.cap-nw .dlx-chips button{padding:3px 10px}
+.imp-fxg{margin:6px 0 8px}
+.imp-fxg>span{display:block;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.dlx-stage video.imp-hand{animation:imp-hand 3.2s ease-in-out infinite}
+@keyframes imp-hand{0%{translate:0 0;rotate:0deg}25%{translate:.6% -.4%;rotate:.3deg}50%{translate:-.4% .5%;rotate:-.2deg}75%{translate:.3% .3%;rotate:.2deg}100%{translate:0 0;rotate:0deg}}
+.dlx-stage video.imp-pulse{animation:imp-pulse .45s ease-in-out infinite}
+@keyframes imp-pulse{0%,100%{scale:1.02}50%{scale:1.08}}
+
+.som-fx div.on{border-color:var(--primary)}
+.som-opts{border:1px solid var(--primary);border-radius:10px;padding:10px;margin-top:8px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.som-it button[data-ohear],.som-it button[data-shear]{width:30px;height:30px;border-radius:50%;border:1px solid var(--border)}

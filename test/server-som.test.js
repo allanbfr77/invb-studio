@@ -54,11 +54,14 @@ test(
     fs.mkdirSync(media);
     tone(path.join(media, 'musica.mp3'), 2000, 4);
     let tokenSeen = '';
+    const searches = [];
     const srv = http.createServer((req, res) => {
       const u = new URL(req.url, 'http://x');
       const base = `http://127.0.0.1:${srv.address().port}`;
       if (u.pathname === '/prev/musica.mp3') return fs.createReadStream(path.join(media, 'musica.mp3')).pipe(res);
       tokenSeen = u.searchParams.get('token');
+      if (u.pathname === '/search/text/')
+        searches.push({ q: u.searchParams.get('query'), f: u.searchParams.getAll('filter').join(' ') });
       const it = {
         id: 555,
         name: 'Piano calmo',
@@ -79,15 +82,20 @@ test(
       env: { FREESOUND_API_KEY: 'chave-fs', INVB_FREESOUND_API_BASE: `http://127.0.0.1:${srv.address().port}` },
     });
     assert.equal((await s.api('/status')).body.musicSearch, true);
-    // efeito: gerado na primeira vez e servido como wav
+    // efeito com a chave do Freesound: o melhor resultado da busca do tipo vira o som (mp3) e fica como escolha
     const w = await fetch(s.url + '/api/sfx/boom/file', { headers: { cookie: s.cookie } });
     assert.equal(w.status, 200);
-    assert.equal(
-      Buffer.from(await w.arrayBuffer())
-        .slice(8, 12)
-        .toString(),
-      'WAVE',
+    assert.equal(w.headers.get('content-type'), 'audio/mpeg');
+    assert.ok(
+      searches.some((x) => /cinematic boom impact/.test(x.q) && /Creative Commons 0/.test(x.f)),
+      'busca só CC0',
     );
+    const opts = (await s.api('/sfx/boom/options')).body;
+    assert.equal(opts.chosen, '555');
+    assert.equal(opts.items[0].id, '555');
+    assert.equal((await s.api('/sfx/boom/choose', { json: { id: '555' } })).status, 200);
+    assert.equal((await s.api('/sfx/search?q=aplausos')).body.items.length, 1);
+    assert.equal((await s.api('/sfx/fs', { json: { id: '555' } })).body.type, 'fs555');
     assert.equal((await s.api('/sfx/nada/file')).status, 404);
     // música do Freesound
     const found = (await s.api('/music/search?q=piano')).body.items;
@@ -136,11 +144,32 @@ test(
     // a música aparece (2000 Hz), e abaixada quando a voz toca o tempo todo
     assert.ok(level(withAll, 0.5, 1, MUS) > level(plain, 0.5, 1, MUS) + 20, 'música entrou');
     assert.ok(level(ducked, 2.5, 1, MUS) < level(withAll, 2.5, 1, MUS) - 4, 'música abaixa sob a voz');
-    // o boom (grave) está aos 2 s e não antes
-    assert.ok(level(withAll, 2.0, 0.6, LOW) > level(withAll, 0.3, 0.6, LOW) + 15, 'boom aos 2 s');
+    // o efeito entra aos 2 s e não antes (aqui o "boom" escolhido no Freesound de mentira é um tom de 2000 Hz)
+    const onlySfx = await exp({ sfx: [{ type: 'boom', at: 2, vol: 1 }] });
+    assert.ok(level(onlySfx, 2.0, 0.6, MUS) > level(onlySfx, 0.3, 0.6, MUS) + 15, 'efeito aos 2 s');
+    void LOW;
     // a voz continua lá
     const vA = level(withAll, 3, 1, 'bandpass=f=300:w=50'),
       vP = level(plain, 3, 1, 'bandpass=f=300:w=50');
     assert.ok(Math.abs(vA - vP) < 3, `a voz não mudou: ${vA} x ${vP}`);
+  },
+);
+
+test(
+  'Som sem a chave do Freesound: os efeitos básicos são gerados no Studio',
+  { skip: !HAS_FFMPEG || process.platform === 'win32' },
+  async (t) => {
+    const d = tmp(t);
+    seedTone(d, 'kkkkkkkkkkkn');
+    const s = await boot(t, d, { env: { FREESOUND_API_KEY: '' } });
+    const w = await fetch(s.url + '/api/sfx/whoosh/file', { headers: { cookie: s.cookie } });
+    assert.equal(w.status, 200);
+    assert.equal(
+      Buffer.from(await w.arrayBuffer())
+        .slice(8, 12)
+        .toString(),
+      'WAVE',
+    );
+    assert.equal((await s.api('/sfx/sino/file')).status, 503); // só existe pelo Freesound
   },
 );

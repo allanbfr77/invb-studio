@@ -62,7 +62,10 @@ test('edições antigas continuam abrindo: o padrão de antes era a frase inteir
 test('palavras de cada vez: o número escolhido vale, e pausas longas ou troca de fala ainda quebram', () => {
   assert.deepEqual(sizes(CS.resolve({ words: 3 })), [3, 3, 3, 1]);
   assert.deepEqual(sizes(CS.resolve({ chunk: 5 })), [5, 5]);
-  assert.deepEqual(sizes(CS.resolve({ mode: 'words1', words: 4 })), new Array(10).fill(1)); // uma por vez é sempre uma
+  // "uma por vez" com outro número: passa a mostrar o grupo, com a palavra falada destacada (a equipe pediu)
+  assert.deepEqual(sizes(CS.resolve({ mode: 'words1', words: 4 })), [4, 4, 2]);
+  assert.equal(CS.resolve({ mode: 'words1', words: 4 }).mode, 'highlight');
+  assert.deepEqual(sizes(CS.resolve({ mode: 'words1', words: 1 })), new Array(10).fill(1));
   assert.equal(CS.resolve({ style: 'Essenciais/Frase inteira', words: 4 }).mode, 'plain'); // frase inteira com número vira grupo
   const w = words.map((x, i) => (i >= 4 ? { ...x, s: x.s + 2, e: x.e + 2 } : x));
   assert.deepEqual(

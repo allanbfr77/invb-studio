@@ -259,3 +259,22 @@ test('legenda some onde há palavras de impacto (capHide)', () => {
   assert.doesNotMatch(hidden, /também|sou/); // as palavras ditas durante o impacto saem da legenda
   assert.match(hidden, /jovem/); // as outras continuam
 });
+
+test(
+  'Impacto: todos os efeitos e looks exportam sem erro',
+  { skip: !HAS_FFMPEG || process.platform === 'win32' },
+  async (t) => {
+    const { FX_TYPES, LOOKS } = require('../lib/render');
+    const d = tmp(t);
+    seedTone(d, 'kkkkkkkkkkkm');
+    const s = await boot(t, d);
+    const base = '/uploads/kkkkkkkkkkkm/clips/' + (await s.api('/uploads/kkkkkkkkkkkm/clips')).body[0].id;
+    const fx = FX_TYPES.map((type, i) => ({ type, start: i * 0.28, end: i * 0.28 + 0.26, color: '#000000' }));
+    for (const look of ['cinema', 'retro']) {
+      assert.ok(LOOKS[look]);
+      await s.api(base + '/render', { json: { captions: false, format: '9:16', look, fx } });
+      const r = await waitRender(s, 'kkkkkkkkkkkm');
+      assert.equal(r.status, 'done');
+    }
+  },
+);

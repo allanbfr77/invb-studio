@@ -5,13 +5,20 @@
    Parte de public/editor/editor.js; recebe o objeto "shared" com o estado e as funções das outras partes. */
 (function () {
   const { $, $$, clamp, rid } = window.ClipEditorParts.base;
+  // os tipos (o som de cada um vem do Freesound, em domínio público; a equipe pode trocar em "Trocar")
   const SFX = [
     ['whoosh', 'Whoosh', 'passagem rápida, na entrada de uma palavra ou imagem'],
-    ['batida', 'Batida', 'grave curto, numa ênfase'],
     ['boom', 'Boom', 'impacto de cinema, numa cartela ou frase forte'],
-    ['pop', 'Pop', 'leve, para texto pequeno'],
+    ['batida', 'Batida', 'grave curto, numa ênfase'],
     ['subida', 'Subida', 'cresce até o momento forte'],
+    ['reverso', 'Reverso', 'prato ao contrário, puxa para o próximo momento'],
+    ['pop', 'Pop', 'leve, para texto pequeno'],
     ['clique', 'Clique', 'seco, para cortes rápidos'],
+    ['sino', 'Sino', 'reverência, um momento sagrado'],
+    ['coracao', 'Coração', 'batimento, tensão ou emoção'],
+    ['coral', 'Coral (ahh)', 'vozes, glória, céu'],
+    ['vento', 'Vento', 'passagem suave, Espírito'],
+    ['trovao', 'Trovão', 'peso, juízo, trevas'],
   ];
   const MOODS = [
     ['Piano calmo', 'soft piano ambient'],
@@ -20,21 +27,27 @@
     ['Reflexivo', 'ambient pad meditation'],
     ['Adoração', 'worship ambient pad'],
   ];
-  const label = (k) => (SFX.find((s) => s[0] === k) || [k, k])[1];
+  const names = {}; // nomes dos sons buscados no Freesound (tipo "fs123")
+  const label = (k) => (SFX.find((s) => s[0] === k) || [k, names[k] || 'Som'])[1];
 
   window.ClipEditorParts.som = function (shared) {
     const { st, v, esc, commit, toast, api, upload, clip, D, tm } = shared;
     const drawDrawer = (...a) => shared.drawDrawer(...a);
     if (!Array.isArray(st.sfx)) st.sfx = [];
+    for (const s of st.sfx) if (s.name && /^fs/.test(s.type)) names[s.type] = s.name;
     if (st.music === undefined) st.music = null;
     const ui = { q: '', items: null, busy: false, ai: null, aiBusy: false, used: null, using: null, playing: null };
-    const sfxUrl = (k) => `/api/sfx/${k}/file`;
+    ui.opts = null; // { type, items, chosen } ao trocar o som de um tipo
+    ui.sq = ''; // busca de efeito
+    ui.sres = null;
+    const bust = {}; // força a prévia a recarregar o som trocado
+    const sfxUrl = (k) => `/api/sfx/${k}/file${bust[k] ? '?v=' + bust[k] : ''}`;
     const musUrl = (id) => `/api/music/${id}/file`;
 
     /* ----- prévia: os efeitos no instante deles e a música por baixo ----- */
     const cache = {};
     const playSfx = (k, vol) => {
-      const a = new Audio(cache[k] || (cache[k] = sfxUrl(k)));
+      const a = new Audio(sfxUrl(k));
       a.volume = clamp(vol ?? 0.8, 0, 1);
       a.play().catch(() => {});
     };
@@ -101,6 +114,12 @@
         if (f.type === 'zoom' || f.type === 'shake') put('batida', f.start, 0.8);
         if (f.type === 'flash') put('clique', f.start, 0.8);
         if (f.type === 'bw') put('subida', Math.max(0, f.start - 1.5), 0.5);
+        if (f.type === 'reveal') put('reverso', Math.max(0, f.start - 0.8), 0.6);
+        if (f.type === 'glow') put('coral', f.start, 0.45);
+        if (f.type === 'pulse') put('coracao', f.start, 0.7);
+        if (f.type === 'dim') put('trovao', f.start, 0.45);
+        if (f.type === 'warm') put('sino', f.start, 0.5);
+        if (f.type === 'pull' || f.type === 'push') put('vento', f.start, 0.4);
       }
       for (const b of st.broll || []) put('whoosh', Math.max(0, b.start - 0.15), 0.55);
       st.sfx.sort((a, b) => a.at - b.at);
@@ -190,13 +209,24 @@
     function html() {
       const ctx = shared.ctx || {};
       const m = st.music;
+      void ctx;
       const credit = m && /BY/.test(m.license || '') ? `Música: “${m.name}” por ${m.by} (Freesound, CC BY)` : '';
       return `<h3>Som</h3><p class="dlx-sub" style="margin-top:0">Efeitos nos momentos fortes e uma música baixinha por baixo da voz. Os efeitos são feitos no próprio Studio.</p>
         <button class="ap-btn pri imp-ai" id="som-auto">⚡ Som automático no Impacto e no Apoio</button>
         <p class="dlx-sub">Whoosh nas palavras de impacto e imagens, boom nas cartelas, batida no zoom e na tremida, subida antes do P&amp;B.</p>
         <h4>Efeitos</h4>
         <p class="dlx-sub" style="margin-top:0">▶ ouve; + põe no ponto onde o vídeo está (${tm(shared.relT ? shared.relT() : 0)}).</p>
-        <div class="som-fx">${SFX.map(([k, l, tip]) => `<div title="${tip}"><button data-hear="${k}" aria-label="Ouvir ${l}">▶</button><span>${l}</span><button data-addfx="${k}" aria-label="Adicionar ${l}">+</button></div>`).join('')}</div>
+        <div class="som-fx">${SFX.map(([k, l, tip]) => `<div title="${tip}" class="${ui.opts && ui.opts.type === k ? 'on' : ''}"><button data-hear="${k}" aria-label="Ouvir ${l}">▶</button><span>${l}</span>${ctx.musicSearch ? `<button data-swap="${k}" aria-label="Trocar o som de ${l}" title="Trocar o som">⇄</button>` : ''}<button data-addfx="${k}" aria-label="Adicionar ${l}">+</button></div>`).join('')}</div>
+        ${
+          ui.opts
+            ? `<div class="som-opts"><b>Trocar o som de “${label(ui.opts.type)}”</b>${ui.opts.items ? (ui.opts.items.length ? `<div class="som-list">${ui.opts.items.map((it, i) => `<div class="som-it"><button data-ohear="${i}" aria-label="Ouvir">${ui.playing === 'o' + i ? '❚❚' : '▶'}</button><div><b>${esc(it.name)}</b><small>${esc(it.by)} · ${it.dur}s</small></div><button class="ap-btn ${ui.opts.chosen === it.id ? 'pri' : ''}" data-ouse="${i}">${ui.opts.chosen === it.id ? 'Em uso' : 'Usar'}</button></div>`).join('')}</div>` : '<p class="dlx-sub">Nada encontrado.</p>') : '<p class="dlx-sub">Buscando…</p>'}<p class="dlx-sub" style="margin:0">Vale para a equipe toda, em todos os cortes.</p></div>`
+            : ''
+        }
+        ${
+          ctx.musicSearch
+            ? `<div class="apo-q" style="margin-top:10px"><input id="som-sq" type="search" placeholder="Buscar outro efeito: aplausos, passos, porta…" value="${esc(ui.sq)}"><button class="ap-btn" id="som-sgo">Buscar</button></div>${ui.sres ? (ui.sres.length ? `<div class="som-list">${ui.sres.map((it, i) => `<div class="som-it"><button data-shear="${i}" aria-label="Ouvir">${ui.playing === 's' + i ? '❚❚' : '▶'}</button><div><b>${esc(it.name)}</b><small>${esc(it.by)} · ${it.dur}s</small></div><button class="ap-btn" data-sadd="${i}">+ Pôr aqui</button></div>`).join('')}</div>` : '<p class="dlx-sub">Nada encontrado. Tente em inglês.</p>') : ''}`
+            : '<p class="dlx-sub">Com a chave do Freesound, os efeitos são gravações de verdade (e dá para trocar e buscar outros).</p>'
+        }
         ${
           st.sfx.length
             ? `<div class="imp-fxl">${st.sfx
@@ -268,6 +298,70 @@
       };
       one('som-auto', 'click', auto);
       on('[data-hear]', (b) => playSfx(b.dataset.hear, 0.8));
+      on('[data-swap]', async (b) => {
+        const k = b.dataset.swap;
+        if (ui.opts && ui.opts.type === k) {
+          ui.opts = null;
+          return drawDrawer();
+        }
+        ui.opts = { type: k, items: null, chosen: null };
+        drawDrawer();
+        try {
+          const r = await api(`/sfx/${k}/options`);
+          if (ui.opts && ui.opts.type === k) Object.assign(ui.opts, r);
+        } catch (e) {
+          toast(e.message);
+          ui.opts = null;
+        }
+        drawDrawer();
+      });
+      on('[data-ohear]', (b) => listen(ui.opts.items[+b.dataset.ohear].preview, 'o' + b.dataset.ohear));
+      on('[data-ouse]', async (b) => {
+        const it = ui.opts.items[+b.dataset.ouse];
+        try {
+          await api(`/sfx/${ui.opts.type}/choose`, { json: { id: it.id } });
+          ui.opts.chosen = it.id;
+          bust[ui.opts.type] = Date.now();
+          toast(`“${label(ui.opts.type)}” agora usa “${it.name}”, em todos os cortes.`);
+        } catch (e) {
+          toast(e.message);
+        }
+        drawDrawer();
+      });
+      const sq = $('#som-sq', dr);
+      const sfxSearch = async () => {
+        if (!ui.sq.trim()) return;
+        try {
+          ui.sres = (await api('/sfx/search?q=' + encodeURIComponent(ui.sq))).items;
+        } catch (e) {
+          toast(e.message);
+        }
+        drawDrawer();
+      };
+      if (sq) {
+        sq.addEventListener('input', (e) => (ui.sq = e.target.value));
+        sq.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') sfxSearch();
+          e.stopPropagation();
+        });
+      }
+      const sgo = $('#som-sgo', dr);
+      if (sgo) sgo.onclick = sfxSearch;
+      on('[data-shear]', (b) => listen(ui.sres[+b.dataset.shear].preview, 's' + b.dataset.shear));
+      on('[data-sadd]', async (b) => {
+        const it = ui.sres[+b.dataset.sadd];
+        try {
+          const r = await api('/sfx/fs', { json: { id: it.id } });
+          names[r.type] = it.name.slice(0, 24);
+          addSfx(r.type, shared.relT ? shared.relT() : 0);
+          st.sfx[st.sfx.length - 1].name = names[r.type];
+          st.sfx.sort((a, c) => a.at - c.at);
+          refresh();
+          playSfx(r.type, 0.8);
+        } catch (e) {
+          toast(e.message);
+        }
+      });
       on('[data-addfx]', (b) => {
         const t = shared.relT ? shared.relT() : 0;
         addSfx(b.dataset.addfx, t);

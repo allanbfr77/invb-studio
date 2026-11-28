@@ -25,6 +25,31 @@
       note: 'elegante, para versículos',
     },
     { name: 'Permanent Marker', file: 'PermanentMarker-Regular.ttf', note: 'escrita à mão' },
+    { name: 'Oswald Bold', file: 'Oswald-Bold.ttf', note: 'condensada, forte' },
+    { name: 'Montserrat Black', file: 'Montserrat-Black.ttf', note: 'a mais pesada da Montserrat' },
+    { name: 'League Spartan Black', file: 'LeagueSpartan-Black.ttf', note: 'geométrica, de cartaz' },
+    { name: 'Inter Black', file: 'Inter-Black.ttf', note: 'limpa, moderna' },
+    { name: 'Barlow Condensed ExtraBold', file: 'BarlowCondensed-ExtraBold.ttf', note: 'estreita, para frases longas' },
+    { name: 'Syne ExtraBold', file: 'Syne-ExtraBold.ttf', note: 'editorial, ousada' },
+    {
+      name: 'Playfair Display Black',
+      file: 'PlayfairDisplay-Black.ttf',
+      italic: 'PlayfairDisplay-BoldItalic.ttf',
+      note: 'serifa de revista',
+    },
+    {
+      name: 'Cormorant Bold',
+      file: 'CormorantGaramond-Bold.ttf',
+      italic: 'CormorantGaramond-BoldItalic.ttf',
+      note: 'serifa clássica, delicada',
+    },
+    { name: 'Abril Fatface', file: 'AbrilFatface-Regular.ttf', note: 'serifa grossa, de título' },
+    { name: 'Great Vibes', file: 'GreatVibes-Regular.ttf', note: 'caligrafia elegante' },
+    { name: 'Caveat Bold', file: 'Caveat-Bold.ttf', note: 'escrita à mão, natural' },
+    { name: 'Kaushan Script', file: 'KaushanScript-Regular.ttf', note: 'pincel, com energia' },
+    { name: 'Dancing Script Bold', file: 'DancingScript-Bold.ttf', note: 'cursiva, alegre' },
+    { name: 'Righteous', file: 'Righteous-Regular.ttf', note: 'arredondada, retrô' },
+    { name: 'Space Grotesk Bold', file: 'SpaceGrotesk-Bold.ttf', note: 'técnica, moderna' },
   ];
   const FONTS = FONT_LIST.map((f) => f.name);
   const DEFAULT_FONT = 'Poppins ExtraBold';
@@ -250,6 +275,7 @@
     if (w !== null) {
       out.chunk = Math.round(w);
       if (out.mode === 'block') out.mode = 'plain'; // frase inteira não tem número de palavras
+      if (out.mode === 'words1' && out.chunk > 1) out.mode = 'highlight'; // mais de uma: a falada fica destacada
     }
     out.font = cleanFont(out.font);
     if (out.mode === 'words1') out.chunk = 1;

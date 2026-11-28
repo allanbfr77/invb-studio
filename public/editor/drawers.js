@@ -261,7 +261,11 @@
               ),
             )
             .join('');
-          body = `<p class="dlx-sub" style="margin-top:0">Escolha um ponto de partida. Em <b>Personalizar</b> dá para mudar tudo e salvar como estilo seu.</p>
+          const nW = S.mode === 'block' ? 0 : S.mode === 'words1' ? 1 : S.chunk || 4;
+          body = `<div class="cap-nw"><span>Palavras na tela</span><div class="dlx-chips">${[1, 2, 3, 4, 5, 6, 8]
+            .map((n) => `<button data-nw="${n}" aria-pressed="${st.cap.on && nW === n}">${n}</button>`)
+            .join('')}<button data-nw="0" aria-pressed="${st.cap.on && nW === 0}">Frase</button></div></div>
+            <p class="dlx-sub" style="margin-top:0">Escolha um ponto de partida. Em <b>Personalizar</b> dá para mudar tudo e salvar como estilo seu.</p>
             <div class="dlx-grid" id="sty-grid" style="margin-bottom:6px"><button class="dlx-card nosub" data-style="" aria-pressed="${!st.cap.on}"><div class="pv none">Sem legenda</div><span>Sem legenda</span></button></div>
             <h4>Meus estilos</h4><div class="dlx-grid sty-grid">${mineCards || '<p class="dlx-sub" style="grid-column:1/-1;margin:0">Nenhum ainda. Ajuste em Personalizar e clique em “Salvar como meu estilo”.</p>'}</div>
             ${CSx.CATEGORIES.map(
@@ -280,7 +284,7 @@
             ).join('')}`;
         } else if (st.tab === 'personalizar') {
           const hasHi = ['highlight', 'boxhl', 'karaoke'].includes(S.mode),
-            hasWords = !['block', 'words1'].includes(S.mode);
+            hasWords = true; // todo estilo aceita o número de palavras (frase inteira e "uma por vez" se adaptam)
           const color = (key, label, val) =>
             `<div class="dlx-color"><span>${label}</span><div class="dlx-swatches">${CSx.PAL.map((c) => `<button data-cset="${key}" data-c="${c}" style="background:${c}" aria-label="${label}: ${c}" ${val === c ? 'aria-pressed="true"' : ''}></button>`).join('')}<input type="color" data-color="${key}" value="${val}" aria-label="${label}: outra cor"></div></div>`;
           const range = (id, label, val, min, max, shown = val) =>
@@ -297,7 +301,7 @@
             <div class="dlx-row"><div><b>Itálico</b></div>${sw('cx-italic', S.italic)}</div>
             <h4>Como a palavra falada aparece</h4>
             <div class="dlx-chips">${CSx.MODES.map((m) => `<button data-mode="${m[0]}" aria-pressed="${S.mode === m[0]}">${m[1]}</button>`).join('')}</div>
-            ${hasWords ? range('cx-words', 'Palavras de cada vez', S.chunk, 1, 10) : ''}
+            ${hasWords ? range('cx-words', 'Palavras de cada vez', S.mode === 'block' ? 10 : S.chunk || 4, 1, 10) : ''}
             <h4>Cores</h4>
             ${color('color', 'Texto', S.color)}${hasHi ? color('hi', 'Palavra falada', S.hi) : ''}${S.box ? '' : color('outline', 'Contorno', S.outline)}
             <h4>Contorno, sombra e brilho</h4>
@@ -704,6 +708,24 @@
           paintCap();
           if (!live) commit();
         });
+        // "Palavras na tela" (aba Estilos): 1 a 8 de cada vez, ou a frase inteira
+        $$('[data-nw]', dr).forEach((b) =>
+          b.addEventListener('click', () => {
+            const n = +b.dataset.nw;
+            if (n === 0) {
+              st.cap.words = null;
+              st.cap.mode = 'block';
+            } else {
+              st.cap.words = n;
+              if (st.cap.mode === 'block') st.cap.mode = undefined;
+              if (n > 1 && eff().mode === 'words1') st.cap.mode = 'highlight';
+              if (n === 1) st.cap.mode = 'words1';
+            }
+            st.cap.chunk = undefined;
+            setP('words', st.cap.words, false);
+            drawDrawer();
+          }),
+        );
         rng('cx-words', (v, live) => {
           st.cap.words = v;
           delete st.cap.chunk;

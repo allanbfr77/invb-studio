@@ -28,6 +28,36 @@
       big: { font: 'Bebas Neue', color: '#ffffff', size: 0.11 },
       small: { font: 'Poppins SemiBold', color: '#ffffff', size: 0.04 },
     },
+    revista: {
+      label: 'Revista',
+      big: { font: 'Playfair Display Black', color: '#ffffff', size: 0.085 },
+      small: { font: 'Playfair Display Black', color: '#eadfc4', italic: true, size: 0.048 },
+    },
+    cinema: {
+      label: 'Cinema',
+      big: { font: 'Oswald Bold', color: '#ffffff', upper: true, size: 0.09 },
+      small: { font: 'Cormorant Bold', color: '#f3e3b5', italic: true, size: 0.055 },
+    },
+    manuscrito: {
+      label: 'Manuscrito',
+      big: { font: 'Great Vibes', color: '#f3cf6b', size: 0.11 },
+      small: { font: 'Montserrat Black', color: '#ffffff', upper: true, size: 0.042 },
+    },
+    pincel: {
+      label: 'Pincel',
+      big: { font: 'Kaushan Script', color: '#ffffff', size: 0.09 },
+      small: { font: 'Montserrat Black', color: '#ffd60a', upper: true, size: 0.04 },
+    },
+    moderno: {
+      label: 'Moderno',
+      big: { font: 'Syne ExtraBold', color: '#ffffff', upper: true, size: 0.075 },
+      small: { font: 'Inter Black', color: '#c8f169', upper: true, size: 0.038 },
+    },
+    caderno: {
+      label: 'Caderno',
+      big: { font: 'Caveat Bold', color: '#ffffff', size: 0.1 },
+      small: { font: 'Caveat Bold', color: '#ffe08a', size: 0.06 },
+    },
     tarja: {
       label: 'Tarja dourada',
       big: {
@@ -59,6 +89,11 @@
     ['frio', 'Frio'],
     ['drama', 'P&B dramático'],
     ['vivo', 'Vivo'],
+    ['cinema', 'Cinema'],
+    ['dourado', 'Dourado'],
+    ['noite', 'Noite'],
+    ['suave', 'Suave'],
+    ['retro', 'Retrô'],
   ];
   // o mesmo look da exportação, aproximado com filtros do navegador (+ cantos escuros onde o ffmpeg usa vinheta)
   const LOOK_CSS = {
@@ -68,6 +103,11 @@
     frio: ['saturate(.9) contrast(1.05) hue-rotate(-8deg) brightness(1.02)', false],
     drama: ['grayscale(1) contrast(1.3) brightness(.97)', true],
     vivo: ['saturate(1.28) contrast(1.08)', false],
+    cinema: ['contrast(1.1) saturate(1.08) sepia(.12) hue-rotate(-6deg)', false],
+    dourado: ['sepia(.3) saturate(1.1) contrast(1.05) brightness(1.03)', false],
+    noite: ['brightness(.92) contrast(1.08) saturate(.7) hue-rotate(8deg)', true],
+    suave: ['contrast(.92) brightness(1.03) saturate(.85)', false],
+    retro: ['sepia(.4) contrast(.95) saturate(.85)', false],
   };
   const FX = {
     bw: { label: 'P&B', dur: 1.2, tip: 'Preto e branco com cantos escuros, só no trecho' },
@@ -80,7 +120,23 @@
     glitch: { label: 'Glitch', dur: 0.5, tip: 'Cores separadas e chuvisco (erro, engano, mentira)' },
     dim: { label: 'Escurecer', dur: 1.5, tip: 'A imagem escurece (trevas, peso, pecado)' },
     echo: { label: 'Rastro', dur: 1.0, tip: 'O movimento deixa rastro (passado, memória)' },
+    pull: { label: 'Zoom para fora', dur: 2.0, tip: 'Começa perto e abre (fechar uma ideia)' },
+    pulse: { label: 'Pulso', dur: 2.0, tip: 'A imagem pulsa como batida' },
+    handheld: { label: 'Câmera na mão', dur: 3.0, tip: 'Balanço leve, mais íntimo' },
+    redpop: { label: 'Só vermelho', dur: 1.5, tip: 'Tudo cinza, menos o vermelho (sangue, cruz)' },
+    glow: { label: 'Brilho', dur: 1.5, tip: 'Brilho suave em volta da luz (glória, céu)' },
+    warm: { label: 'Luz quente', dur: 1.5, tip: 'Luz dourada (esperança, graça)' },
+    reveal: { label: 'Surgir do preto', dur: 0.8, tip: 'A imagem aparece do preto (abrir o corte)' },
+    oldfilm: { label: 'Filme antigo', dur: 2.0, tip: 'Sépia, chuvisco e luz piscando (história)' },
+    vhs: { label: 'VHS', dur: 1.5, tip: 'Fita antiga, cores vazando e linhas' },
+    pixel: { label: 'Mosaico', dur: 0.4, tip: 'Quadradinhos numa virada rápida' },
   };
+  // grupos para a gaveta, como num programa de edição
+  const FX_GROUPS = [
+    ['Câmera', ['zoom', 'push', 'pull', 'pulse', 'shake', 'handheld']],
+    ['Cor e luz', ['bw', 'redpop', 'dim', 'glow', 'warm', 'flash', 'reveal']],
+    ['Estilo', ['oldfilm', 'vhs', 'glitch', 'blur', 'echo', 'pixel']],
+  ];
   const CARD_COLORS = ['#000000', '#ffffff', '#c0262d', '#f0b93a'];
   const dark = (hex) => {
     const n = parseInt(String(hex).slice(1), 16);
@@ -95,6 +151,21 @@
     'DM Serif Display': 0.52,
     Anton: 0.46,
     'Bebas Neue': 0.4,
+    'Oswald Bold': 0.5,
+    'Montserrat Black': 0.74,
+    'League Spartan Black': 0.68,
+    'Inter Black': 0.68,
+    'Barlow Condensed ExtraBold': 0.46,
+    'Syne ExtraBold': 0.74,
+    'Playfair Display Black': 0.6,
+    'Cormorant Bold': 0.48,
+    'Abril Fatface': 0.6,
+    'Great Vibes': 0.44,
+    'Caveat Bold': 0.44,
+    'Kaushan Script': 0.56,
+    'Dancing Script Bold': 0.5,
+    Righteous: 0.62,
+    'Space Grotesk Bold': 0.62,
   };
   const clean = (t) => String(t || '').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}!?]+$/gu, '');
 
@@ -154,6 +225,12 @@
         has('blur') ? 'blur(6px)' : '',
         has('dim') ? 'brightness(.68) saturate(.8)' : '',
         has('echo') ? 'contrast(1.08)' : '',
+        has('redpop') ? 'grayscale(.85) contrast(1.1)' : '',
+        has('glow') ? 'brightness(1.12) contrast(.95) saturate(1.1)' : '',
+        has('warm') ? 'sepia(.35) saturate(1.2) brightness(1.05)' : '',
+        has('oldfilm') ? 'sepia(.9) contrast(1.1)' : '',
+        has('vhs') ? 'saturate(1.4) contrast(1.05)' : '',
+        has('pixel') ? 'blur(3px) contrast(1.3)' : '',
       ]
         .filter(Boolean)
         .join(' ');
@@ -164,8 +241,17 @@
       v.classList.toggle('imp-shake', !!has('shake'));
       v.classList.toggle('imp-glitch', !!has('glitch'));
       v.classList.toggle('imp-echo', !!has('echo'));
+      v.classList.toggle('imp-hand', !!has('handheld'));
+      v.classList.toggle('imp-pulse', !!has('pulse'));
+      v.classList.toggle('imp-glitch', !!has('glitch') || !!has('vhs'));
       const pz = pu ? 1 + 0.15 * clamp((t - pu.start) / Math.max(0.1, pu.end - pu.start), 0, 1) : 1;
-      v.style.transform = z ? 'scale(1.18)' : pu ? `scale(${pz.toFixed(4)})` : '';
+      const pl = has('pull');
+      const plz = pl ? 1.15 - 0.15 * clamp((t - pl.start) / Math.max(0.1, pl.end - pl.start), 0, 1) : 1;
+      v.style.transform = z ? 'scale(1.18)' : pu ? `scale(${pz.toFixed(4)})` : pl ? `scale(${plz.toFixed(4)})` : '';
+      const rv = has('reveal');
+      if (rv)
+        v.style.filter += ` brightness(${clamp((t - rv.start) / Math.max(0.1, rv.end - rv.start), 0, 1).toFixed(2)})`;
+      vig.style.opacity = has('oldfilm') ? 1 : vig.style.opacity;
       const c = has('card');
       card.style.opacity = c ? 1 : 0;
       if (c) card.style.background = c.color || '#000';
@@ -467,10 +553,10 @@
         }
         <h4>Efeitos no trecho</h4>
         <p class="dlx-sub" style="margin-top:0">Entram no ponto do vídeo onde você está${sel.length ? ' — ou, com palavras marcadas acima, no tempo delas' : ''}.</p>
-        <div class="dlx-chips">${Object.entries(FX)
-          .filter(([k]) => k !== 'card')
-          .map(([k, f]) => `<button data-fx="${k}" title="${f.tip}">+ ${f.label}</button>`)
-          .join('')}</div>
+        ${FX_GROUPS.map(
+          ([g, ks]) =>
+            `<div class="imp-fxg"><span>${g}</span><div class="dlx-chips">${ks.map((k) => `<button data-fx="${k}" title="${FX[k].tip}">+ ${FX[k].label}</button>`).join('')}</div></div>`,
+        ).join('')}
         ${
           fxs.length
             ? `<div class="imp-fxl">${fxs

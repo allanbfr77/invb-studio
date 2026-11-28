@@ -118,13 +118,17 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
     que é falada, com a palavra mais forte em destaque. Estilos (vermelho forte, serifa, amarelo, branco alto, tarja),
     lado e entrada (pop, desfocado, de perto, deslizar, suave). O tamanho se ajusta para caber no quadro.
   - **Cartela:** a mesma frase em tela cheia numa cor (preto, branco, vermelho, dourado), sem o pregador.
-  - **Efeitos no trecho:** P&B com cantos escuros, zoom, zoom lento, tremida, flash, desfoque, glitch, escurecer e
-    rastro, só no pedaço marcado.
+  - **Efeitos no trecho** (19, em grupos): **Câmera** — zoom, zoom lento, zoom para fora, pulso, tremida, câmera na
+    mão; **Cor e luz** — P&B, só vermelho, escurecer, brilho, luz quente, flash, surgir do preto; **Estilo** — filme
+    antigo, VHS, glitch, desfoque, rastro, mosaico. Só no pedaço marcado.
+  - **Estilos das palavras:** vermelho forte, serifa elegante, revista, cinema, manuscrito (caligrafia + bloco),
+    pincel, moderno, caderno, amarelo, branco alto e tarja dourada.
   - **Esconder a legenda no impacto** (ligado por padrão): enquanto a frase de impacto ou a cartela está na tela, a
     legenda normal some, para não repetir a frase.
   - A disposição das palavras se ajusta ao formato: no horizontal ficam num terço da tela (o pregador livre), no
     vertical acima da área da legenda e longe dos botões da direita, no quadrado mais ao centro.
-  - **Cor do vídeo:** quente, filme (com grão), frio, P&B dramático ou vivo.
+  - **Cor do vídeo:** cinema (sombras azuladas, pele alaranjada), dourado, quente, noite, suave, filme (com grão),
+    retrô, frio, P&B dramático ou vivo.
   - **✨ Sugerir tudo com o Claude** (com a IA ligada): ele lê a fala e monta a edição inteira — frases, cartelas,
     efeitos e cor e, conforme as opções **Com/Sem**, imagens de apoio, efeitos sonoros e música. O que você fez à mão
     fica. Ctrl+Z desfaz.
@@ -143,8 +147,11 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
     nov/2026). Com as duas, vale o Pexels. A chave fica só no servidor. O que é usado é baixado uma vez para `data/broll/` (`lib/pexels.js`); a gaveta é
     `public/editor/apoio.js` e a exportação está em `lib/render.js`.
 - **Gaveta Som** (no editor do corte):
-  - **Efeitos sonoros** gerados no próprio Studio, sem internet nem licença (`lib/audio-lib.js`, guardados em
-    `data/sfx/`): whoosh, batida, boom, pop, subida e clique. ▶ ouve, + põe no ponto do vídeo; tempo e volume ajustáveis.
+  - **Efeitos sonoros** de verdade, do Freesound, só em domínio público (CC0): whoosh, boom, batida, subida,
+    reverso, pop, clique, sino, coração, coral, vento e trovão. Cada tipo tem uma busca pronta e o melhor som vira o
+    da equipe; **⇄ Trocar** mostra outras opções (vale para todos os cortes) e dá para **buscar qualquer efeito**
+    (aplausos, passos…). Sem a chave do Freesound, os seis básicos são gerados no Studio. `lib/audio-lib.js`,
+    guardados em `data/sfx/`. ▶ ouve, + põe no ponto do vídeo; tempo e volume ajustáveis.
   - **⚡ Som automático:** whoosh nas palavras de impacto e nas imagens de apoio, boom nas cartelas, batida no zoom e na
     tremida, clique no flash e subida antes do P&B.
   - **Música de fundo:** do **Freesound** (só licenças livres: CC0 ou CC BY, com o crédito pronto para copiar) usando a
