@@ -91,12 +91,15 @@
       'família reino adoração louvor promessa promessas cura libertação verdade luz eterna eterno sangue ressurreição'
     ).split(' '),
   );
-  const isKeyword = (t) =>
-    KEYWORDS.has(
-      String(t || '')
-        .toLowerCase()
-        .replace(/[^\p{L}]/gu, ''),
-    );
+  const normWord = (t) =>
+    String(t || '')
+      .toLowerCase()
+      .replace(/[^\p{L}]/gu, '');
+  // palavra-chave: as da lista fixa ou as escolhidas para o corte (kwWords, pela direção de arte do Claude)
+  const isKeyword = (t, extra) => {
+    const w = normWord(t);
+    return KEYWORDS.has(w) || (Array.isArray(extra) && extra.includes(w));
+  };
 
   /* ----- cores sugeridas: dourado da igreja, neutros e algumas de destaque ----- */
   const PAL = [
@@ -256,6 +259,11 @@
       out.box = { color: o.box.color.toLowerCase(), alpha: num(o.box.alpha, 0, 0.95) || 0 };
     if (MODE_IDS.includes(o.mode)) out.mode = o.mode;
     else if (o.mode === 'words2') out.mode = 'highlight'; // do catálogo antigo
+    if (Array.isArray(o.kwWords))
+      out.kwWords = o.kwWords
+        .map(normWord)
+        .filter((w) => w.length >= 2)
+        .slice(0, 40);
     return out;
   }
 
@@ -279,15 +287,38 @@
     }
     out.font = cleanFont(out.font);
     if (out.mode === 'words1') out.chunk = 1;
+    // Leitura garantida (vem ligada): sem tarja, a letra precisa de um contorno que contraste com ela, senão some
+    // num fundo da mesma cor (letra branca sobre parede branca). Desliga com cap.safe = false.
+    if (cap.safe !== false && !out.box) {
+      if (contrast(out.color, out.outline) < 3) out.outline = lum(out.color) > 0.4 ? '#000000' : '#ffffff';
+      const minOw = out.shadow >= 3 ? 1.5 : 2;
+      if ((out.ow || 0) < minOw) out.ow = minOw;
+    }
     return out;
+  }
+  // luminância relativa (0 a 1) e contraste entre duas cores, como nas regras de acessibilidade (WCAG)
+  function lum(hex) {
+    const h = String(hex || '#000000').replace('#', '');
+    const ch = [0, 2, 4]
+      .map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+  }
+  function contrast(a, b) {
+    const x = lum(a),
+      y = lum(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
   }
   /** Só o que difere do estilo base: é o que o editor guarda e o que vai para um estilo salvo. */
   function diff(full, baseId) {
-    const b = byName(baseId),
+    // compara com o estilo base já com a leitura garantida, para esse ajuste não virar "mudança" guardada
+    // (sem tarja, a base também é comparada sem tarja: o contorno que a leitura garantida põe não conta como mudança)
+    const b0 = resolve({ style: baseId }),
+      b = full.box ? b0 : resolve({ style: baseId, box: false }),
       out = {};
     for (const k of KEYS) {
       const x = full[k],
-        y = b[k];
+        y = k === 'box' ? b0[k] : b[k];
       if (JSON.stringify(x === undefined ? null : x) !== JSON.stringify(y === undefined ? null : y))
         out[k] = x === null && k === 'box' ? false : x;
     }
@@ -344,6 +375,8 @@
     fromSaved,
     cleanProps,
     chunkWords,
+    lum,
+    contrast,
     withWords,
     FONTS,
     FONT_LIST,

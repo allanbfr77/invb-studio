@@ -384,3 +384,36 @@ kbd{display:inline-block;min-width:18px;padding:0 5px;border:1px solid var(--bor
 .sh-where{margin:10px 0 0 !important;font-size:13px !important}
 .sh-where b{color:var(--fg)}
 .modal .ft{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:16px}
+
+/* ----- aba Gastos ----- */
+.gs{max-width:1080px}
+.gs-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px}
+.gs-head h1{margin:0 0 4px;font-size:26px}
+.gs-head select{padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface,transparent);color:var(--fg)}
+.gs-top{display:grid;grid-template-columns:1.4fr 1fr;gap:12px;margin-bottom:8px}
+.gs-total,.gs-set,.gs-api{border:1px solid var(--border);border-radius:14px;padding:16px;background:var(--surface,transparent)}
+.gs-total span{font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.gs-total b{display:block;font-size:34px;margin:4px 0}
+.gs-total small,.gs-api small{display:block;color:var(--muted);font-size:12.5px}
+.gs-bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden;margin:10px 0 4px}
+.gs-bar i{display:block;height:100%;background:var(--primary)}
+.gs-bar.warm i{background:#e8a33a}.gs-bar.hot i{background:#e11d48}
+.gs-set{display:flex;flex-direction:column;gap:8px}
+.gs-set label{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px}
+.gs-set input{width:110px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--fg)}
+.gs-h{margin:22px 0 10px;font-size:15px}
+.gs-apis{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.gs-api{display:flex;flex-direction:column;gap:4px}
+.gs-api strong{font-size:22px}
+.gs-api a{font-size:12.5px;color:var(--primary);margin-top:4px}
+.gs-days{display:flex;align-items:flex-end;gap:4px;height:140px;padding:10px;border:1px solid var(--border);border-radius:14px}
+.gs-days div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;min-width:8px}
+.gs-days i{display:block;width:100%;max-width:22px;background:var(--primary);border-radius:4px 4px 0 0}
+.gs-days span{font-size:10px;color:var(--muted);margin-top:3px}
+.gs-tb{width:100%;border-collapse:collapse;font-size:13.5px}
+.gs-tb th,.gs-tb td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+.gs-tb th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.gs-tb input{width:90px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--fg)}
+.gs-det{margin-top:18px;border:1px solid var(--border);border-radius:14px;padding:12px 14px}
+.gs-det summary{cursor:pointer;font-weight:600}
+@media (max-width:760px){.gs-top{grid-template-columns:1fr}.gs-head{flex-direction:column}}

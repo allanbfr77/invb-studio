@@ -56,6 +56,9 @@
 
   const ic = {
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v10H3z"/></svg>',
+    // gráfico de barras: aba Gastos
+    money:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
     // claquete: Editor avançado
     clap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 10h18v10H3z"/><path d="M3 10l1.5-5 16-1L21 9"/><path d="M8 4.6l2 4.6M14 4.2l2 4.8"/></svg>',
     files:

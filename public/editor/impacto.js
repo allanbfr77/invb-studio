@@ -167,6 +167,8 @@
     Righteous: 0.62,
     'Space Grotesk Bold': 0.62,
   };
+  // letra escura? (o contorno vai claro, para ler em fundo escuro, e vice-versa)
+  const lumDark = (hex) => (window.CaptionStyles ? window.CaptionStyles.lum(hex) : 1) < 0.4;
   const clean = (t) => String(t || '').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}!?]+$/gu, '');
 
   window.ClipEditorParts.impacto = function (shared) {
@@ -275,7 +277,7 @@
     /* ----- montar palavras de impacto ----- */
     // ws: palavras do corte ({ t, s, e } em segundos desde o início do corte)
     function buildImpact(ws, o = {}) {
-      const P = PRESETS[o.preset] || PRESETS.vermelho;
+      const P = o.P || PRESETS[o.preset] || PRESETS.vermelho;
       // palavras de 1 ou 2 letras vão junto com a seguinte ("eu sei", "de Deus")
       const groups = [];
       for (let i = 0; i < ws.length; i++) {
@@ -287,14 +289,27 @@
           last.text += ' ' + txt;
           last.e = w.e;
           last.join = false;
+          last.idx.push(i);
         } else
-          groups.push({ text: txt, s: w.s, e: w.e, join: txt.replace(/[!?]/g, '').length <= 2 && i < ws.length - 1 });
+          groups.push({
+            text: txt,
+            s: w.s,
+            e: w.e,
+            idx: [i],
+            join: txt.replace(/[!?]/g, '').length <= 2 && i < ws.length - 1,
+          });
       }
       if (!groups.length) return { overlays: [], fx: [] };
       // as palavras fortes: a mais longa e, se houver, mais uma bem longa (até 2)
       const byLen = groups.map((g, i) => [g.text.replace(/\s/g, '').length, i]).sort((a, b) => b[0] - a[0]);
-      const big = new Set([byLen[0][1]]);
+      let big = new Set([byLen[0][1]]);
       if (byLen[1] && byLen[1][0] >= 6 && groups.length >= 3) big.add(byLen[1][1]);
+      // a direção de arte diz quais palavras pesam no sentido (índices dentro de ws)
+      if (Array.isArray(o.bigIdx) && o.bigIdx.length) {
+        const chosen = groups.map((g, i) => (g.idx.some((k) => o.bigIdx.includes(k)) ? i : -1)).filter((i) => i >= 0);
+        if (chosen.length) big = new Set(chosen);
+      }
+      const bigOrder = [...big].sort((a, b) => a - b);
       // cada parte cabe no quadro: diminui a letra se a palavra for larga demais e afasta da borda
       // disposição pelo formato: no horizontal, o texto fica num terço (o pregador livre); no vertical, acima da
       // área da legenda e longe dos botões da direita; no quadrado, mais ao centro
@@ -304,7 +319,12 @@
         side = sideK === 'centro' ? 0.5 : sideK === 'dir' ? (wide ? 0.74 : 0.68) : wide ? 0.26 : 0.32,
         maxW = sideK !== 'centro' && wide ? 0.42 : ar < 0.7 ? 0.8 : 0.84;
       const sty = groups.map((g, i) => {
-        const s0 = big.has(i) ? P.big : P.small;
+        // a segunda palavra grande ganha a cor de destaque do conceito
+        const s0 = big.has(i)
+          ? P.accent && bigOrder.indexOf(i) === 1
+            ? { ...P.big, color: P.accent }
+            : P.big
+          : P.small;
         const wFrac = (size) =>
           (g.text.length * size * (FONT_W[s0.font] || 0.62) * (s0.upper ? 1.12 : 1) + (s0.box ? size * 0.5 : 0)) / ar;
         const size = Math.min(s0.size, s0.size * (maxW / Math.max(0.01, wFrac(s0.size))));
@@ -340,7 +360,7 @@
           italic: !!s.italic,
           upper: !!s.upper,
           box: s.box ? { ...s.box } : null,
-          outline: s.box || o.card ? null : { color: '#000000', w: 1.5 },
+          outline: s.box || o.card ? null : P.outline || { color: lumDark(color) ? '#ffffff' : '#000000', w: 1.5 }, // contorno oposto à cor da letra
           anim: o.anim || 'pop',
           grp,
         };
@@ -413,13 +433,59 @@
       ui.busy = true;
       drawDrawer();
       try {
-        const r = await api(`/uploads/${upload.id}/clips/${clip.id}/ai/impact`, {
+        ui.stage = 'O Claude está olhando o vídeo e desenhando…';
+        drawDrawer();
+        const r = await api(`/uploads/${upload.id}/clips/${clip.id}/ai/design`, {
           json: {
             words: ws.map((w) => w.t),
             times: ws.map((w) => [+w.s.toFixed(2), +w.e.toFixed(2)]),
             format: st.format,
+            start: st.start,
+            end: st.end,
+            crop: st.crop,
           },
         });
+        // a legenda do corte inteiro, desenhada para este vídeo
+        if (r.caption) {
+          const c = r.caption;
+          st.cap = {
+            on: true,
+            style: st.cap.style || 'Essenciais/Clássica',
+            size: c.size,
+            pos: c.pos,
+            margin: st.cap.margin ?? null,
+            font: c.font,
+            color: c.color,
+            hi: c.hi,
+            outline: c.outline,
+            ow: c.ow,
+            box: c.box,
+            mode:
+              c.words === 0
+                ? 'block'
+                : c.words === 1
+                  ? 'words1'
+                  : c.mode === 'words1' || c.mode === 'block'
+                    ? 'highlight'
+                    : c.mode,
+            words: c.words || null,
+            upper: c.upper,
+            anim: c.anim,
+            kw: c.kwWords.length > 0,
+            kc: r.impact ? r.impact.accent : c.hi,
+            kwWords: c.kwWords,
+          };
+          shared.wordsDirty = true;
+        }
+        // tipografia das frases de impacto, criada para o corte (tamanho base: o do estilo "Revista")
+        const DP = r.impact
+          ? {
+              big: { ...r.impact.big, size: 0.085 },
+              small: { ...r.impact.small, size: 0.048 },
+              accent: r.impact.accent,
+              outline: r.impact.outline || null, // o fundo do meio do quadro é claro: contorno para ler
+            }
+          : null;
         // tira o que a IA tinha posto antes, para não empilhar sugestões
         for (const g of groupsList()) if (st.overlays.find((o) => o.grp === g.grp && o.ai)) delGroup(g.grp);
         st.fx = st.fx.filter((f) => !f.ai);
@@ -432,9 +498,11 @@
           const sel = ws.slice(p.from, p.to + 1);
           if (!sel.length || busyAt(sel[0].s, sel[sel.length - 1].e + 0.7)) continue;
           const n = addImpact(sel, {
+            P: DP,
             preset: PRESETS[p.style] ? p.style : ui.preset,
-            side: p.side || ui.side,
-            anim: p.anim || ui.anim,
+            bigIdx: (p.big || []).map((k) => k - p.from),
+            side: r.impact ? r.impact.side : p.side || ui.side,
+            anim: r.impact ? r.impact.anim : p.anim || ui.anim,
             card: !!p.card,
             cardColor: p.cardColor || '#000000',
           });
@@ -458,7 +526,13 @@
         if (r.look && LOOK_CSS[r.look]) st.look = r.look;
         st.fx.sort((a, b) => a.start - b.start);
         refresh();
-        if (r.note) ui.note = r.note;
+        shared.paintCap(); // a legenda nova já aparece na prévia
+        if (shared.refreshBar) shared.refreshBar();
+        if (r.note)
+          ui.note =
+            (r.concept ? r.concept + ' — ' : '') +
+            r.note +
+            (r.legibility && r.legibility.fixes.length ? ' Leitura: ' + r.legibility.fixes.join('; ') + '.' : '');
         // o resto da edição, conforme as opções: imagens de apoio, efeitos sonoros e música
         const done = [
           `${nP} frase${nP === 1 ? '' : 's'} de impacto`,
@@ -511,8 +585,8 @@
         ${
           ai
             ? `<div class="imp-all">${yn('withImages', 'Imagens de apoio', ui.withImages, ctx.broll)}${yn('withSound', 'Efeitos sonoros', ui.withSound)}${yn('withMusic', 'Música de fundo', ui.withMusic, ctx.musicSearch)}
-              <button class="ap-btn pri imp-ai" id="imp-ai" ${ui.busy ? 'disabled' : ''}>${ui.busy ? esc(ui.stage || 'O Claude está montando…') : '✨ Sugerir tudo com o Claude'}</button></div>
-              <p class="dlx-sub">O Claude lê a fala e monta a edição inteira: frases de impacto, cartelas, efeitos, cor${ctx.broll ? ', imagens' : ''}, sons${ctx.musicSearch ? ' e música' : ''}. Depois é só ajustar.</p>${ui.note ? `<p class="imp-note">${esc(ui.note)}</p>` : ''}`
+              <button class="ap-btn pri imp-ai" id="imp-ai" ${ui.busy ? 'disabled' : ''}>${ui.busy ? esc(ui.stage || 'O Claude está montando…') : '✨ Direção de arte com o Claude'}</button></div>
+              <p class="dlx-sub">O Claude olha o vídeo, cria um conceito e desenha o corte inteiro: a legenda de todas as falas, as frases de impacto com fontes e cores próprias, cartelas, efeitos, cor${ctx.broll ? ', imagens' : ''}, sons${ctx.musicSearch ? ' e música' : ''}. Depois é só ajustar.</p>${ui.note ? `<p class="imp-note">${esc(ui.note)}</p>` : ''}`
             : ''
         }
         <div class="dlx-row" style="margin-top:6px"><div><b>Esconder a legenda no impacto</b><small>Enquanto a frase de impacto ou a cartela está na tela, a legenda some (não repete a frase)</small></div>${shared.sw('imp-caphide', st.capHideImp !== false)}</div>

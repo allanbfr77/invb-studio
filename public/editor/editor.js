@@ -104,7 +104,7 @@
       if (isAct && style.mode === 'boxhl')
         css = `background:${style.hi};border-radius:.2em;padding:0 .18em;-webkit-text-stroke:0`;
       else if (isAct && style.mode === 'highlight') css = `color:${style.hi}`;
-      else if (kw && CSx.isKeyword(w.t)) css = `color:${style.kc}`;
+      else if (kw && CSx.isKeyword(w.t, style.kwWords)) css = `color:${style.kc}`;
       if (isAct && style.grow) css += (css ? ';' : '') + 'font-size:1.18em';
       return css ? `<span style="${css}">${w.t}</span>` : w.t;
     };

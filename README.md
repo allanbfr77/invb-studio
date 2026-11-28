@@ -129,7 +129,17 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
     vertical acima da área da legenda e longe dos botões da direita, no quadrado mais ao centro.
   - **Cor do vídeo:** cinema (sombras azuladas, pele alaranjada), dourado, quente, noite, suave, filme (com grão),
     retrô, frio, P&B dramático ou vivo.
-  - **✨ Sugerir tudo com o Claude** (com a IA ligada): ele lê a fala e monta a edição inteira — frases, cartelas,
+  - **✨ Direção de arte com o Claude** (com a IA ligada): ele **vê 4 quadros do corte** já no formato final (onde está o
+    pregador, cores e luz da cena) e desenha a identidade do corte inteiro: a **legenda de todas as falas** (fonte,
+    cores, contorno/tarja, palavras por vez, animação, posição e palavras-chave em destaque), a **tipografia das frases
+    de impacto** (um par de fontes que contrasta e cores do conceito, sempre do mesmo lado — o oposto ao do pregador —
+    e com a mesma entrada), qual palavra de cada frase entra grande, cartelas, efeitos com respiro e a cor do vídeo.
+    O servidor confere tudo (fontes iguais, texto em cima do pregador, frases coladas, efeitos sobrepostos).
+  - **Leitura garantida:** em toda legenda sem tarja, o contorno sempre contrasta com a letra (letra branca → contorno
+    escuro) e tem espessura mínima. Na direção de arte, o Studio mede a claridade do fundo onde a legenda e as frases
+    ficam e, se a letra não contrastar, engrossa o contorno e põe uma tarja suave (fundo branco com letra branca não
+    passa).
+  - **✨ Sugerir tudo com o Claude** (versão anterior, mesma ideia): ele lê a fala e monta a edição inteira — frases, cartelas,
     efeitos e cor e, conforme as opções **Com/Sem**, imagens de apoio, efeitos sonoros e música. O que você fez à mão
     fica. Ctrl+Z desfaz.
   - A prévia imita os efeitos; a exportação faz o mesmo com o ffmpeg (`lib/render.js`: `LOOKS`, `fxChain`,
@@ -160,6 +170,11 @@ faltar e baixa (ou envia) cada corte da aba, um por vez.
   - **✨ O Claude escolhe a música:** ele lê a fala, diz o clima e já busca as opções.
   - Na exportação, a voz, os efeitos e a música são misturados com o ffmpeg (`amix` e `sidechaincompress`), sem
     mudar o volume da voz. A gaveta é `public/editor/som.js`.
+- **Aba Gastos** (menu lateral): quanto o Studio gastou no mês com cada API — Claude (tokens × preço oficial), OpenAI,
+  Groq (minutos de áudio da transcrição e tradução) — e o uso dos serviços grátis (Pixabay, Pexels, Freesound, Vercel
+  Blob). Por serviço, por recurso do Studio (direção de arte, cortes, transcrição…), por dia, as últimas chamadas,
+  limite mensal com aviso e cotação do dólar. Os preços ficam editáveis (os da OpenAI/Groq são estimativas). Registro em
+  `data/usage.jsonl` (`lib/usage.js`); a fatura oficial continua no painel de cada empresa.
 - **Barra da prévia**: Ímã, Raio-X (X), Guias (G: centro, terços e, no 9:16, a área que o Instagram/TikTok cobre) e
   Centralizar. A legenda se arrasta direto no vídeo.
 

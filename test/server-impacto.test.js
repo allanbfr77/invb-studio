@@ -278,3 +278,228 @@ test(
     }
   },
 );
+
+test(
+  'Direção de arte: o Claude recebe 4 quadros do corte e a resposta é conferida',
+  { skip: !HAS_FFMPEG || process.platform === 'win32' },
+  async (t) => {
+    const http = require('node:http');
+    let req0 = null;
+    const reply = {
+      scene: 'Pregador à esquerda, fundo claro',
+      subject_side: 'left',
+      concept: 'editorial quente',
+      caption: {
+        font: 'Inter Black',
+        color: '#ffffff',
+        highlight: '#f0b93a',
+        outline: '#000000',
+        outline_width: 4,
+        box_color: '',
+        box_opacity: 0.8,
+        mode: 'highlight',
+        words: 3,
+        upper: true,
+        animation: 'pop',
+        position: 'bottom',
+        size: 18,
+        keywords: ['Jovem', 'difícil!'],
+      },
+      impact: {
+        big_font: 'Playfair Display Black',
+        big_color: '#ffffff',
+        big_upper: false,
+        small_font: 'Playfair Display Black',
+        small_color: '#eadfc4',
+        small_italic: true,
+        small_upper: false,
+        accent_color: '#f0b93a',
+        animation: 'blur',
+        side: 'esq',
+      },
+      phrases: [
+        { from: 0, to: 3, big: [1, 9], card: false, card_color: '#000000' },
+        { from: 4, to: 5, big: [5], card: false, card_color: '#000000' }, // começa colada na anterior: sai
+        { from: 8, to: 9, big: [9], card: true, card_color: '#c0262d' },
+      ],
+      fx: [
+        { type: 'redpop', from: 2, to: 4 },
+        { type: 'glow', from: 3, to: 3 }, // em cima do anterior: sai
+      ],
+      look: 'cinema',
+      note: 'Serifa elegante com dourado.',
+    };
+    const srv = http.createServer((req, res) => {
+      let b = '';
+      req.on('data', (x) => (b += x));
+      req.on('end', () => {
+        req0 = JSON.parse(b);
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            id: 'm',
+            type: 'message',
+            role: 'assistant',
+            model: 'claude-opus-5-5',
+            stop_reason: 'end_turn',
+            stop_sequence: null,
+            content: [{ type: 'text', text: JSON.stringify(reply) }],
+            usage: { input_tokens: 5000, output_tokens: 900 },
+          }),
+        );
+      });
+    });
+    await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
+    t.after(() => srv.close());
+    const d = tmp(t);
+    seedTone(d, 'kkkkkkkkkkkq');
+    const s = await boot(t, d, {
+      env: { ANTHROPIC_API_KEY: 'sk-ant-teste', ANTHROPIC_BASE_URL: 'http://127.0.0.1:' + srv.address().port },
+    });
+    const words = 'Eu também sou jovem e eu sei como é difícil'.split(' ');
+    const cid = (await s.api('/uploads/kkkkkkkkkkkq/clips')).body[0].id;
+    const r = await s.api(`/uploads/kkkkkkkkkkkq/clips/${cid}/ai/design`, {
+      json: {
+        words,
+        times: words.map((_, i) => [i * 0.6, i * 0.6 + 0.5]),
+        format: '9:16',
+        start: 0,
+        end: 6,
+        crop: { x: 0.5, y: 0.5 },
+      },
+    });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const content = req0.messages[0].content;
+    assert.equal(content.filter((c) => c.type === 'image').length, 4); // ele viu o vídeo
+    assert.equal(req0.output_config.effort, 'high');
+    const b = r.body;
+    assert.equal(b.impact.side, 'dir'); // pregador à esquerda: o texto vai para a direita
+    assert.notEqual(b.impact.small.font, b.impact.big.font); // fontes iguais não passam
+    assert.deepEqual(
+      b.phrases.map((p) => [p.from, p.to, p.card]),
+      [
+        [0, 3, false],
+        [8, 9, true],
+      ],
+    );
+    assert.deepEqual(b.phrases[0].big, [1]); // palavra fora da frase sai
+    assert.deepEqual(
+      b.fx.map((f) => f.type),
+      ['redpop'],
+    );
+    assert.equal(b.caption.font, 'Inter Black');
+    assert.deepEqual(b.caption.kwWords, ['jovem', 'difícil']);
+    // o vídeo de teste tem faixas claras onde a legenda fica: a regra de leitura pode pôr uma tarja, e diz por quê
+    if (b.caption.box) assert.ok(b.legibility.fixes.some((f) => /legenda/.test(f)));
+    assert.equal(b.look, 'cinema');
+    // e o gasto ficou registrado como "direção de arte"
+    assert.equal((await s.api('/usage')).body.byFeature.design.calls, 1);
+  },
+);
+
+test(
+  'Leitura: vídeo de fundo branco com letra branca → contorno escuro e tarja na legenda, contorno no impacto',
+  { skip: !HAS_FFMPEG || process.platform === 'win32' },
+  async (t) => {
+    const http = require('node:http');
+    const fs = require('fs');
+    const reply = {
+      scene: 'fundo branco',
+      subject_side: 'center',
+      concept: 'minimalista',
+      caption: {
+        font: 'Inter Black',
+        color: '#ffffff',
+        highlight: '#fff6d5',
+        outline: '#ffffff',
+        outline_width: 0,
+        box_color: '',
+        box_opacity: 0.8,
+        mode: 'highlight',
+        words: 3,
+        upper: false,
+        animation: 'none',
+        position: 'bottom',
+        size: 16,
+        keywords: [],
+      },
+      impact: {
+        big_font: 'Montserrat Black',
+        big_color: '#ffffff',
+        big_upper: true,
+        small_font: 'Cormorant Bold',
+        small_color: '#f5f5f5',
+        small_italic: true,
+        small_upper: false,
+        accent_color: '#ffffff',
+        animation: 'pop',
+        side: 'centro',
+      },
+      phrases: [],
+      fx: [],
+      look: 'none',
+      note: 'x',
+    };
+    const srv = http.createServer((req, res) => {
+      req.resume();
+      req.on('end', () => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            id: 'm',
+            type: 'message',
+            role: 'assistant',
+            model: 'claude-opus-5-5',
+            stop_reason: 'end_turn',
+            stop_sequence: null,
+            content: [{ type: 'text', text: JSON.stringify(reply) }],
+            usage: { input_tokens: 1, output_tokens: 1 },
+          }),
+        );
+      });
+    });
+    await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
+    t.after(() => srv.close());
+    const d = tmp(t);
+    const dir = seedTone(d, 'kkkkkkkkkkkr');
+    // troca o vídeo por um quadro todo branco
+    spawnSync('ffmpeg', [
+      '-v',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=white:s=320x180:d=6',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=300:duration=6',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-shortest',
+      path.join(dir, 'original.mp4'),
+    ]);
+    assert.ok(fs.existsSync(path.join(dir, 'original.mp4')));
+    const s = await boot(t, d, {
+      env: { ANTHROPIC_API_KEY: 'sk-ant-teste', ANTHROPIC_BASE_URL: 'http://127.0.0.1:' + srv.address().port },
+    });
+    const words = 'um dois três quatro cinco seis'.split(' ');
+    const cid = (await s.api('/uploads/kkkkkkkkkkkr/clips')).body[0].id;
+    const b = (
+      await s.api(`/uploads/kkkkkkkkkkkr/clips/${cid}/ai/design`, {
+        json: { words, times: words.map((_, i) => [i * 0.8, i * 0.8 + 0.6]), format: '9:16', start: 0, end: 6 },
+      })
+    ).body;
+    assert.ok(b.legibility.light.bottom.mean > 0.9, 'mediu o fundo claro');
+    assert.equal(b.caption.outline, '#000000');
+    assert.ok(b.caption.ow >= 4);
+    assert.ok(b.caption.box && b.caption.box.color === '#000000', 'tarja escura atrás da legenda');
+    assert.ok(b.impact.outline && b.impact.outline.color === '#000000', 'contorno escuro no impacto');
+    assert.ok(b.legibility.fixes.length >= 2);
+  },
+);

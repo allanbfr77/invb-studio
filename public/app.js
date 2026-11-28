@@ -40,6 +40,7 @@
     if (s[0] === 'entrar' || s[0] === 'cadastro') return { v: 'login' };
     if (s[0] !== 'app') return null;
     if (!s[1]) return { v: 'home' };
+    if (s[1] === 'gastos' && !s[2]) return { v: 'gastos' };
     if (s[1] === 'uploads') {
       if (!s[2]) return { v: 'uploads' };
       if (s[2] === 'new') return { v: 'uploadsNew' };
@@ -54,6 +55,7 @@
     chapters: bindChapters,
     emotions: bindEmotions,
     diagrams: bindDiagrams,
+    gastos: (...a) => INVB.bindGastos(...a),
   };
   const needsDone = new Set(['transcription', 'clips', 'chapters', 'emotions', 'diagrams', 'overview']);
 
